@@ -1,6 +1,6 @@
 ---
 name: features
-description: This is a new rule
+description: Backend development guidelines for python code
 ---
 
 # Overview
