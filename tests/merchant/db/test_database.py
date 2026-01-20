@@ -1,0 +1,246 @@
+"""Tests for database initialization and session management."""
+
+import contextlib
+import os
+import tempfile
+from collections.abc import Generator
+from unittest.mock import patch
+
+import pytest
+from sqlmodel import Session, select
+
+from src.merchant.db.database import (
+    get_engine,
+    get_session,
+    init_and_seed_db,
+    init_db,
+    reset_engine,
+    seed_data,
+)
+from src.merchant.db.models import CheckoutSession, CompetitorPrice, Product
+
+
+@pytest.fixture
+def temp_db_url() -> Generator[str, None, None]:
+    """Create a temporary database file for testing.
+
+    Yields:
+        str: SQLite connection URL for the temporary database.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        temp_path = f.name
+
+    db_url = f"sqlite:///{temp_path}"
+    yield db_url
+
+    if os.path.exists(temp_path):
+        os.unlink(temp_path)
+
+
+@pytest.fixture
+def reset_db_engine() -> Generator[None, None, None]:
+    """Reset the database engine before and after each test.
+
+    Yields:
+        None
+    """
+    reset_engine()
+    yield
+    reset_engine()
+
+
+@pytest.mark.usefixtures("reset_db_engine")
+class TestDatabaseInitialization:
+    """Test suite for database initialization."""
+
+    def test_init_db_creates_tables(self, temp_db_url: str) -> None:
+        """Happy path: init_db creates all required tables."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                products = session.exec(select(Product)).all()
+                assert products == []
+
+                competitor_prices = session.exec(select(CompetitorPrice)).all()
+                assert competitor_prices == []
+
+                checkout_sessions = session.exec(select(CheckoutSession)).all()
+                assert checkout_sessions == []
+
+    def test_init_db_is_idempotent(self, temp_db_url: str) -> None:
+        """Edge case: Calling init_db multiple times does not raise errors."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+            init_db()
+            init_db()
+
+
+@pytest.mark.usefixtures("reset_db_engine")
+class TestSeedData:
+    """Test suite for database seeding."""
+
+    def test_seed_data_creates_products(self, temp_db_url: str) -> None:
+        """Happy path: seed_data creates 4 products."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                seed_data(session)
+
+                products = session.exec(select(Product)).all()
+                assert len(products) == 4
+
+    def test_seed_data_creates_competitor_prices(self, temp_db_url: str) -> None:
+        """Happy path: seed_data creates competitor prices for products."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                seed_data(session)
+
+                competitor_prices = session.exec(select(CompetitorPrice)).all()
+                assert len(competitor_prices) > 0
+
+    def test_seed_data_is_idempotent(self, temp_db_url: str) -> None:
+        """Edge case: Calling seed_data multiple times does not duplicate data."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                seed_data(session)
+                seed_data(session)
+                seed_data(session)
+
+                products = session.exec(select(Product)).all()
+                assert len(products) == 4
+
+    def test_seed_data_product_fields(self, temp_db_url: str) -> None:
+        """Happy path: Seeded products have correct field values."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                seed_data(session)
+
+                classic_tee = session.exec(
+                    select(Product).where(Product.id == "prod_1")
+                ).first()
+
+                assert classic_tee is not None
+                assert classic_tee.sku == "TS-001"
+                assert classic_tee.name == "Classic Tee"
+                assert classic_tee.base_price == 2500
+                assert classic_tee.stock_count == 100
+                assert classic_tee.min_margin == 0.15
+                assert "placehold.co" in classic_tee.image_url
+
+    def test_seed_data_image_urls_are_placeholders(self, temp_db_url: str) -> None:
+        """Happy path: All products have placeholder image URLs."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                seed_data(session)
+
+                products = session.exec(select(Product)).all()
+
+                for product in products:
+                    assert "https://placehold.co/400x400/png" in product.image_url
+
+
+@pytest.mark.usefixtures("reset_db_engine")
+class TestGetSession:
+    """Test suite for get_session dependency."""
+
+    def test_get_session_yields_session(self, temp_db_url: str) -> None:
+        """Happy path: get_session yields a valid Session object."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_db()
+
+            session_gen = get_session()
+            session = next(session_gen)
+
+            assert isinstance(session, Session)
+
+            with contextlib.suppress(StopIteration):
+                next(session_gen)
+
+
+@pytest.mark.usefixtures("reset_db_engine")
+class TestInitAndSeedDb:
+    """Test suite for init_and_seed_db convenience function."""
+
+    def test_init_and_seed_db_initializes_and_seeds(self, temp_db_url: str) -> None:
+        """Happy path: init_and_seed_db creates tables and seeds data."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                products = session.exec(select(Product)).all()
+                assert len(products) == 4
+
+                competitor_prices = session.exec(select(CompetitorPrice)).all()
+                assert len(competitor_prices) > 0
+
+
+@pytest.mark.usefixtures("reset_db_engine")
+class TestCompetitorPriceRelationship:
+    """Test suite for Product-CompetitorPrice relationship."""
+
+    def test_competitor_prices_linked_to_products(self, temp_db_url: str) -> None:
+        """Happy path: Competitor prices are correctly linked to products."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                competitor_prices = session.exec(
+                    select(CompetitorPrice).where(
+                        CompetitorPrice.product_id == "prod_1"
+                    )
+                ).all()
+
+                assert len(competitor_prices) >= 2
+
+                for cp in competitor_prices:
+                    assert cp.product_id == "prod_1"
+                    assert cp.price > 0
+                    assert cp.retailer_name != ""
