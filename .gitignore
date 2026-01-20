@@ -148,3 +148,5 @@ coverage/
 # Misc frontend
 .DS_Store
 *.pem
+
+.playwright-mcp/
