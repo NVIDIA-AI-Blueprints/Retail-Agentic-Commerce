@@ -1,4 +1,10 @@
-<h2><img align="center" src="https://github.com/user-attachments/assets/cbe0d62f-c856-4e0b-b3ee-6184b7c4d96f"> NVIDIA AI Blueprint: Retail Agentic Commerce</h2>
+# NVIDIA AI Blueprint: Retail Agentic Commerce
+
+<div align="center">
+
+![NVIDIA Logo](https://avatars.githubusercontent.com/u/178940881?s=200&v=4)
+
+</div>
 
 This repository is a **reference architecture** for the **Agentic Commerce Protocol (ACP)**: a retailer-operated system that keeps the merchant as **Merchant of Record**, while enabling **agentic negotiation** and “glass box” visibility into decisions and protocol traces.
 

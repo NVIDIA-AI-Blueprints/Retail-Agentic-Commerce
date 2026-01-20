@@ -1,0 +1,47 @@
+{
+    "name": "pyright",
+    "displayName": "Pyright",
+    "description": "Type checker for the Python language",
+    "version": "1.1.408",
+    "license": "MIT",
+    "author": {
+        "name": "Microsoft Corporation"
+    },
+    "publisher": "Microsoft Corporation",
+    "engines": {
+        "node": ">=14.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Microsoft/pyright",
+        "directory": "packages/pyright"
+    },
+    "scripts": {
+        "build": "webpack --mode production --progress",
+        "clean": "shx rm -rf ./dist ./out README.md LICENSE.txt",
+        "prepack": "npm run clean && shx cp ../../README.md . && shx cp ../../LICENSE.txt . && npm run build",
+        "webpack": "webpack --mode development --progress"
+    },
+    "optionalDependencies": {
+        "fsevents": "~2.3.3"
+    },
+    "devDependencies": {
+        "@types/node": "^22.18.12",
+        "copy-webpack-plugin": "^12.0.2",
+        "esbuild-loader": "^4.4.0",
+        "shx": "^0.4.0",
+        "ts-loader": "^9.5.4",
+        "typescript": "~5.5.4",
+        "webpack": "^5.102.1",
+        "webpack-cli": "^5.1.4"
+    },
+    "files": [
+        "/dist",
+        "LICENSE.txt"
+    ],
+    "main": "index.js",
+    "bin": {
+        "pyright": "index.js",
+        "pyright-langserver": "langserver.index.js"
+    }
+}
