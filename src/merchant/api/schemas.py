@@ -358,6 +358,8 @@ class ErrorTypeEnum(str, Enum):
     NOT_FOUND = "not_found"
     METHOD_NOT_ALLOWED = "method_not_allowed"
     INTERNAL_ERROR = "internal_error"
+    UNAUTHORIZED = "unauthorized"
+    FORBIDDEN = "forbidden"
 
 
 class ErrorResponseCodeEnum(str, Enum):
@@ -369,6 +371,9 @@ class ErrorResponseCodeEnum(str, Enum):
     PRODUCT_NOT_FOUND = "product_not_found"
     INVALID_PAYMENT = "invalid_payment"
     VALIDATION_ERROR = "validation_error"
+    MISSING_API_KEY = "missing_api_key"
+    INVALID_API_KEY = "invalid_api_key"
+    CONFIGURATION_ERROR = "configuration_error"
 
 
 class ErrorResponse(BaseModel):

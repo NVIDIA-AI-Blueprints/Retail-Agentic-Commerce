@@ -1,5 +1,6 @@
 """FastAPI application entry point for the Agentic Commerce middleware."""
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -10,8 +11,15 @@ from src.merchant.api.routes.checkout import router as checkout_router
 from src.merchant.api.routes.health import router as health_router
 from src.merchant.config import get_settings
 from src.merchant.db import init_and_seed_db
+from src.merchant.middleware import ACPHeadersMiddleware, RequestLoggingMiddleware
 
 settings = get_settings()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG if settings.debug else logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 
 @asynccontextmanager
@@ -45,6 +53,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add ACP headers middleware (handles Request-Id, Idempotency-Key)
+app.add_middleware(ACPHeadersMiddleware)
+
+# Add request/response logging middleware
+app.add_middleware(RequestLoggingMiddleware)
 
 # Include routers
 app.include_router(health_router)

@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
+from src.merchant.api.dependencies import verify_api_key
 from src.merchant.api.schemas import (
     CheckoutSessionResponse,
     CompleteCheckoutRequest,
@@ -24,7 +25,11 @@ from src.merchant.services.checkout import (
     update_checkout_session,
 )
 
-router = APIRouter(prefix="/checkout_sessions", tags=["checkout"])
+router = APIRouter(
+    prefix="/checkout_sessions",
+    tags=["checkout"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 
 def _handle_service_error(error: Exception) -> HTTPException:

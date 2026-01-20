@@ -8,19 +8,19 @@ class TestCreateCheckoutSession:
     """Test suite for POST /checkout_sessions endpoint."""
 
     def test_create_session_with_valid_items_returns_201(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Happy path: Creating a session with valid items returns 201."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
 
         assert response.status_code == 201
 
-    def test_create_session_returns_session_id(self, client: TestClient) -> None:
+    def test_create_session_returns_session_id(self, auth_client: TestClient) -> None:
         """Happy path: Response contains a checkout session ID."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -29,9 +29,9 @@ class TestCreateCheckoutSession:
         assert "id" in data
         assert data["id"].startswith("checkout_")
 
-    def test_create_session_has_not_ready_status(self, client: TestClient) -> None:
+    def test_create_session_has_not_ready_status(self, auth_client: TestClient) -> None:
         """Happy path: New session has not_ready_for_payment status."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -39,9 +39,11 @@ class TestCreateCheckoutSession:
 
         assert data["status"] == "not_ready_for_payment"
 
-    def test_create_session_calculates_line_items(self, client: TestClient) -> None:
+    def test_create_session_calculates_line_items(
+        self, auth_client: TestClient
+    ) -> None:
         """Happy path: Line items are calculated correctly."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 2}]},
         )
@@ -59,9 +61,9 @@ class TestCreateCheckoutSession:
         assert line_item["tax"] == 500
         assert line_item["total"] == 5500
 
-    def test_create_session_with_buyer_info(self, client: TestClient) -> None:
+    def test_create_session_with_buyer_info(self, auth_client: TestClient) -> None:
         """Happy path: Session includes buyer info when provided."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -74,9 +76,11 @@ class TestCreateCheckoutSession:
         assert data["buyer"]["first_name"] == "John"
         assert data["buyer"]["email"] == "john@example.com"
 
-    def test_create_session_with_fulfillment_address(self, client: TestClient) -> None:
+    def test_create_session_with_fulfillment_address(
+        self, auth_client: TestClient
+    ) -> None:
         """Happy path: Session includes address and fulfillment options when provided."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -96,9 +100,11 @@ class TestCreateCheckoutSession:
         assert data["fulfillment_address"]["name"] == "John Doe"
         assert len(data["fulfillment_options"]) > 0
 
-    def test_create_session_includes_payment_provider(self, client: TestClient) -> None:
+    def test_create_session_includes_payment_provider(
+        self, auth_client: TestClient
+    ) -> None:
         """Happy path: Response includes payment provider configuration."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -108,9 +114,9 @@ class TestCreateCheckoutSession:
         assert data["payment_provider"]["provider"] == "stripe"
         assert "card" in data["payment_provider"]["supported_payment_methods"]
 
-    def test_create_session_includes_totals(self, client: TestClient) -> None:
+    def test_create_session_includes_totals(self, auth_client: TestClient) -> None:
         """Happy path: Response includes calculated totals."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -125,9 +131,9 @@ class TestCreateCheckoutSession:
         assert "tax" in total_types
         assert "total" in total_types
 
-    def test_create_session_includes_messages(self, client: TestClient) -> None:
+    def test_create_session_includes_messages(self, auth_client: TestClient) -> None:
         """Happy path: Response includes messages array."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -136,9 +142,9 @@ class TestCreateCheckoutSession:
         assert "messages" in data
         assert isinstance(data["messages"], list)
 
-    def test_create_session_includes_links(self, client: TestClient) -> None:
+    def test_create_session_includes_links(self, auth_client: TestClient) -> None:
         """Happy path: Response includes HATEOAS links."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -152,10 +158,10 @@ class TestCreateCheckoutSession:
         assert "seller_shop_policies" in link_types
 
     def test_create_session_with_invalid_product_returns_400(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Failure case: Invalid product ID returns 400."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "invalid_product", "quantity": 1}]},
         )
@@ -165,27 +171,27 @@ class TestCreateCheckoutSession:
         assert "product_not_found" in str(data)
 
     def test_create_session_with_empty_items_returns_422(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Failure case: Empty items list returns 422 validation error."""
-        response = client.post("/checkout_sessions", json={"items": []})
+        response = auth_client.post("/checkout_sessions", json={"items": []})
 
         assert response.status_code == 422
 
     def test_create_session_with_zero_quantity_returns_422(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Failure case: Zero quantity returns 422 validation error."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 0}]},
         )
 
         assert response.status_code == 422
 
-    def test_create_session_with_multiple_items(self, client: TestClient) -> None:
+    def test_create_session_with_multiple_items(self, auth_client: TestClient) -> None:
         """Edge case: Multiple items in a single session."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [
@@ -203,24 +209,24 @@ class TestCreateCheckoutSession:
 class TestGetCheckoutSession:
     """Test suite for GET /checkout_sessions/{id} endpoint."""
 
-    def test_get_existing_session_returns_200(self, client: TestClient) -> None:
+    def test_get_existing_session_returns_200(self, auth_client: TestClient) -> None:
         """Happy path: Getting an existing session returns 200."""
         # Create a session first
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
         session_id = create_response.json()["id"]
 
         # Get the session
-        response = client.get(f"/checkout_sessions/{session_id}")
+        response = auth_client.get(f"/checkout_sessions/{session_id}")
 
         assert response.status_code == 200
 
-    def test_get_session_returns_correct_data(self, client: TestClient) -> None:
+    def test_get_session_returns_correct_data(self, auth_client: TestClient) -> None:
         """Happy path: Get returns the same data that was created."""
         # Create a session with specific data
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 3}],
@@ -231,16 +237,16 @@ class TestGetCheckoutSession:
         session_id = created_data["id"]
 
         # Get the session
-        response = client.get(f"/checkout_sessions/{session_id}")
+        response = auth_client.get(f"/checkout_sessions/{session_id}")
         data = response.json()
 
         assert data["id"] == session_id
         assert data["buyer"]["first_name"] == "Jane"
         assert data["line_items"][0]["item"]["quantity"] == 3
 
-    def test_get_nonexistent_session_returns_404(self, client: TestClient) -> None:
+    def test_get_nonexistent_session_returns_404(self, auth_client: TestClient) -> None:
         """Failure case: Getting a non-existent session returns 404."""
-        response = client.get("/checkout_sessions/nonexistent_id")
+        response = auth_client.get("/checkout_sessions/nonexistent_id")
 
         assert response.status_code == 404
         data = response.json()
@@ -250,34 +256,34 @@ class TestGetCheckoutSession:
 class TestUpdateCheckoutSession:
     """Test suite for POST /checkout_sessions/{id} endpoint."""
 
-    def test_update_session_returns_200(self, client: TestClient) -> None:
+    def test_update_session_returns_200(self, auth_client: TestClient) -> None:
         """Happy path: Updating an existing session returns 200."""
         # Create a session
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
         session_id = create_response.json()["id"]
 
         # Update the session
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"buyer": {"first_name": "Updated", "email": "updated@example.com"}},
         )
 
         assert response.status_code == 200
 
-    def test_update_session_with_buyer(self, client: TestClient) -> None:
+    def test_update_session_with_buyer(self, auth_client: TestClient) -> None:
         """Happy path: Update adds buyer information."""
         # Create a session without buyer
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
         session_id = create_response.json()["id"]
 
         # Update with buyer
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"buyer": {"first_name": "Alice", "email": "alice@example.com"}},
         )
@@ -286,11 +292,11 @@ class TestUpdateCheckoutSession:
         assert data["buyer"]["first_name"] == "Alice"
 
     def test_update_session_with_address_generates_fulfillment_options(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Happy path: Adding address generates fulfillment options."""
         # Create a session without address
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -298,7 +304,7 @@ class TestUpdateCheckoutSession:
         assert len(create_response.json()["fulfillment_options"]) == 0
 
         # Update with address
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={
                 "fulfillment_address": {
@@ -316,11 +322,11 @@ class TestUpdateCheckoutSession:
         assert len(data["fulfillment_options"]) > 0
 
     def test_update_session_with_fulfillment_option_selection(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Happy path: Can select a fulfillment option."""
         # Create a session with address
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -338,7 +344,7 @@ class TestUpdateCheckoutSession:
         fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
 
         # Select fulfillment option
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"fulfillment_option_id": fulfillment_option_id},
         )
@@ -347,11 +353,11 @@ class TestUpdateCheckoutSession:
         assert data["fulfillment_option_id"] == fulfillment_option_id
 
     def test_update_session_transitions_to_ready_for_payment(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Happy path: Session transitions to ready_for_payment with all fields."""
         # Create a session with address
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -369,7 +375,7 @@ class TestUpdateCheckoutSession:
         fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
 
         # Add buyer and select fulfillment option
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={
                 "buyer": {"first_name": "Complete", "email": "complete@example.com"},
@@ -380,10 +386,10 @@ class TestUpdateCheckoutSession:
 
         assert data["status"] == "ready_for_payment"
 
-    def test_update_session_recalculates_totals(self, client: TestClient) -> None:
+    def test_update_session_recalculates_totals(self, auth_client: TestClient) -> None:
         """Edge case: Updating items recalculates totals."""
         # Create a session with 1 item
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -395,7 +401,7 @@ class TestUpdateCheckoutSession:
         )
 
         # Update to 2 items
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"items": [{"id": "prod_1", "quantity": 2}]},
         )
@@ -404,19 +410,23 @@ class TestUpdateCheckoutSession:
 
         assert new_total == original_total * 2
 
-    def test_update_nonexistent_session_returns_404(self, client: TestClient) -> None:
+    def test_update_nonexistent_session_returns_404(
+        self, auth_client: TestClient
+    ) -> None:
         """Failure case: Updating non-existent session returns 404."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions/nonexistent_id",
             json={"buyer": {"first_name": "Test", "email": "test@example.com"}},
         )
 
         assert response.status_code == 404
 
-    def test_update_completed_session_returns_405(self, client: TestClient) -> None:
+    def test_update_completed_session_returns_405(
+        self, auth_client: TestClient
+    ) -> None:
         """Failure case: Updating a completed session returns 405."""
         # Create and complete a session
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -435,13 +445,13 @@ class TestUpdateCheckoutSession:
         fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
 
         # Select fulfillment option to make it ready
-        client.post(
+        auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"fulfillment_option_id": fulfillment_option_id},
         )
 
         # Complete the session
-        client.post(
+        auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={
                 "payment_data": {
@@ -452,7 +462,7 @@ class TestUpdateCheckoutSession:
         )
 
         # Try to update completed session
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"buyer": {"first_name": "Updated", "email": "updated@example.com"}},
         )
@@ -463,9 +473,9 @@ class TestUpdateCheckoutSession:
 class TestCompleteCheckoutSession:
     """Test suite for POST /checkout_sessions/{id}/complete endpoint."""
 
-    def _create_ready_session(self, client: TestClient) -> str:
+    def _create_ready_session(self, auth_client: TestClient) -> str:
         """Helper to create a session ready for payment."""
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -484,29 +494,31 @@ class TestCompleteCheckoutSession:
         fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
 
         # Select fulfillment option to make it ready
-        client.post(
+        auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"fulfillment_option_id": fulfillment_option_id},
         )
 
         return session_id
 
-    def test_complete_ready_session_returns_200(self, client: TestClient) -> None:
+    def test_complete_ready_session_returns_200(self, auth_client: TestClient) -> None:
         """Happy path: Completing a ready session returns 200."""
-        session_id = self._create_ready_session(client)
+        session_id = self._create_ready_session(auth_client)
 
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
         )
 
         assert response.status_code == 200
 
-    def test_complete_session_sets_completed_status(self, client: TestClient) -> None:
+    def test_complete_session_sets_completed_status(
+        self, auth_client: TestClient
+    ) -> None:
         """Happy path: Completed session has status 'completed'."""
-        session_id = self._create_ready_session(client)
+        session_id = self._create_ready_session(auth_client)
 
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
         )
@@ -514,11 +526,11 @@ class TestCompleteCheckoutSession:
 
         assert data["status"] == "completed"
 
-    def test_complete_session_creates_order(self, client: TestClient) -> None:
+    def test_complete_session_creates_order(self, auth_client: TestClient) -> None:
         """Happy path: Completed session includes order object."""
-        session_id = self._create_ready_session(client)
+        session_id = self._create_ready_session(auth_client)
 
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
         )
@@ -529,25 +541,29 @@ class TestCompleteCheckoutSession:
         assert data["order"]["checkout_session_id"] == session_id
         assert "permalink_url" in data["order"]
 
-    def test_complete_nonexistent_session_returns_404(self, client: TestClient) -> None:
+    def test_complete_nonexistent_session_returns_404(
+        self, auth_client: TestClient
+    ) -> None:
         """Failure case: Completing non-existent session returns 404."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions/nonexistent_id/complete",
             json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
         )
 
         assert response.status_code == 404
 
-    def test_complete_not_ready_session_returns_405(self, client: TestClient) -> None:
+    def test_complete_not_ready_session_returns_405(
+        self, auth_client: TestClient
+    ) -> None:
         """Failure case: Completing a not-ready session returns 405."""
         # Create a session without all required fields
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
         session_id = create_response.json()["id"]
 
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
         )
@@ -555,19 +571,19 @@ class TestCompleteCheckoutSession:
         assert response.status_code == 405
 
     def test_complete_already_completed_session_returns_405(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Failure case: Completing an already completed session returns 405."""
-        session_id = self._create_ready_session(client)
+        session_id = self._create_ready_session(auth_client)
 
         # Complete once
-        client.post(
+        auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
         )
 
         # Try to complete again
-        response = client.post(
+        response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={"payment_data": {"token": "tok_test2", "provider": "stripe"}},
         )
@@ -578,37 +594,37 @@ class TestCompleteCheckoutSession:
 class TestCancelCheckoutSession:
     """Test suite for POST /checkout_sessions/{id}/cancel endpoint."""
 
-    def test_cancel_session_returns_200(self, client: TestClient) -> None:
+    def test_cancel_session_returns_200(self, auth_client: TestClient) -> None:
         """Happy path: Canceling a session returns 200."""
         # Create a session
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
         session_id = create_response.json()["id"]
 
-        response = client.post(f"/checkout_sessions/{session_id}/cancel")
+        response = auth_client.post(f"/checkout_sessions/{session_id}/cancel")
 
         assert response.status_code == 200
 
-    def test_cancel_session_sets_canceled_status(self, client: TestClient) -> None:
+    def test_cancel_session_sets_canceled_status(self, auth_client: TestClient) -> None:
         """Happy path: Canceled session has status 'canceled'."""
         # Create a session
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
         session_id = create_response.json()["id"]
 
-        response = client.post(f"/checkout_sessions/{session_id}/cancel")
+        response = auth_client.post(f"/checkout_sessions/{session_id}/cancel")
         data = response.json()
 
         assert data["status"] == "canceled"
 
-    def test_cancel_ready_session_returns_200(self, client: TestClient) -> None:
+    def test_cancel_ready_session_returns_200(self, auth_client: TestClient) -> None:
         """Happy path: Can cancel a ready_for_payment session."""
         # Create a ready session
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -627,26 +643,30 @@ class TestCancelCheckoutSession:
         fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
 
         # Make it ready
-        client.post(
+        auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"fulfillment_option_id": fulfillment_option_id},
         )
 
-        response = client.post(f"/checkout_sessions/{session_id}/cancel")
+        response = auth_client.post(f"/checkout_sessions/{session_id}/cancel")
 
         assert response.status_code == 200
         assert response.json()["status"] == "canceled"
 
-    def test_cancel_nonexistent_session_returns_404(self, client: TestClient) -> None:
+    def test_cancel_nonexistent_session_returns_404(
+        self, auth_client: TestClient
+    ) -> None:
         """Failure case: Canceling non-existent session returns 404."""
-        response = client.post("/checkout_sessions/nonexistent_id/cancel")
+        response = auth_client.post("/checkout_sessions/nonexistent_id/cancel")
 
         assert response.status_code == 404
 
-    def test_cancel_completed_session_returns_405(self, client: TestClient) -> None:
+    def test_cancel_completed_session_returns_405(
+        self, auth_client: TestClient
+    ) -> None:
         """Failure case: Canceling a completed session returns 405."""
         # Create and complete a session
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -665,34 +685,34 @@ class TestCancelCheckoutSession:
         fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
 
         # Make it ready and complete
-        client.post(
+        auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"fulfillment_option_id": fulfillment_option_id},
         )
-        client.post(
+        auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
         )
 
-        response = client.post(f"/checkout_sessions/{session_id}/cancel")
+        response = auth_client.post(f"/checkout_sessions/{session_id}/cancel")
 
         assert response.status_code == 405
 
     def test_cancel_already_canceled_session_returns_405(
-        self, client: TestClient
+        self, auth_client: TestClient
     ) -> None:
         """Failure case: Canceling an already canceled session returns 405."""
         # Create and cancel a session
-        create_response = client.post(
+        create_response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
         session_id = create_response.json()["id"]
 
-        client.post(f"/checkout_sessions/{session_id}/cancel")
+        auth_client.post(f"/checkout_sessions/{session_id}/cancel")
 
         # Try to cancel again
-        response = client.post(f"/checkout_sessions/{session_id}/cancel")
+        response = auth_client.post(f"/checkout_sessions/{session_id}/cancel")
 
         assert response.status_code == 405
 
@@ -700,9 +720,9 @@ class TestCancelCheckoutSession:
 class TestCheckoutSessionResponseFormat:
     """Test suite for verifying ACP-compliant response format."""
 
-    def test_response_has_all_required_fields(self, client: TestClient) -> None:
+    def test_response_has_all_required_fields(self, auth_client: TestClient) -> None:
         """Edge case: Response contains all ACP-required fields."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -721,9 +741,9 @@ class TestCheckoutSessionResponseFormat:
         }
         assert required_fields <= set(data.keys())
 
-    def test_currency_is_lowercase(self, client: TestClient) -> None:
+    def test_currency_is_lowercase(self, auth_client: TestClient) -> None:
         """Edge case: Currency is lowercase ISO 4217."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -731,9 +751,9 @@ class TestCheckoutSessionResponseFormat:
 
         assert data["currency"] == "usd"
 
-    def test_line_item_has_all_required_fields(self, client: TestClient) -> None:
+    def test_line_item_has_all_required_fields(self, auth_client: TestClient) -> None:
         """Edge case: Line items contain all required fields."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -753,9 +773,11 @@ class TestCheckoutSessionResponseFormat:
         assert "id" in line_item["item"]
         assert "quantity" in line_item["item"]
 
-    def test_fulfillment_option_has_required_fields(self, client: TestClient) -> None:
+    def test_fulfillment_option_has_required_fields(
+        self, auth_client: TestClient
+    ) -> None:
         """Edge case: Fulfillment options contain all required fields."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={
                 "items": [{"id": "prod_1", "quantity": 1}],
@@ -783,9 +805,9 @@ class TestCheckoutSessionResponseFormat:
         }
         assert required_fields <= set(option.keys())
 
-    def test_response_json_content_type(self, client: TestClient) -> None:
+    def test_response_json_content_type(self, auth_client: TestClient) -> None:
         """Edge case: Response has correct content type."""
-        response = client.post(
+        response = auth_client.post(
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},
         )
@@ -794,10 +816,10 @@ class TestCheckoutSessionResponseFormat:
 
     @pytest.mark.parametrize("method", ["PUT", "DELETE", "PATCH"])
     def test_create_rejects_non_post_methods(
-        self, client: TestClient, method: str
+        self, auth_client: TestClient, method: str
     ) -> None:
         """Failure case: Create endpoint rejects non-POST methods."""
-        response = client.request(
+        response = auth_client.request(
             method,
             "/checkout_sessions",
             json={"items": [{"id": "prod_1", "quantity": 1}]},

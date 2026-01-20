@@ -11,7 +11,7 @@ This document breaks down the project requirements into discrete, implementable 
 | 1 | Project Foundation & Setup | P0 | None | ✅ Complete |
 | 2 | Database Schema & Seed Data | P0 | Feature 1 | ✅ Complete |
 | 3 | ACP Core Endpoints (CRUD) | P0 | Feature 2 | ✅ Complete |
-| 4 | API Security & Validation | P0 | Feature 3 | |
+| 4 | API Security & Validation | P0 | Feature 3 | ✅ Complete |
 | 5 | PSP - Delegated Payments | P1 | Feature 2 | |
 | 6 | Promotion Agent (NAT) | P1 | Features 3, 4 | |
 | 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
@@ -180,18 +180,18 @@ This document breaks down the project requirements into discrete, implementable 
 
 ### Tasks
 
-- [ ] Implement API key authentication middleware
+- [x] Implement API key authentication middleware
   - Support `Authorization: Bearer <API_KEY>` header
   - Support `X-API-Key: <API_KEY>` header
-- [ ] Return proper error responses:
+- [x] Return proper error responses:
   - `401 Unauthorized` for missing API key
   - `403 Forbidden` for invalid API key
-- [ ] Implement request validation:
+- [x] Implement request validation:
   - Strict Pydantic schema validation
   - Reject unexpected fields (`extra = "forbid"`)
-- [ ] Implement idempotency via `Idempotency-Key` header
-- [ ] Add request/response logging
-- [ ] Handle common ACP headers:
+- [x] Implement idempotency via `Idempotency-Key` header
+- [x] Add request/response logging
+- [x] Handle common ACP headers:
   - `Accept-Language`
   - `Request-Id`
   - `API-Version`
