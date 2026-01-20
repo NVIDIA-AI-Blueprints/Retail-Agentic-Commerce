@@ -97,6 +97,25 @@ Once the server is running, visit:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
+### ACP Checkout Endpoints
+
+The following ACP-compliant checkout session endpoints are available:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/checkout_sessions` | POST | Create a new checkout session |
+| `/checkout_sessions/{id}` | GET | Get checkout session by ID |
+| `/checkout_sessions/{id}` | POST | Update checkout session |
+| `/checkout_sessions/{id}/complete` | POST | Complete checkout with payment |
+| `/checkout_sessions/{id}/cancel` | POST | Cancel checkout session |
+
+Example: Create a checkout session
+```bash
+curl -X POST http://localhost:8000/checkout_sessions \
+  -H "Content-Type: application/json" \
+  -d '{"items": [{"id": "prod_1", "quantity": 1}]}'
+```
+
 ### Running Tests
 
 ```bash

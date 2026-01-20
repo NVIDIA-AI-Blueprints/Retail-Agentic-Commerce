@@ -10,7 +10,7 @@ This document breaks down the project requirements into discrete, implementable 
 |---|---------|----------|--------------|--------|
 | 1 | Project Foundation & Setup | P0 | None | ✅ Complete |
 | 2 | Database Schema & Seed Data | P0 | Feature 1 | ✅ Complete |
-| 3 | ACP Core Endpoints (CRUD) | P0 | Feature 2 | |
+| 3 | ACP Core Endpoints (CRUD) | P0 | Feature 2 | ✅ Complete |
 | 4 | API Security & Validation | P0 | Feature 3 | |
 | 5 | PSP - Delegated Payments | P1 | Feature 2 | |
 | 6 | Promotion Agent (NAT) | P1 | Features 3, 4 | |
@@ -152,25 +152,25 @@ This document breaks down the project requirements into discrete, implementable 
 
 ### Tasks
 
-- [ ] Create Pydantic schemas for all request/response models
-- [ ] Implement checkout session service layer
-- [ ] Implement all 5 endpoints
-- [ ] Handle session state transitions:
+- [x] Create Pydantic schemas for all request/response models
+- [x] Implement checkout session service layer
+- [x] Implement all 5 endpoints
+- [x] Handle session state transitions:
   ```
   not_ready_for_payment → ready_for_payment → completed
                        ↘                   ↘
                          →    canceled    ←
   ```
-- [ ] Calculate line_items totals (base_amount, discount, tax, total)
-- [ ] Generate fulfillment_options based on address
-- [ ] Include required `messages[]` and `links[]` in responses
+- [x] Calculate line_items totals (base_amount, discount, tax, total)
+- [x] Generate fulfillment_options based on address
+- [x] Include required `messages[]` and `links[]` in responses
 
 ### Acceptance Criteria
 
-- All 5 endpoints return ACP-compliant JSON
-- State transitions work correctly
-- 404 for non-existent sessions
-- 405 for invalid state transitions
+- [x] All 5 endpoints return ACP-compliant JSON
+- [x] State transitions work correctly
+- [x] 404 for non-existent sessions
+- [x] 405 for invalid state transitions
 
 ---
 
