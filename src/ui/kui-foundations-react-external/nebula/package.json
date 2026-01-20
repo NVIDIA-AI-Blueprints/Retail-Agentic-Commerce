@@ -1,0 +1,65 @@
+{
+  "name": "@kui-contrib/nebula",
+  "version": "1.3.9",
+  "style": "./dist/styles.css",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./styles": "./dist/styles.css",
+    "./package.json": "./package.json",
+    "./changelog.md": "./CHANGELOG.md",
+    "./changelog": "./CHANGELOG.md"
+  },
+  "keywords": [
+    "react",
+    "nebula"
+  ],
+  "devDependencies": {
+    "@storybook/addon-actions": "^8.2.4",
+    "@storybook/addon-interactions": "^8.2.4",
+    "@storybook/react": "^8.2.4",
+    "@tailwindcss/cli": "^4",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "postcss": "^8.4.47",
+    "react": "^19",
+    "react-dom": "^19",
+    "tailwindcss": "^4",
+    "tsup": "^8.5.0",
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4",
+    "@kui/foundations": "^0.307.0",
+    "@vfe/ts-config": "^1.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "publishConfig": {
+    "registry": "https://urm.nvidia.com/artifactory/api/npm/sw-ngc-cloud-npm-local/"
+  },
+  "kui": {
+    "releaseNotes": {
+      "channels": [
+        "C085QMUPYHG"
+      ]
+    }
+  },
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "dev": "pnpm exec tailwindcss -i ./src/styles.css -o ./dist/styles.css --watch",
+    "build": "pnpm run build:css && pnpm run build:js",
+    "build:js": "tsup src/index.ts --format esm --dts",
+    "build:css": "pnpm exec tailwindcss -i ./src/styles.css -o ./dist/styles.css --minify",
+    "format": "prettier --write src/**/*.{ts,tsx}",
+    "lint": "eslint --ext .ts,.tsx,.js src --fix",
+    "test": "vitest",
+    "type-check": "tsc --noEmit"
+  }
+}

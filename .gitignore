@@ -116,3 +116,35 @@ ipython_config.py
 # Logs
 *.log
 logs/
+
+# Frontend / UI (Node.js, Next.js, React)
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Testing
+coverage/
+.nyc_output/
+
+# Turbo
+.turbo/
+
+# Vercel
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+
+# Frontend env files
+.env*.local
+
+# Misc frontend
+.DS_Store
+*.pem

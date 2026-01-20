@@ -1,0 +1,72 @@
+{
+  "name": "@kui/foundations-design-tokens",
+  "version": "0.500.1",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "style": "./dist/css-processor-theme.css",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json",
+    "./changelog.md": "./CHANGELOG.md",
+    "./changelog": "./CHANGELOG.md"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://urm.nvidia.com/artifactory/api/npm/sw-ngc-cloud-npm-local/"
+  },
+  "devDependencies": {
+    "@kui/build-tools": "^0.2.0",
+    "@types/node": "^22.13.10",
+    "npm-watch": "^0.13.0",
+    "picocolors": "^1.1.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5",
+    "vitest": "^3.2.4",
+    "@kui/repo-utils": "0.0.2",
+    "@vfe/ts-config": "^1.0.0"
+  },
+  "kui": {
+    "releaseNotes": {
+      "channels": [
+        "C08UV0GEBAB",
+        "C085QMUPYHG"
+      ]
+    }
+  },
+  "watch": {
+    "build": {
+      "patterns": [
+        "cache/figma-response.json",
+        "scripts/**/*",
+        "src/**/*"
+      ],
+      "ignore": [
+        "src/generated/**/*"
+      ],
+      "extensions": [
+        "css",
+        "js",
+        "ts"
+      ]
+    }
+  },
+  "scripts": {
+    "build-tokens": "node scripts/build-design-tokens.js && node scripts/create-generated-components.js && node scripts/build-from-design-tokens.js",
+    "update-tokens": "node --env-file=.env scripts/fetch-tokens-from-figma.js && pnpm run build-tokens",
+    "build:ts": "tsup ./src/index.js --format esm,cjs --dts",
+    "build": "pnpm run build-tokens && pnpm run build:ts",
+    "postbuild": "add-header ./dist",
+    "clean": "rimraf dist && rimraf node_modules",
+    "dev": "npm-watch build",
+    "lint": "eslint --ext .ts,.tsx,.js src/*.js scripts/**/*.js --fix",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  }
+}

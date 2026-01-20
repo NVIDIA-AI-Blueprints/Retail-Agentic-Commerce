@@ -1,0 +1,55 @@
+@import "tailwindcss";
+@import "@kui/foundations-react-external/base.css";
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-gray-900);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-600);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-500);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Full height layout */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* JSON code block styling */
+.json-key {
+  color: var(--color-brand);
+}
+
+.json-string {
+  color: var(--color-teal-300);
+}
+
+.json-number {
+  color: var(--color-blue-300);
+}
+
+.json-boolean {
+  color: var(--color-purple-300);
+}
+
+.json-null {
+  color: var(--color-gray-400);
+}
