@@ -22,8 +22,92 @@ This repository is a **reference architecture** for the **Agentic Commerce Proto
 - **Protocol Inspector UI**: A multi-panel “glass box” dashboard showing ACP JSON requests/responses plus a structured reasoning trace.
 - **Delegated payments simulator**: A minimal PSP flow for vault tokens + idempotency + payment intent processing.
 
-### Docs
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.12 or higher
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/NVIDIA/Retail-Agentic-Commerce.git
+   cd Retail-Agentic-Commerce
+   ```
+
+2. **Set up environment variables**
+   ```bash
+   cp env.example .env
+   # Edit .env with your configuration
+   ```
+
+3. **Install dependencies**
+
+   Using uv (recommended):
+   ```bash
+   uv sync
+   ```
+
+   Or using pip:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   pip install -e .
+   ```
+
+4. **Install dev dependencies** (optional, for testing/linting)
+   ```bash
+   uv sync --extra dev
+   # or
+   pip install -e ".[dev]"
+   ```
+
+### Running the Server
+
+Start the FastAPI server with uvicorn:
+
+```bash
+uvicorn src.merchant.main:app --reload
+```
+
+The server will start at `http://localhost:8000`.
+
+### Verify Installation
+
+Check the health endpoint:
+```bash
+curl http://localhost:8000/health
+```
+
+You should receive:
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0"
+}
+```
+
+### API Documentation
+
+Once the server is running, visit:
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+### Running Tests
+
+```bash
+pytest
+```
+
+---
+
+## Docs
 - **Product requirements**: `docs/PRD.md`
 - **Architecture**: `docs/architecture.md`
 - **Agentic Commerce Protocol notes/spec**: `docs/acp-spec.md`
+- **Feature breakdown**: `docs/features.md`
 - **Validation plan**: `docs/validation.md`

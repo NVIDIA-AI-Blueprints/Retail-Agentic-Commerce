@@ -6,19 +6,19 @@ This document breaks down the project requirements into discrete, implementable 
 
 ## Feature Overview
 
-| # | Feature | Priority | Dependencies |
-|---|---------|----------|--------------|
-| 1 | Project Foundation & Setup | P0 | None |
-| 2 | Database Schema & Seed Data | P0 | Feature 1 |
-| 3 | ACP Core Endpoints (CRUD) | P0 | Feature 2 |
-| 4 | API Security & Validation | P0 | Feature 3 |
-| 5 | PSP - Delegated Payments | P1 | Feature 2 |
-| 6 | Promotion Agent (NAT) | P1 | Features 3, 4 |
-| 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 |
-| 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 |
-| 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 |
-| 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 |
-| 11 | Webhook Integration | P2 | Feature 8 |
+| # | Feature | Priority | Dependencies | Status |
+|---|---------|----------|--------------|--------|
+| 1 | Project Foundation & Setup | P0 | None | ✅ Complete |
+| 2 | Database Schema & Seed Data | P0 | Feature 1 | |
+| 3 | ACP Core Endpoints (CRUD) | P0 | Feature 2 | |
+| 4 | API Security & Validation | P0 | Feature 3 | |
+| 5 | PSP - Delegated Payments | P1 | Feature 2 | |
+| 6 | Promotion Agent (NAT) | P1 | Features 3, 4 | |
+| 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
+| 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | |
+| 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 | |
+| 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 | |
+| 11 | Webhook Integration | P2 | Feature 8 | |
 
 ---
 
@@ -28,15 +28,15 @@ This document breaks down the project requirements into discrete, implementable 
 
 ### Tasks
 
-- [ ] Initialize Python 3.12+ project with `pyproject.toml` or `requirements.txt`
-- [ ] Install core dependencies:
+- [x] Initialize Python 3.12+ project with `pyproject.toml` or `requirements.txt`
+- [x] Install core dependencies:
   - `fastapi`
   - `uvicorn`
   - `sqlmodel`
   - `nemo-agent-toolkit`
   - `pydantic`
-- [ ] Create FastAPI application entry point (`main.py`)
-- [ ] Configure environment variables:
+- [x] Create FastAPI application entry point (`main.py`)
+- [x] Configure environment variables:
   ```env
   # NIM Configuration
   NIM_ENDPOINT=https://integrate.api.nvidia.com/v1
@@ -49,24 +49,33 @@ This document breaks down the project requirements into discrete, implementable 
   # API Security
   API_KEY=your-api-key
   ```
-- [ ] Create basic health check endpoint (`GET /health`)
-- [ ] Set up project folder structure:
+- [x] Create basic health check endpoint (`GET /health`)
+- [x] Set up project folder structure:
   ```
   src/
-  ├── api/
-  │   ├── routes/
-  │   └── dependencies.py
-  ├── agents/
-  ├── db/
-  │   ├── models.py
-  │   └── database.py
-  ├── services/
-  └── main.py
+  └── merchant/
+      ├── __init__.py
+      ├── main.py
+      ├── config.py
+      ├── api/
+      │   ├── __init__.py
+      │   ├── dependencies.py
+      │   └── routes/
+      │       ├── __init__.py
+      │       └── health.py
+      ├── agents/
+      │   └── __init__.py
+      ├── db/
+      │   ├── __init__.py
+      │   ├── models.py
+      │   └── database.py
+      └── services/
+          └── __init__.py
   ```
 
 ### Acceptance Criteria
 
-- Server starts with `uvicorn src.main:app`
+- Server starts with `uvicorn src.merchant.main:app`
 - Health endpoint returns 200 OK
 - Environment variables are loaded correctly
 
