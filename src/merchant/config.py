@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
+    # Database
+    database_url: str = "sqlite:///./agentic_commerce.db"
+
     # NIM Configuration
     nim_endpoint: str = "https://integrate.api.nvidia.com/v1"
     nim_api_key: str = ""
