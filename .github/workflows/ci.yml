@@ -119,4 +119,4 @@ jobs:
 
       - name: Run Vitest
         working-directory: src/ui
-        run: pnpm test --run
+        run: pnpm test:run

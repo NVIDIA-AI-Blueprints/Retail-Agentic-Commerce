@@ -155,7 +155,7 @@ cd src/ui
 
 # Run tests
 pnpm test              # Run tests in watch mode
-pnpm test --run        # Run tests once
+pnpm test:run          # Run tests once
 
 # Linting and formatting
 pnpm lint              # Run ESLint

@@ -10,8 +10,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest",
+    "test:run": "vitest run",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

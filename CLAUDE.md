@@ -43,7 +43,7 @@ cd src/ui
 
 # Run tests
 pnpm test              # Run tests in watch mode
-pnpm test --run        # Run tests once (CI mode)
+pnpm test:run          # Run tests once (CI mode)
 pnpm test:coverage     # Run tests with coverage report
 
 # Linting and formatting

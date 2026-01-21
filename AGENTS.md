@@ -63,8 +63,8 @@ pnpm run dev  # runs at http://localhost:3000
 cd src/ui
 
 # Run tests
-pnpm test              # Run all tests
-pnpm test --run        # Run tests once (no watch mode)
+pnpm test              # Run tests in watch mode
+pnpm test:run          # Run tests once (CI mode)
 pnpm test:coverage     # Run tests with coverage
 
 # Linting and formatting
@@ -228,7 +228,7 @@ docs/                   # Project documentation
 |------|---------|
 | Start UI | `pnpm run dev` |
 | Run tests | `pnpm test` |
-| Run tests once | `pnpm test --run` |
+| Run tests once | `pnpm test:run` |
 | Lint check | `pnpm lint` |
 | Format code | `pnpm format` |
 | Type check | `pnpm typecheck` |

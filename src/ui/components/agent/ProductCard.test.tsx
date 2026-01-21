@@ -25,12 +25,6 @@ describe("ProductCard", () => {
     size: "Large",
   };
 
-  const lowStockProduct: Product = {
-    ...mockProduct,
-    id: "prod_2",
-    stockCount: 20,
-  };
-
   it("renders product name", () => {
     render(<ProductCard product={mockProduct} />);
     expect(screen.getByText("Classic Tee")).toBeInTheDocument();
@@ -46,32 +40,32 @@ describe("ProductCard", () => {
     expect(screen.getByText("$25.00")).toBeInTheDocument();
   });
 
-  it("renders product description", () => {
+  it("renders product image with alt text", () => {
     render(<ProductCard product={mockProduct} />);
-    expect(screen.getByText("A timeless classic cotton t-shirt")).toBeInTheDocument();
+    expect(screen.getByAltText("Classic Tee")).toBeInTheDocument();
   });
 
-  it("renders Buy button", () => {
+  it("renders brand name", () => {
     render(<ProductCard product={mockProduct} />);
-    expect(screen.getByRole("button", { name: /buy/i })).toBeInTheDocument();
+    expect(screen.getByText("NVShop")).toBeInTheDocument();
   });
 
-  it("calls onBuy when Buy button is clicked", () => {
+  it("calls onBuy when card is clicked", () => {
     const onBuy = vi.fn();
     render(<ProductCard product={mockProduct} onBuy={onBuy} />);
-    
-    fireEvent.click(screen.getByRole("button", { name: /buy/i }));
-    
+
+    // The card itself is clickable
+    const card = screen.getByText("Classic Tee").closest('[data-testid="nv-card-root"]');
+    fireEvent.click(card!);
+
     expect(onBuy).toHaveBeenCalledWith(mockProduct);
   });
 
-  it("shows Low Stock badge when stock is below 30", () => {
-    render(<ProductCard product={lowStockProduct} />);
-    expect(screen.getByText("Low Stock")).toBeInTheDocument();
-  });
-
-  it("does not show Low Stock badge when stock is 30 or more", () => {
+  it("does not call onBuy when onBuy is not provided", () => {
     render(<ProductCard product={mockProduct} />);
-    expect(screen.queryByText("Low Stock")).not.toBeInTheDocument();
+
+    // Should not throw when clicked without onBuy handler
+    const card = screen.getByText("Classic Tee").closest('[data-testid="nv-card-root"]');
+    expect(() => fireEvent.click(card!)).not.toThrow();
   });
 });
