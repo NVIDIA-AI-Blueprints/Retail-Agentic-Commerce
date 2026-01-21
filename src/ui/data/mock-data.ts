@@ -1,4 +1,4 @@
-import type { Product, CheckoutSession, ChatMessage, ACPRequest } from "@/types";
+import type { Product, ChatMessage, ACPRequest } from "@/types";
 
 /**
  * Mock product data - 3 casual t-shirts
@@ -43,11 +43,11 @@ export const mockProducts: Product[] = [
 ];
 
 /**
- * Mock checkout session matching ACP schema
+ * Mock checkout session (legacy format for UI compatibility)
  */
-export const mockCheckoutSession: CheckoutSession = {
+export const mockCheckoutSession = {
   id: "checkout_kt6dhmz0",
-  status: "ready_for_payment",
+  status: "ready_for_payment" as const,
   currency: "usd",
   lineItems: [
     {

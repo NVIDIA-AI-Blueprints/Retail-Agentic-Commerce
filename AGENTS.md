@@ -54,11 +54,39 @@ uvicorn src.payment.main:app --reload --port 8001
 # Navigate to UI directory
 cd src/ui
 
+# Configure environment (copy and edit as needed)
+cp env.example .env.local
+
 # Install dependencies
 pnpm install
 
 # Start development server
 pnpm run dev  # runs at http://localhost:3000
+```
+
+### UI-Backend Integration
+
+The UI connects to both the Merchant API and PSP Service. Key integration files:
+
+| File | Purpose |
+|------|---------|
+| `src/ui/lib/api-client.ts` | Type-safe API client for merchant and PSP endpoints |
+| `src/ui/lib/errors.ts` | Error handling and user-friendly messages |
+| `src/ui/hooks/useCheckoutFlow.ts` | Checkout flow state machine with API calls |
+| `src/ui/types/index.ts` | ACP-compliant TypeScript types |
+
+**Checkout Flow:**
+1. User selects product → `createCheckoutSession()` → POST /checkout_sessions
+2. User selects shipping → `updateCheckoutSession()` → POST /checkout_sessions/{id}
+3. User clicks Pay → `delegatePayment()` → POST /agentic_commerce/delegate_payment (PSP)
+4. Payment completion → `completeCheckout()` → POST /checkout_sessions/{id}/complete
+
+**Environment Variables** (`src/ui/.env.local`):
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_PSP_URL=http://localhost:8001
+NEXT_PUBLIC_API_KEY=your-api-key
+NEXT_PUBLIC_PSP_API_KEY=psp-api-key-12345
 ```
 
 ### UI Testing & Quality

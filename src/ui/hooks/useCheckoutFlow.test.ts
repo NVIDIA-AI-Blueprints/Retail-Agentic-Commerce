@@ -1,7 +1,16 @@
-import { describe, it, expect } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { useCheckoutFlow } from "./useCheckoutFlow";
-import type { Product } from "@/types";
+import type { Product, CheckoutSessionResponse } from "@/types";
+import * as apiClient from "@/lib/api-client";
+
+// Mock the API client module
+vi.mock("@/lib/api-client", () => ({
+  createCheckoutSession: vi.fn(),
+  updateCheckoutSession: vi.fn(),
+  completeCheckout: vi.fn(),
+  delegatePayment: vi.fn(),
+}));
 
 describe("useCheckoutFlow", () => {
   const mockProduct: Product = {
@@ -16,6 +25,90 @@ describe("useCheckoutFlow", () => {
     variant: "Black",
     size: "Large",
   };
+
+  const mockSession: CheckoutSessionResponse = {
+    id: "cs_test123",
+    status: "not_ready_for_payment",
+    currency: "usd",
+    payment_provider: {
+      provider: "stripe",
+      supported_payment_methods: [
+        { type: "card", supported_card_networks: ["visa", "mastercard"] },
+      ],
+    },
+    line_items: [
+      {
+        id: "li_1",
+        item: { id: "prod_1", quantity: 1 },
+        name: "Test Shirt",
+        base_amount: 2500,
+        discount: 0,
+        subtotal: 2500,
+        tax: 200,
+        total: 2700,
+      },
+    ],
+    fulfillment_options: [
+      {
+        type: "shipping",
+        id: "ship_standard",
+        title: "Standard Shipping",
+        subtitle: "5-7 business days",
+        subtotal: 500,
+        tax: 0,
+        total: 500,
+      },
+      {
+        type: "shipping",
+        id: "ship_express",
+        title: "Express Shipping",
+        subtitle: "2-3 business days",
+        subtotal: 1200,
+        tax: 0,
+        total: 1200,
+      },
+    ],
+    totals: [
+      { type: "subtotal", display_text: "Subtotal", amount: 2500 },
+      { type: "fulfillment", display_text: "Shipping", amount: 500 },
+      { type: "tax", display_text: "Tax", amount: 200 },
+      { type: "total", display_text: "Total", amount: 3200 },
+    ],
+    messages: [],
+    links: [],
+  };
+
+  const mockReadySession: CheckoutSessionResponse = {
+    ...mockSession,
+    status: "ready_for_payment",
+  };
+
+  const mockCompletedSession: CheckoutSessionResponse = {
+    ...mockSession,
+    status: "completed",
+    order: {
+      id: "order_xyz789",
+      checkout_session_id: "cs_test123",
+      permalink_url: "https://merchant.com/orders/xyz789",
+    },
+  };
+
+  const mockVaultToken = {
+    id: "vt_test123",
+    created: new Date().toISOString(),
+    metadata: {
+      source: "agent_checkout",
+      merchant_id: "merchant_nvshop",
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   describe("initial state", () => {
     it("starts in product_selection state", () => {
@@ -33,148 +126,229 @@ describe("useCheckoutFlow", () => {
       expect(result.current.context.quantity).toBe(1);
     });
 
-    it("has default shipping option selected", () => {
+    it("has null session initially", () => {
       const { result } = renderHook(() => useCheckoutFlow());
-      expect(result.current.context.selectedShippingId).toBe("shipping_standard");
+      expect(result.current.context.session).toBeNull();
+      expect(result.current.context.sessionId).toBeNull();
+    });
+
+    it("has no error initially", () => {
+      const { result } = renderHook(() => useCheckoutFlow());
+      expect(result.current.context.error).toBeNull();
+    });
+
+    it("is not loading initially", () => {
+      const { result } = renderHook(() => useCheckoutFlow());
+      expect(result.current.context.isLoading).toBe(false);
     });
   });
 
-  describe("SELECT_PRODUCT action", () => {
-    it("transitions to checkout state", () => {
+  describe("selectProduct - happy path", () => {
+    it("sets loading state when selecting product", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValueOnce(mockReadySession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
       act(() => {
         result.current.selectProduct(mockProduct);
       });
 
-      expect(result.current.context.state).toBe("checkout");
-    });
-
-    it("sets the selected product", () => {
-      const { result } = renderHook(() => useCheckoutFlow());
-
-      act(() => {
-        result.current.selectProduct(mockProduct);
-      });
-
+      expect(result.current.context.isLoading).toBe(true);
       expect(result.current.context.selectedProduct).toEqual(mockProduct);
     });
 
-    it("resets quantity to 1", () => {
+    it("creates checkout session and transitions to checkout state", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValueOnce(mockReadySession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      expect(result.current.context.quantity).toBe(1);
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      expect(result.current.context.sessionId).toBe("cs_test123");
+      expect(result.current.context.session).toEqual(mockReadySession);
+      expect(result.current.context.isLoading).toBe(false);
     });
 
-    it("does not transition from invalid states", () => {
+    it("calls createCheckoutSession with correct parameters", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValueOnce(mockReadySession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      // First, go to checkout
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      // Then try to select another product (should not work while in checkout)
-      const anotherProduct = { ...mockProduct, id: "prod_2", name: "Another Shirt" };
-      act(() => {
-        result.current.selectProduct(anotherProduct);
-      });
-
-      // Should still be the first product
-      expect(result.current.context.selectedProduct).toEqual(mockProduct);
+      expect(apiClient.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [{ id: "prod_1", quantity: 1 }],
+          buyer: expect.any(Object),
+          fulfillment_address: expect.any(Object),
+        })
+      );
     });
   });
 
-  describe("UPDATE_QUANTITY action", () => {
-    it("updates quantity in checkout state", () => {
+  describe("selectProduct - error handling", () => {
+    it("sets error state on API failure", async () => {
+      const mockError = {
+        type: "invalid_request",
+        code: "product_not_found",
+        message: "Product not found",
+      };
+      vi.mocked(apiClient.createCheckoutSession).mockRejectedValueOnce(mockError);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("error");
+      });
+
+      expect(result.current.context.error).toEqual(mockError);
+      expect(result.current.context.isLoading).toBe(false);
+    });
+
+    it("clears error when clearError is called", async () => {
+      const mockError = {
+        type: "invalid_request",
+        code: "product_not_found",
+        message: "Product not found",
+      };
+      vi.mocked(apiClient.createCheckoutSession).mockRejectedValueOnce(mockError);
+
+      const { result } = renderHook(() => useCheckoutFlow());
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.error).not.toBeNull();
       });
 
       act(() => {
-        result.current.updateQuantity(3);
+        result.current.clearError();
+      });
+
+      expect(result.current.context.error).toBeNull();
+    });
+  });
+
+  describe("updateQuantity", () => {
+    it("updates quantity locally", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+
+      const { result } = renderHook(() => useCheckoutFlow());
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.updateQuantity(3);
       });
 
       expect(result.current.context.quantity).toBe(3);
     });
 
-    it("enforces minimum quantity of 1", () => {
+    it("enforces minimum quantity of 1", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      act(() => {
-        result.current.updateQuantity(0);
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.updateQuantity(0);
       });
 
       expect(result.current.context.quantity).toBe(1);
     });
 
-    it("enforces maximum quantity of 10", () => {
+    it("enforces maximum quantity of 10", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      act(() => {
-        result.current.updateQuantity(15);
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.updateQuantity(15);
       });
 
       expect(result.current.context.quantity).toBe(10);
     });
+  });
 
-    it("does not update quantity outside checkout state", () => {
+  describe("selectShipping", () => {
+    it("updates selected shipping option", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.updateQuantity(5);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      expect(result.current.context.quantity).toBe(1);
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.selectShipping("ship_express");
+      });
+
+      expect(result.current.context.selectedShippingId).toBe("ship_express");
     });
   });
 
-  describe("SELECT_SHIPPING action", () => {
-    it("updates selected shipping in checkout state", () => {
+  describe("submitPayment - happy path", () => {
+    it("transitions to processing state", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+      vi.mocked(apiClient.delegatePayment).mockResolvedValueOnce(mockVaultToken);
+      vi.mocked(apiClient.completeCheckout).mockResolvedValueOnce(mockCompletedSession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      act(() => {
-        result.current.selectShipping("shipping_express");
-      });
-
-      expect(result.current.context.selectedShippingId).toBe("shipping_express");
-    });
-
-    it("does not update shipping outside checkout state", () => {
-      const { result } = renderHook(() => useCheckoutFlow());
-
-      act(() => {
-        result.current.selectShipping("shipping_express");
-      });
-
-      expect(result.current.context.selectedShippingId).toBe("shipping_standard");
-    });
-  });
-
-  describe("SUBMIT_PAYMENT action", () => {
-    it("transitions from checkout to processing", () => {
-      const { result } = renderHook(() => useCheckoutFlow());
-
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
       });
 
       act(() => {
@@ -184,145 +358,131 @@ describe("useCheckoutFlow", () => {
       expect(result.current.context.state).toBe("processing");
     });
 
-    it("does not transition from product_selection", () => {
+    it("completes payment and transitions to confirmation", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+      vi.mocked(apiClient.delegatePayment).mockResolvedValueOnce(mockVaultToken);
+      vi.mocked(apiClient.completeCheckout).mockResolvedValueOnce(mockCompletedSession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.submitPayment();
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      expect(result.current.context.state).toBe("product_selection");
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.submitPayment();
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("confirmation");
+      });
+
+      expect(result.current.context.orderId).toBe("order_xyz789");
+      expect(result.current.context.session?.order?.permalink_url).toBe(
+        "https://merchant.com/orders/xyz789"
+      );
+    });
+
+    it("stores vault token after delegation", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+      vi.mocked(apiClient.delegatePayment).mockResolvedValueOnce(mockVaultToken);
+      vi.mocked(apiClient.completeCheckout).mockResolvedValueOnce(mockCompletedSession);
+
+      const { result } = renderHook(() => useCheckoutFlow());
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.submitPayment();
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.vaultToken).toBe("vt_test123");
+      });
     });
   });
 
-  describe("PAYMENT_COMPLETE action", () => {
-    it("transitions from processing to confirmation", () => {
+  describe("submitPayment - error handling", () => {
+    it("sets error state on payment delegation failure", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+      vi.mocked(apiClient.delegatePayment).mockRejectedValueOnce({
+        type: "invalid_request",
+        code: "payment_declined",
+        message: "Card was declined",
+      });
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
       });
 
-      act(() => {
-        result.current.submitPayment();
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
       });
 
-      act(() => {
-        result.current.completePayment("ORD-12345");
+      await act(async () => {
+        await result.current.submitPayment();
       });
 
-      expect(result.current.context.state).toBe("confirmation");
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("error");
+      });
+
+      expect(result.current.context.error?.code).toBe("payment_declined");
     });
+  });
 
-    it("sets the order ID", () => {
+  describe("reset", () => {
+    it("resets all state to initial values", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+      vi.mocked(apiClient.delegatePayment).mockResolvedValueOnce(mockVaultToken);
+      vi.mocked(apiClient.completeCheckout).mockResolvedValueOnce(mockCompletedSession);
+
       const { result } = renderHook(() => useCheckoutFlow());
 
-      act(() => {
-        result.current.selectProduct(mockProduct);
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.submitPayment();
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("confirmation");
       });
 
       act(() => {
-        result.current.submitPayment();
+        result.current.reset();
       });
 
-      act(() => {
-        result.current.completePayment("ORD-12345");
-      });
-
-      expect(result.current.context.orderId).toBe("ORD-12345");
-    });
-
-    it("does not transition from checkout", () => {
-      const { result } = renderHook(() => useCheckoutFlow());
-
-      act(() => {
-        result.current.selectProduct(mockProduct);
-      });
-
-      act(() => {
-        result.current.completePayment("ORD-12345");
-      });
-
-      expect(result.current.context.state).toBe("checkout");
+      expect(result.current.context.state).toBe("product_selection");
+      expect(result.current.context.selectedProduct).toBeNull();
+      expect(result.current.context.session).toBeNull();
+      expect(result.current.context.sessionId).toBeNull();
+      expect(result.current.context.vaultToken).toBeNull();
       expect(result.current.context.orderId).toBeNull();
-    });
-  });
-
-  describe("RESET action", () => {
-    it("transitions from confirmation back to product_selection", () => {
-      const { result } = renderHook(() => useCheckoutFlow());
-
-      // Go through the entire flow
-      act(() => {
-        result.current.selectProduct(mockProduct);
-      });
-
-      act(() => {
-        result.current.submitPayment();
-      });
-
-      act(() => {
-        result.current.completePayment("ORD-12345");
-      });
-
-      act(() => {
-        result.current.reset();
-      });
-
-      expect(result.current.context.state).toBe("product_selection");
-    });
-
-    it("resets all context values", () => {
-      const { result } = renderHook(() => useCheckoutFlow());
-
-      // Go through the flow with modifications
-      act(() => {
-        result.current.selectProduct(mockProduct);
-      });
-
-      act(() => {
-        result.current.updateQuantity(5);
-      });
-
-      act(() => {
-        result.current.selectShipping("shipping_express");
-      });
-
-      act(() => {
-        result.current.submitPayment();
-      });
-
-      act(() => {
-        result.current.completePayment("ORD-12345");
-      });
-
-      act(() => {
-        result.current.reset();
-      });
-
-      expect(result.current.context).toEqual({
-        state: "product_selection",
-        selectedProduct: null,
-        quantity: 1,
-        selectedShippingId: "shipping_standard",
-        orderId: null,
-      });
-    });
-
-    it("does not reset from checkout state", () => {
-      const { result } = renderHook(() => useCheckoutFlow());
-
-      act(() => {
-        result.current.selectProduct(mockProduct);
-      });
-
-      act(() => {
-        result.current.reset();
-      });
-
-      // Should still be in checkout with product selected
-      expect(result.current.context.state).toBe("checkout");
-      expect(result.current.context.selectedProduct).toEqual(mockProduct);
+      expect(result.current.context.error).toBeNull();
+      expect(result.current.context.isLoading).toBe(false);
     });
   });
 });

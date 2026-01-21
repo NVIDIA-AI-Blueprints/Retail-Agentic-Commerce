@@ -39,7 +39,9 @@ uvicorn src.merchant.main:app --reload
 uvicorn src.payment.main:app --reload --port 8001
 
 # Frontend UI (port 3000)
-cd src/ui && pnpm install && pnpm run dev
+cd src/ui
+cp env.example .env.local  # Configure API endpoints
+pnpm install && pnpm run dev
 ```
 
 ### Verify
@@ -47,6 +49,29 @@ cd src/ui && pnpm install && pnpm run dev
 ```bash
 curl http://localhost:8000/health
 curl http://localhost:8001/health
+# Visit http://localhost:3000 for the UI
+```
+
+## UI Integration
+
+The frontend connects to both the Merchant API and PSP Service for end-to-end checkout:
+
+1. **Product Selection** - User selects a product from the grid
+2. **Session Creation** - UI calls `POST /checkout_sessions` to create a checkout session
+3. **Shipping Selection** - UI calls `POST /checkout_sessions/{id}` to update shipping
+4. **Payment Delegation** - UI calls PSP `POST /agentic_commerce/delegate_payment` to get a vault token
+5. **Checkout Completion** - UI calls `POST /checkout_sessions/{id}/complete` with the vault token
+
+### Environment Variables (UI)
+
+Copy `src/ui/env.example` to `src/ui/.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_PSP_URL=http://localhost:8001
+NEXT_PUBLIC_API_KEY=your-api-key
+NEXT_PUBLIC_PSP_API_KEY=psp-api-key-12345
+NEXT_PUBLIC_API_VERSION=2026-01-16
 ```
 
 ## API Documentation

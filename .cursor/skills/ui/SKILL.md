@@ -150,4 +150,8 @@ src/
 - Clear, descriptive component and variable names
 - Props must be properly typed
 
+## Update documentation
+- Add clear and simple instructions on the README.md
+- Update AGENTS.md and CLAUDE.md for agentic development.
+
 If these standards are not met, the solution MUST be revised.

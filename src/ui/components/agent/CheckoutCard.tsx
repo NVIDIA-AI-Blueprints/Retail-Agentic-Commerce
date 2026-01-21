@@ -4,13 +4,63 @@ import Image from "next/image";
 import { Card, Text, Button, Stack, Flex, Divider, Select } from "@kui/foundations-react-external";
 import { CreditCard } from "@/components/icons";
 import { formatCurrency } from "@/lib/utils";
-import type { CheckoutSession, Product, FulfillmentOption } from "@/types";
+import type { Product } from "@/types";
+
+interface LegacyFulfillmentOption {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  estimatedDelivery: string;
+}
+
+/**
+ * Legacy line item format for CheckoutCard compatibility
+ */
+interface LegacyLineItem {
+  id: string;
+  item: {
+    id: string;
+    name: string | undefined;
+    imageUrl: string | undefined;
+  };
+  quantity: number;
+  baseAmount: number;
+  discount: number;
+  subtotal: number;
+  tax: number;
+  total: number;
+}
+
+/**
+ * Legacy checkout session format for CheckoutCard compatibility
+ */
+interface LegacyCheckoutSession {
+  id: string;
+  status: string;
+  currency: string;
+  lineItems: LegacyLineItem[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  shipping: number;
+  total: number;
+  fulfillmentOptions?: LegacyFulfillmentOption[];
+  selectedFulfillmentOptionId?: string;
+  paymentProvider?: {
+    provider: string;
+    supportedPaymentMethods: string[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface CheckoutCardProps {
-  checkout: CheckoutSession;
+  checkout: LegacyCheckoutSession;
   product?: Product;
   quantity?: number;
   isProcessing?: boolean;
+  isReadyForPayment?: boolean;
   onPay?: () => void;
   onQuantityChange?: (quantity: number) => void;
   onShippingChange?: (optionId: string) => void;
@@ -24,12 +74,14 @@ export function CheckoutCard({
   product,
   quantity = 1,
   isProcessing = false,
+  isReadyForPayment = true,
   onPay,
   onQuantityChange,
   onShippingChange,
 }: CheckoutCardProps) {
   const lineItem = checkout.lineItems[0];
-  const selectedOption = checkout.fulfillmentOptions?.find(
+  const fulfillmentOptions = (checkout.fulfillmentOptions ?? []) as LegacyFulfillmentOption[];
+  const selectedOption = fulfillmentOptions.find(
     (opt) => opt.id === checkout.selectedFulfillmentOptionId
   );
 
@@ -38,6 +90,14 @@ export function CheckoutCard({
   const subtotal = itemPrice * quantity;
   const shippingPrice = selectedOption?.price ?? checkout.shipping;
   const total = subtotal + shippingPrice;
+
+  // Determine button state
+  const isButtonDisabled = isProcessing || !isReadyForPayment;
+  const buttonText = isProcessing
+    ? "Processing..."
+    : !isReadyForPayment
+      ? "Complete details to pay"
+      : "Pay Now";
 
   const handleDecrement = () => {
     if (quantity > 1 && onQuantityChange) {
@@ -56,12 +116,12 @@ export function CheckoutCard({
   };
 
   // Build shipping options for Select component
-  const shippingItems: Array<{ value: string; children: string }> = (
-    checkout.fulfillmentOptions ?? []
-  ).map((option: FulfillmentOption) => ({
-    value: option.id,
-    children: `${option.name} - ${option.estimatedDelivery} (${formatCurrency(option.price)})`,
-  }));
+  const shippingItems: Array<{ value: string; children: string }> = fulfillmentOptions.map(
+    (option) => ({
+      value: option.id,
+      children: `${option.name} - ${option.estimatedDelivery} (${formatCurrency(option.price)})`,
+    })
+  );
 
   return (
     <Card className="w-full max-w-md fade-in">
@@ -74,6 +134,18 @@ export function CheckoutCard({
           <Text kind="label/bold/md" className="text-primary">
             NVShop
           </Text>
+          {/* Status indicator */}
+          {!isReadyForPayment && !isProcessing && (
+            <span className="ml-auto text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded">
+              Incomplete
+            </span>
+          )}
+          {isProcessing && (
+            <span className="ml-auto text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded flex items-center gap-1">
+              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+              Processing
+            </span>
+          )}
         </Flex>
 
         {/* Line item */}
@@ -198,20 +270,27 @@ export function CheckoutCard({
           color="neutral"
           className="w-full"
           onClick={onPay}
-          disabled={isProcessing}
+          disabled={isButtonDisabled}
           aria-label={isProcessing ? "Processing payment" : "Pay with saved card"}
         >
           <Flex align="center" justify="center" gap="3" className="w-full">
             {isProcessing ? (
-              <span>Processing...</span>
+              <Flex align="center" gap="2">
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Processing...</span>
+              </Flex>
             ) : (
               <>
-                <span>Pay Now</span>
-                <span className="opacity-30">|</span>
-                <Flex align="center" gap="1">
-                  <CreditCard className="w-4 h-4" />
-                  <span>4242</span>
-                </Flex>
+                <span>{buttonText}</span>
+                {isReadyForPayment && (
+                  <>
+                    <span className="opacity-30">|</span>
+                    <Flex align="center" gap="1">
+                      <CreditCard className="w-4 h-4" />
+                      <span>4242</span>
+                    </Flex>
+                  </>
+                )}
               </>
             )}
           </Flex>

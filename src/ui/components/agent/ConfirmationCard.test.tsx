@@ -142,4 +142,38 @@ describe("ConfirmationCard", () => {
 
     expect(screen.getByText("Amount Paid")).toBeInTheDocument();
   });
+
+  describe("order URL handling", () => {
+    it("renders order ID as link when orderUrl is provided", () => {
+      render(<ConfirmationCard {...defaultProps} orderUrl="https://merchant.com/orders/xyz789" />);
+
+      const orderLink = screen.getByRole("link", { name: "ORD-ABC12345" });
+      expect(orderLink).toBeInTheDocument();
+      expect(orderLink).toHaveAttribute("href", "https://merchant.com/orders/xyz789");
+      expect(orderLink).toHaveAttribute("target", "_blank");
+      expect(orderLink).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("renders order ID as plain text when orderUrl is not provided", () => {
+      render(<ConfirmationCard {...defaultProps} />);
+
+      // Order ID should be plain text, not a link
+      expect(screen.getByText("ORD-ABC12345")).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "ORD-ABC12345" })).not.toBeInTheDocument();
+    });
+
+    it("renders View Order Details link when orderUrl is provided", () => {
+      render(<ConfirmationCard {...defaultProps} orderUrl="https://merchant.com/orders/xyz789" />);
+
+      const viewOrderLink = screen.getByRole("link", { name: /view order details/i });
+      expect(viewOrderLink).toBeInTheDocument();
+      expect(viewOrderLink).toHaveAttribute("href", "https://merchant.com/orders/xyz789");
+    });
+
+    it("does not render View Order Details link when orderUrl is not provided", () => {
+      render(<ConfirmationCard {...defaultProps} />);
+
+      expect(screen.queryByRole("link", { name: /view order details/i })).not.toBeInTheDocument();
+    });
+  });
 });

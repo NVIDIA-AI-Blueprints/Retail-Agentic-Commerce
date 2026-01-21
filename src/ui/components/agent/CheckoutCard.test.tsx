@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { CheckoutCard } from "./CheckoutCard";
-import type { CheckoutSession, Product } from "@/types";
+import type { Product } from "@/types";
 
 // Mock Next.js Image component
 vi.mock("next/image", () => ({
@@ -12,7 +12,7 @@ vi.mock("next/image", () => ({
 }));
 
 describe("CheckoutCard", () => {
-  const mockCheckout: CheckoutSession = {
+  const mockCheckout = {
     id: "checkout_123",
     status: "ready_for_payment",
     currency: "usd",
@@ -217,6 +217,54 @@ describe("CheckoutCard", () => {
       // The Select should be disabled during processing
       const selectTrigger = screen.getByRole("combobox");
       expect(selectTrigger).toHaveAttribute("aria-disabled", "true");
+    });
+  });
+
+  describe("session status handling", () => {
+    it("shows incomplete status when not ready for payment", () => {
+      render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={false} />);
+
+      expect(screen.getByText("Incomplete")).toBeInTheDocument();
+    });
+
+    it("shows correct button text when not ready for payment", () => {
+      render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={false} />);
+
+      expect(screen.getByText("Complete details to pay")).toBeInTheDocument();
+    });
+
+    it("disables pay button when not ready for payment", () => {
+      render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={false} />);
+
+      const payButton = screen.getByRole("button", { name: /pay with saved card/i });
+      expect(payButton).toBeDisabled();
+    });
+
+    it("enables pay button when ready for payment", () => {
+      render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={true} />);
+
+      const payButton = screen.getByRole("button", { name: /pay with saved card/i });
+      expect(payButton).not.toBeDisabled();
+    });
+
+    it("shows processing indicator when isProcessing is true", () => {
+      render(<CheckoutCard checkout={mockCheckout} isProcessing={true} />);
+
+      expect(screen.getByText("Processing")).toBeInTheDocument();
+    });
+
+    it("does not show card info when not ready for payment", () => {
+      render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={false} />);
+
+      expect(screen.queryByText("4242")).not.toBeInTheDocument();
+    });
+
+    it("shows card info when ready for payment and not processing", () => {
+      render(
+        <CheckoutCard checkout={mockCheckout} isReadyForPayment={true} isProcessing={false} />
+      );
+
+      expect(screen.getByText("4242")).toBeInTheDocument();
     });
   });
 });

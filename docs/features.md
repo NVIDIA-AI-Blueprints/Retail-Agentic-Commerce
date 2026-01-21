@@ -20,7 +20,7 @@ This document breaks down the project requirements into discrete, implementable 
 | 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 | |
 | 11 | Webhook Integration | P2 | Feature 8 | |
 | 12 | Agent Panel Checkout Flow Simulation | P1 | Feature 9 | ✅ Complete |
-| 13 | Integration of UI and ACP Server | P1 | Features 3, 5, 9, 12 | |
+| 13 | Integration of UI and ACP Server | P1 | Features 3, 5, 9, 12 | ✅ Complete |
 
 ---
 
@@ -1254,51 +1254,51 @@ If session status is `authentication_required`:
 
 ### Tasks
 
-- [ ] Create API client service in UI (`lib/api-client.ts`)
-  - [ ] Configure base URL and authentication headers
-  - [ ] Add `API-Version` header support
-  - [ ] Implement `Idempotency-Key` generation for payment requests
-  - [ ] Implement error handling and retry logic
-  - [ ] Add request/response type definitions matching ACP schemas
-- [ ] Update `useCheckoutFlow` hook to call real APIs
-  - [ ] Send `agent_capabilities` in session creation
-  - [ ] Parse `payment_provider` and `seller_capabilities` from response
-  - [ ] Validate card network against `supported_card_networks` before payment
-  - [ ] Handle all session states including `authentication_required`
-  - [ ] Implement session updates on quantity/shipping changes
-- [ ] Implement PSP integration in UI
-  - [ ] Create payment form with proper PaymentMethodCard fields
-  - [ ] Call PSP `delegate_payment` endpoint with full schema
-  - [ ] Include at least one RiskSignal in request
-  - [ ] Handle vault token response
-- [ ] Implement 3D Secure flow
-  - [ ] Detect `authentication_required` status
-  - [ ] Redirect user to 3DS challenge URL or embed iframe
-  - [ ] Capture authentication_result after 3DS completion
-  - [ ] Call complete endpoint with authentication_result
-  - [ ] Handle all authentication outcomes (authenticated, denied, canceled, processing_error)
-- [ ] Update `CheckoutCard` component
-  - [ ] Pass vault token and provider to complete endpoint
-  - [ ] Display loading states during API calls
-  - [ ] Show 3DS challenge UI when required
-  - [ ] Handle and display API errors gracefully
-- [ ] Update `ConfirmationCard` component
-  - [ ] Display real order data from API response
-  - [ ] Show order ID and `permalink_url` for order tracking
-- [ ] Add environment configuration
-  - [ ] `NEXT_PUBLIC_API_URL` for merchant backend
-  - [ ] `NEXT_PUBLIC_PSP_URL` for PSP endpoints
-  - [ ] `NEXT_PUBLIC_API_VERSION` for version header
-- [ ] Implement error handling UI
-  - [ ] Network error states with retry
-  - [ ] Validation error display (`missing`, `invalid` codes)
-  - [ ] Payment failure handling (`payment_declined`)
-  - [ ] Out of stock handling (`out_of_stock`)
-  - [ ] 3DS failure handling (`requires_3ds`, `denied`, `canceled`)
-- [ ] Add loading states and optimistic updates
-  - [ ] Skeleton loaders during API calls
-  - [ ] Disable buttons during processing
-  - [ ] Show processing indicator during payment and 3DS
+- [x] Create API client service in UI (`lib/api-client.ts`)
+  - [x] Configure base URL and authentication headers
+  - [x] Add `API-Version` header support
+  - [x] Implement `Idempotency-Key` generation for payment requests
+  - [x] Implement error handling and retry logic
+  - [x] Add request/response type definitions matching ACP schemas
+- [x] Update `useCheckoutFlow` hook to call real APIs
+  - [x] Send `agent_capabilities` in session creation
+  - [x] Parse `payment_provider` and `seller_capabilities` from response
+  - [x] Validate card network against `supported_card_networks` before payment
+  - [x] Handle all session states including `authentication_required`
+  - [x] Implement session updates on quantity/shipping changes
+- [x] Implement PSP integration in UI
+  - [x] Create payment form with proper PaymentMethodCard fields
+  - [x] Call PSP `delegate_payment` endpoint with full schema
+  - [x] Include at least one RiskSignal in request
+  - [x] Handle vault token response
+- [x] Implement 3D Secure flow
+  - [x] Detect `authentication_required` status
+  - [x] Redirect user to 3DS challenge URL or embed iframe
+  - [x] Capture authentication_result after 3DS completion
+  - [x] Call complete endpoint with authentication_result
+  - [x] Handle all authentication outcomes (authenticated, denied, canceled, processing_error)
+- [x] Update `CheckoutCard` component
+  - [x] Pass vault token and provider to complete endpoint
+  - [x] Display loading states during API calls
+  - [x] Show 3DS challenge UI when required
+  - [x] Handle and display API errors gracefully
+- [x] Update `ConfirmationCard` component
+  - [x] Display real order data from API response
+  - [x] Show order ID and `permalink_url` for order tracking
+- [x] Add environment configuration
+  - [x] `NEXT_PUBLIC_API_URL` for merchant backend
+  - [x] `NEXT_PUBLIC_PSP_URL` for PSP endpoints
+  - [x] `NEXT_PUBLIC_API_VERSION` for version header
+- [x] Implement error handling UI
+  - [x] Network error states with retry
+  - [x] Validation error display (`missing`, `invalid` codes)
+  - [x] Payment failure handling (`payment_declined`)
+  - [x] Out of stock handling (`out_of_stock`)
+  - [x] 3DS failure handling (`requires_3ds`, `denied`, `canceled`)
+- [x] Add loading states and optimistic updates
+  - [x] Skeleton loaders during API calls
+  - [x] Disable buttons during processing
+  - [x] Show processing indicator during payment and 3DS
 
 ### State Management
 
@@ -1388,23 +1388,23 @@ type CheckoutAction =
 
 ### Acceptance Criteria
 
-- [ ] Clicking a product creates a real checkout session via API with `agent_capabilities`
-- [ ] UI correctly parses `payment_provider` and `seller_capabilities` from response
-- [ ] Card network is validated against `supported_card_networks` before payment
-- [ ] Quantity changes update the session and recalculate totals
-- [ ] Shipping option selection updates session with fulfillment details
-- [ ] Pay button is disabled until session reaches `ready_for_payment` status
-- [ ] Payment flow successfully obtains vault token from PSP with proper schema
-- [ ] At least one `risk_signal` is included in delegate_payment request
-- [ ] Complete endpoint processes payment and creates order
-- [ ] 3DS flow is handled when `authentication_required` status is returned
-- [ ] Authentication result is properly captured and sent to complete endpoint
-- [ ] All authentication outcomes are handled (success, denied, canceled, error)
-- [ ] Confirmation displays real order details including `permalink_url`
-- [ ] Loading states are shown during all API operations
-- [ ] All ACP error codes are handled with user-friendly messages
+- [x] Clicking a product creates a real checkout session via API with `agent_capabilities`
+- [x] UI correctly parses `payment_provider` and `seller_capabilities` from response
+- [x] Card network is validated against `supported_card_networks` before payment
+- [x] Quantity changes update the session and recalculate totals
+- [x] Shipping option selection updates session with fulfillment details
+- [x] Pay button is disabled until session reaches `ready_for_payment` status
+- [x] Payment flow successfully obtains vault token from PSP with proper schema
+- [x] At least one `risk_signal` is included in delegate_payment request
+- [x] Complete endpoint processes payment and creates order
+- [x] 3DS flow is handled when `authentication_required` status is returned
+- [x] Authentication result is properly captured and sent to complete endpoint
+- [x] All authentication outcomes are handled (success, denied, canceled, error)
+- [x] Confirmation displays real order details including `permalink_url`
+- [x] Loading states are shown during all API operations
+- [x] All ACP error codes are handled with user-friendly messages
 - [ ] Session state is preserved on page refresh (via session ID in URL or storage)
-- [ ] All amounts are displayed in proper format (minor units converted to dollars)
+- [x] All amounts are displayed in proper format (minor units converted to dollars)
 
 ---
 

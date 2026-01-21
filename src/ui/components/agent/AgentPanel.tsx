@@ -1,60 +1,146 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Stack, Flex, Text, Badge } from "@kui/foundations-react-external";
 import { ChatMessage } from "./ChatMessage";
 import { ProductGrid } from "./ProductGrid";
 import { CheckoutCard } from "./CheckoutCard";
 import { ConfirmationCard } from "./ConfirmationCard";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
-import { mockProducts, mockChatMessages, mockCheckoutSession } from "@/data/mock-data";
-import type { ChatMessage as ChatMessageType, CheckoutSession, Product } from "@/types";
+import { mockProducts, mockChatMessages } from "@/data/mock-data";
+import { getErrorMessage, getSuggestedAction } from "@/lib/errors";
+import type { ChatMessage as ChatMessageType, FulfillmentOption, Product } from "@/types";
 
 /**
- * Generate a random order ID
+ * Loading skeleton for checkout card
  */
-function generateOrderId(): string {
-  return `ORD-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+function CheckoutSkeleton() {
+  return (
+    <div className="w-full max-w-md animate-pulse">
+      <div className="bg-surface-sunken rounded-lg p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-base rounded" />
+          <div className="h-4 w-20 bg-base rounded" />
+        </div>
+        <div className="flex gap-3">
+          <div className="w-16 h-16 bg-base rounded" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-32 bg-base rounded" />
+            <div className="h-3 w-24 bg-base rounded" />
+            <div className="h-4 w-16 bg-base rounded" />
+          </div>
+        </div>
+        <div className="h-px bg-base" />
+        <div className="space-y-2">
+          <div className="h-3 w-16 bg-base rounded" />
+          <div className="h-10 w-full bg-base rounded" />
+        </div>
+        <div className="h-px bg-base" />
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <div className="h-4 w-24 bg-base rounded" />
+            <div className="h-5 w-16 bg-base rounded" />
+          </div>
+        </div>
+        <div className="h-10 w-full bg-base rounded" />
+      </div>
+    </div>
+  );
 }
 
 /**
- * Create a checkout session from a selected product
+ * Error display component
  */
-function createCheckoutSession(
-  product: Product,
-  quantity: number,
-  selectedShippingId: string
-): CheckoutSession {
-  const selectedOption = mockCheckoutSession.fulfillmentOptions?.find(
-    (opt) => opt.id === selectedShippingId
-  );
-  const shippingPrice = selectedOption?.price ?? 500;
-  const subtotal = product.basePrice * quantity;
-
-  return {
-    ...mockCheckoutSession,
-    lineItems: [
-      {
-        id: `li_${product.sku}`,
-        item: {
-          id: product.sku,
-          name: product.name,
-          imageUrl: product.imageUrl || "/shirt.jpeg",
-        },
-        quantity,
-        baseAmount: product.basePrice,
-        discount: 0,
-        subtotal,
-        tax: 0,
-        total: subtotal,
-      },
-    ],
-    subtotal,
-    shipping: shippingPrice,
-    total: subtotal + shippingPrice,
-    selectedFulfillmentOptionId: selectedShippingId,
-    updatedAt: new Date().toISOString(),
+function ErrorDisplay({
+  error,
+  onRetry,
+  onDismiss,
+}: {
+  error: { type: string; code: string; message: string };
+  onRetry?: () => void;
+  onDismiss?: () => void;
+}) {
+  const apiError = {
+    type: error.type as import("@/types").APIErrorType,
+    code: error.code,
+    message: error.message,
   };
+  const message = getErrorMessage(apiError);
+  const action = getSuggestedAction(apiError);
+
+  return (
+    <div className="w-full max-w-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+      <Stack gap="3">
+        <Flex align="center" gap="2">
+          <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+            <span className="text-white text-xs font-bold">!</span>
+          </div>
+          <Text kind="label/bold/md" className="text-red-700 dark:text-red-300">
+            Something went wrong
+          </Text>
+        </Flex>
+        <Text kind="body/regular/sm" className="text-red-600 dark:text-red-400">
+          {message}
+        </Text>
+        {action && (
+          <Flex gap="2">
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+              >
+                {action}
+              </button>
+            )}
+            {onDismiss && (
+              <button
+                onClick={onDismiss}
+                className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 transition-colors"
+              >
+                Dismiss
+              </button>
+            )}
+          </Flex>
+        )}
+      </Stack>
+    </div>
+  );
+}
+
+/**
+ * Convert API fulfillment options to legacy format for CheckoutCard
+ */
+function convertFulfillmentOptions(
+  options: FulfillmentOption[]
+): { id: string; name: string; description: string; price: number; estimatedDelivery: string }[] {
+  return options.map((opt) => ({
+    id: opt.id,
+    name: opt.title,
+    description: opt.subtitle ?? "",
+    price: opt.total,
+    estimatedDelivery: opt.subtitle ?? "",
+  }));
+}
+
+/**
+ * Get total from session totals array
+ */
+function getSessionTotal(totals: { type: string; amount: number }[]): number {
+  return totals.find((t) => t.type === "total")?.amount ?? 0;
+}
+
+/**
+ * Get subtotal from session totals array
+ */
+function getSessionSubtotal(totals: { type: string; amount: number }[]): number {
+  return totals.find((t) => t.type === "subtotal")?.amount ?? 0;
+}
+
+/**
+ * Get shipping from session totals array
+ */
+function getSessionShipping(totals: { type: string; amount: number }[]): number {
+  return totals.find((t) => t.type === "fulfillment")?.amount ?? 0;
 }
 
 /**
@@ -68,20 +154,17 @@ export function AgentPanel() {
     updateQuantity,
     selectShipping,
     submitPayment,
-    completePayment,
     reset,
+    clearError,
   } = useCheckoutFlow();
 
-  // Process payment after submitting
-  useEffect(() => {
-    if (context.state === "processing") {
-      const timer = setTimeout(() => {
-        completePayment(generateOrderId());
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [context.state, completePayment]);
+  // Handle product selection
+  const handleSelectProduct = useCallback(
+    (product: Product) => {
+      selectProduct(product);
+    },
+    [selectProduct]
+  );
 
   // Handle pay button click
   const handlePay = useCallback(() => {
@@ -104,15 +187,67 @@ export function AgentPanel() {
     [updateQuantity]
   );
 
-  // Get the selected shipping option for confirmation
-  const selectedShippingOption = mockCheckoutSession.fulfillmentOptions?.find(
+  // Handle error retry
+  const handleRetry = useCallback(() => {
+    clearError();
+  }, [clearError]);
+
+  // Get fulfillment options from session
+  const fulfillmentOptions = context.session
+    ? convertFulfillmentOptions(context.session.fulfillment_options)
+    : [];
+
+  // Get selected shipping option for confirmation
+  const selectedShippingOption = fulfillmentOptions.find(
     (opt) => opt.id === context.selectedShippingId
   );
 
-  // Create checkout session based on current state
-  const currentCheckout = context.selectedProduct
-    ? createCheckoutSession(context.selectedProduct, context.quantity, context.selectedShippingId)
+  // Get totals from session
+  const sessionTotals = context.session?.totals ?? [];
+  const subtotal = getSessionSubtotal(sessionTotals);
+  const shipping = getSessionShipping(sessionTotals);
+  const total = getSessionTotal(sessionTotals);
+
+  // Build checkout data for CheckoutCard (compatible format using legacy CheckoutSession type)
+  const checkoutData = context.session
+    ? {
+        id: context.session.id,
+        status: context.session.status,
+        currency: context.session.currency,
+        lineItems: context.session.line_items.map((li) => ({
+          id: li.id,
+          item: {
+            id: li.item.id,
+            name: li.name ?? undefined,
+            imageUrl: li.images?.[0] ?? undefined,
+          },
+          quantity: li.item.quantity,
+          baseAmount: li.base_amount,
+          discount: li.discount,
+          subtotal: li.subtotal,
+          tax: li.tax,
+          total: li.total,
+        })),
+        subtotal,
+        discount: 0,
+        tax: sessionTotals.find((t) => t.type === "tax")?.amount ?? 0,
+        shipping,
+        total,
+        fulfillmentOptions,
+        selectedFulfillmentOptionId: context.selectedShippingId,
+        paymentProvider: {
+          provider: context.session.payment_provider.provider,
+          supportedPaymentMethods: context.session.payment_provider.supported_payment_methods.map(
+            (m) => m.type
+          ),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
     : null;
+
+  // Check if session is ready for payment
+  const isReadyForPayment = context.session?.status === "ready_for_payment";
 
   return (
     <section
@@ -136,25 +271,36 @@ export function AgentPanel() {
             ))}
           </Stack>
 
+          {/* Error display */}
+          {context.error && (
+            <ErrorDisplay error={context.error} onRetry={handleRetry} onDismiss={handleRetry} />
+          )}
+
           {/* Flow-based content */}
-          {context.state === "product_selection" && (
+          {context.state === "product_selection" && !context.error && (
             <>
               <Text kind="body/regular/md" className="text-secondary">
                 Here are some options to check out:
               </Text>
-              <ProductGrid products={mockProducts} onSelect={selectProduct} />
+              <ProductGrid products={mockProducts} onSelect={handleSelectProduct} />
             </>
           )}
 
+          {/* Loading state */}
+          {context.isLoading && context.state === "product_selection" && <CheckoutSkeleton />}
+
+          {/* Checkout state */}
           {(context.state === "checkout" || context.state === "processing") &&
-            currentCheckout &&
+            !context.error &&
+            checkoutData &&
             context.selectedProduct && (
               <div className="checkout-transition">
                 <CheckoutCard
-                  checkout={currentCheckout}
+                  checkout={checkoutData}
                   product={context.selectedProduct}
                   quantity={context.quantity}
-                  isProcessing={context.state === "processing"}
+                  isProcessing={context.state === "processing" || context.isLoading}
+                  isReadyForPayment={isReadyForPayment}
                   onPay={handlePay}
                   onQuantityChange={handleQuantityChange}
                   onShippingChange={handleShippingChange}
@@ -162,18 +308,24 @@ export function AgentPanel() {
               </div>
             )}
 
-          {context.state === "confirmation" && context.selectedProduct && context.orderId && (
-            <div className="checkout-transition">
-              <ConfirmationCard
-                product={context.selectedProduct}
-                quantity={context.quantity}
-                shippingPrice={selectedShippingOption?.price ?? 500}
-                orderId={context.orderId}
-                estimatedDelivery={selectedShippingOption?.estimatedDelivery ?? "5-7 business days"}
-                onStartOver={reset}
-              />
-            </div>
-          )}
+          {/* Confirmation state */}
+          {context.state === "confirmation" &&
+            context.selectedProduct &&
+            context.session?.order && (
+              <div className="checkout-transition">
+                <ConfirmationCard
+                  product={context.selectedProduct}
+                  quantity={context.quantity}
+                  shippingPrice={shipping}
+                  orderId={context.session.order.id}
+                  orderUrl={context.session.order.permalink_url}
+                  estimatedDelivery={
+                    selectedShippingOption?.estimatedDelivery ?? "5-7 business days"
+                  }
+                  onStartOver={reset}
+                />
+              </div>
+            )}
         </Stack>
       </div>
     </section>
