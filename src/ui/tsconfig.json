@@ -19,6 +19,7 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
       "@kui/foundations-react-external": ["./__mocks__/@kui/foundations-react-external.tsx"],
