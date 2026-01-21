@@ -13,7 +13,7 @@
 ### Draft Content: High-Level Overview
 
 **1. Technical Summary**
-The **Intelligent ACP Middleware** is a Python **3.12+**-based reference architecture designed to host autonomous merchant agents. It exposes five RESTful endpoints compliant with the **Agentic Commerce Protocol v2025-09-29** and utilizes the **NVIDIA NeMo Agent Toolkit** to perform real-time business logic optimization. The system uses an "Async Parallel Orchestration" pattern to ensure fast, responsive agent reasoning.
+The **Intelligent ACP Middleware** is a Python **3.12+**-based reference architecture designed to host autonomous merchant agents. It exposes five RESTful endpoints compliant with the **Agentic Commerce Protocol v2026-01-16** and utilizes the **NVIDIA NeMo Agent Toolkit** to perform real-time business logic optimization. The system uses an "Async Parallel Orchestration" pattern to ensure fast, responsive agent reasoning.
 
 **Simulator (demo client)**
 We will also build a **client agent simulator** that plays the "client" role:
@@ -51,8 +51,10 @@ graph TD
         K3[Right: Chain of Thought - Optional]
     end
 
-    subgraph "Payments"
-        P[PSP (delegated payments)]
+    subgraph "Payments (PSP)"
+        P1[delegate_payment → vt_...]
+        P2[create_and_process_payment_intent → pi_...]
+        P3[3DS Authentication]
     end
 
     subgraph "Webhooks"
@@ -67,8 +69,11 @@ graph TD
     A -.->|Simulation View| K1
     B & C -.->|JSON/Protocol State| K2
     D & E & F -.->|Agent Reasoning| K3
-    B -->|complete checkout (token)| P
-    A -->|delegate payment (vt_...)| P
+    A -->|delegate payment| P1
+    P1 -->|vault token| A
+    B -->|complete checkout (token)| P2
+    P2 -.->|3DS required?| P3
+    P3 -->|authentication_result| B
     F -->|Post-purchase events| W
 
 ```
@@ -88,9 +93,23 @@ graph TD
   2. Simulator displays 4 product cards with images and prices
   3. User clicks a product to start checkout via ACP protocol
 * **Static Product Catalog**: 4 pre-populated products stored in SQLite.
-* **Delegated payments (PSP)**:
-  * Client calls `POST /agentic_commerce/delegate_payment` → `vt_...` (idempotent by `Idempotency-Key`)
-  * Merchant calls `POST /agentic_commerce/create_and_process_payment_intent` → `pi_...`, token becomes `consumed`
+* **Delegated Payments (PSP)** - ACP-compliant payment flow:
+  1. **Client/Agent obtains vault token**: `POST /agentic_commerce/delegate_payment`
+     - Sends: `payment_method` (card details), `allowance` (constraints), `risk_signals`
+     - Requires: `Idempotency-Key` header for safe retries
+     - Returns: Vault token `vt_...` with metadata
+  2. **Client/Agent completes checkout**: `POST /checkout_sessions/{id}/complete`
+     - Sends: `payment_data` with vault token and provider
+     - May return: `status: authentication_required` (3DS needed)
+  3. **3D Secure flow** (if required):
+     - Session returns `authentication_metadata` with challenge URL
+     - Client redirects user or embeds 3DS challenge
+     - After 3DS completion, client calls complete again with `authentication_result`
+  4. **Merchant processes payment**: Calls PSP `create_and_process_payment_intent`
+     - Validates vault token is `active` and not expired
+     - Validates amount within `allowance.max_amount`
+     - Marks vault token as `consumed` (single-use)
+     - Creates order on success
 * **Global Webhook Delivery**: Post-purchase shipping pulses are delivered to a **single global webhook URL** configured at the application level. The Post-Purchase Agent uses the **Brand Persona** to generate multilingual updates.
 * **Configurable NIM Endpoint**: Supports both NVIDIA hosted API and local Docker deployment via environment variable.
 * **API Key Auth**: All ACP endpoints require an API key (e.g., `Authorization: Bearer <API_KEY>` or `X-API-Key: <API_KEY>`). Unauthorized requests return 401/403.

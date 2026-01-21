@@ -40,7 +40,7 @@ For this project we will also build a **client agent simulator** that behaves li
 
 ### 2.1 ACP Checkout Endpoints (Per Official Specification)
 
-Implement the 5 required RESTful endpoints per the OpenAI/Stripe ACP specification:
+Implement the 5 required RESTful endpoints per the OpenAI/Stripe ACP specification (API Version: `2026-01-16`):
 
 #### FR-ACP-01: Create Checkout Session
 * **Endpoint**: `POST /checkout_sessions`
@@ -106,7 +106,26 @@ All successful responses return the full checkout state:
   "buyer": { ... },
   "payment_provider": {
     "provider": "stripe",
-    "supported_payment_methods": ["card"]
+    "supported_payment_methods": [
+      {
+        "type": "card",
+        "supported_card_networks": ["visa", "mastercard", "amex", "discover"]
+      }
+    ]
+  },
+  "seller_capabilities": {
+    "payment_methods": [
+      {
+        "method": "card",
+        "brands": ["visa", "mastercard", "amex"],
+        "funding_types": ["credit", "debit"]
+      }
+    ],
+    "interventions": {
+      "required": [],
+      "supported": ["3ds", "3ds_challenge", "3ds_frictionless"],
+      "enforcement": "conditional"
+    }
   },
   "line_items": [{
     "id": "item_123",
@@ -117,18 +136,31 @@ All successful responses return the full checkout state:
     "tax": 200,
     "total": 2700
   }],
-  "fulfillment_address": { ... },
+  "fulfillment_details": {
+    "name": "John Doe",
+    "phone_number": "15551234567",
+    "email": "john@example.com",
+    "address": { ... }
+  },
   "fulfillment_options": [{
     "type": "shipping",
     "id": "shipping_standard",
     "title": "Standard Shipping",
     "subtitle": "5-7 business days",
     "carrier": "USPS",
+    "earliest_delivery_time": "2026-01-28T00:00:00Z",
+    "latest_delivery_time": "2026-01-30T23:59:59Z",
     "subtotal": 500,
     "tax": 0,
     "total": 500
   }],
-  "fulfillment_option_id": "shipping_standard",
+  "selected_fulfillment_options": [{
+    "type": "shipping",
+    "shipping": {
+      "option_id": "shipping_standard",
+      "item_ids": ["item_123"]
+    }
+  }],
   "totals": [
     { "type": "subtotal", "display_text": "Subtotal", "amount": 2500 },
     { "type": "fulfillment", "display_text": "Shipping", "amount": 500 },
@@ -139,6 +171,16 @@ All successful responses return the full checkout state:
   "links": []
 }
 ```
+
+**Session Status Values:**
+| Status | Description |
+|--------|-------------|
+| `not_ready_for_payment` | Initial state, missing required data |
+| `ready_for_payment` | All requirements met, ready for payment |
+| `authentication_required` | 3D Secure or other authentication required |
+| `in_progress` | Payment is being processed |
+| `completed` | Successfully completed with order created |
+| `canceled` | Session has been canceled |
 
 ### 2.2 Intelligent Merchant Agents (NVIDIA NeMo Agent Toolkit)
 
