@@ -16,9 +16,10 @@ This document breaks down the project requirements into discrete, implementable 
 | 6 | Promotion Agent (NAT) | P1 | Features 3, 4 | |
 | 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
 | 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | |
-| 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 | |
+| 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 | ✅ Complete |
 | 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 | |
 | 11 | Webhook Integration | P2 | Feature 8 | |
+| 12 | Agent Panel Checkout Flow Simulation | P1 | Feature 9 | |
 
 ---
 
@@ -528,6 +529,111 @@ WEBHOOK_SECRET=whsec_xxx
 
 ---
 
+## Feature 12: Agent Panel Checkout Flow Simulation
+
+**Goal**: Implement an animated, multi-state checkout flow simulation within the Agent Panel that demonstrates the complete purchase journey from product selection to order confirmation.
+
+### State Machine
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Product Grid   │────▶│    Checkout     │────▶│    Payment      │────▶│  Confirmation   │
+│    Selection    │     │   (Shipping)    │     │   Processing    │     │    Complete     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘     └─────────────────┘
+        ▲                       │                                               │
+        └───────────────────────┴───────────────────────────────────────────────┘
+                                      (Start Over)
+```
+
+### UI States
+
+#### State 1: Product Grid Selection
+- Display product cards in a responsive grid layout
+- Each card shows: product image, name, variant (color/size), price, merchant name
+- User prompt/message displayed above product grid
+- Clicking a product card transitions to checkout state
+
+#### State 2: Checkout (Shipping & Cart Review)
+- Animated transition from product grid to single checkout card
+- Merchant header with logo/icon and name
+- Selected product with:
+  - Thumbnail image
+  - Product name and variant
+  - Price
+  - Quantity selector (+/- controls)
+- Shipping section:
+  - Dropdown to select shipping option
+  - Options include delivery timeframe and cost (e.g., "Standard 5-7 business days $5.00")
+- Order summary:
+  - Total due today (prominent)
+  - Subtotal breakdown
+  - Shipping cost
+- Pay button with saved payment method indicator (e.g., card ending in 4242)
+
+#### State 3: Shipping Options Expanded
+- Dropdown expands to show available shipping options
+- Each option displays: name, delivery timeframe, price
+- Selected option indicated with checkmark
+- Selecting an option updates the order total
+
+#### State 4: Order Confirmation
+- Animated transition to confirmation state
+- Success header with green checkmark and "Purchase complete" text
+- Order details card:
+  - Product thumbnail and details
+  - Quantity ordered
+  - Estimated delivery date
+  - Merchant name ("Sold by")
+  - Amount paid
+- Confirmation message below card with next steps
+
+### Animation Requirements
+
+All state transitions must include smooth animations:
+
+- **Product to Checkout**: Product cards fade/scale out, checkout card slides/fades in
+- **Shipping Dropdown**: Smooth expand/collapse animation
+- **Checkout to Confirmation**: Checkout card morphs into confirmation card with success indicator animation
+- **State Reset**: Fade transition back to product grid
+
+Recommended animation properties:
+- Duration: 300-400ms for major transitions
+- Easing: ease-out or custom cubic-bezier for natural feel
+- Use CSS transitions or Framer Motion for React
+
+### Tasks
+
+- [ ] Create checkout flow state machine (React useState/useReducer)
+- [ ] Implement ProductGrid component with animated card selection
+- [ ] Implement CheckoutCard component with:
+  - [ ] Product summary section
+  - [ ] Quantity selector with +/- controls
+  - [ ] Shipping dropdown with animated expand/collapse
+  - [ ] Order total calculation
+  - [ ] Pay button with payment method display
+- [ ] Implement ConfirmationCard component with:
+  - [ ] Success header with animated checkmark
+  - [ ] Order summary details
+  - [ ] Estimated delivery display
+  - [ ] Confirmation message
+- [ ] Add transition animations between all states
+- [ ] Integrate with existing AgentPanel component
+- [ ] Connect to ACP checkout session API for real data
+
+### Acceptance Criteria
+
+- [ ] Product grid displays available products with images and pricing
+- [ ] Clicking a product smoothly transitions to checkout view
+- [ ] Quantity can be adjusted with +/- controls
+- [ ] Shipping options dropdown expands/collapses with animation
+- [ ] Selecting shipping option updates total price
+- [ ] Pay button triggers transition to confirmation state
+- [ ] Confirmation shows order details with estimated delivery
+- [ ] All state transitions have smooth, polished animations
+- [ ] User can start a new checkout flow after confirmation
+
+---
+
 ## Implementation Order
 
 ### Phase 1: Foundation (Features 1-4)
@@ -546,12 +652,13 @@ Add payment processing and intelligent agents.
 7. **Feature 7**: Recommendation Agent
 8. **Feature 8**: Post-Purchase Agent
 
-### Phase 3: Experience (Features 9-11)
+### Phase 3: Experience (Features 9-12)
 Build the frontend and observability layer.
 
 9. **Feature 9**: Client Agent Simulator
 10. **Feature 10**: Multi-Panel Protocol Inspector
 11. **Feature 11**: Webhook Integration
+12. **Feature 12**: Agent Panel Checkout Flow Simulation
 
 ---
 
