@@ -53,3 +53,86 @@ body {
 .json-null {
   color: var(--color-gray-400);
 }
+
+/* Checkout flow animations */
+.checkout-transition {
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
+}
+
+.fade-in {
+  animation: fadeIn 300ms ease-out forwards;
+}
+
+.fade-out {
+  animation: fadeOut 200ms ease-in forwards;
+}
+
+.slide-in-right {
+  animation: slideInRight 300ms ease-out forwards;
+}
+
+.slide-out-left {
+  animation: slideOutLeft 200ms ease-in forwards;
+}
+
+.success-check {
+  animation: checkPop 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+@keyframes checkPop {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

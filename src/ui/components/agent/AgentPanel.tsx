@@ -1,17 +1,122 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Stack, Flex, Text, Badge } from "@kui/foundations-react-external";
 import { ChatMessage } from "./ChatMessage";
-import { ProductCard } from "./ProductCard";
-import { mockProducts, mockChatMessages } from "@/data/mock-data";
-import type { ChatMessage as ChatMessageType } from "@/types";
+import { ProductGrid } from "./ProductGrid";
+import { CheckoutCard } from "./CheckoutCard";
+import { ConfirmationCard } from "./ConfirmationCard";
+import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
+import { mockProducts, mockChatMessages, mockCheckoutSession } from "@/data/mock-data";
+import type { ChatMessage as ChatMessageType, CheckoutSession, Product } from "@/types";
+
+/**
+ * Generate a random order ID
+ */
+function generateOrderId(): string {
+  return `ORD-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+}
+
+/**
+ * Create a checkout session from a selected product
+ */
+function createCheckoutSession(
+  product: Product,
+  quantity: number,
+  selectedShippingId: string
+): CheckoutSession {
+  const selectedOption = mockCheckoutSession.fulfillmentOptions?.find(
+    (opt) => opt.id === selectedShippingId
+  );
+  const shippingPrice = selectedOption?.price ?? 500;
+  const subtotal = product.basePrice * quantity;
+
+  return {
+    ...mockCheckoutSession,
+    lineItems: [
+      {
+        id: `li_${product.sku}`,
+        item: {
+          id: product.sku,
+          name: product.name,
+          imageUrl: product.imageUrl || "/shirt.jpeg",
+        },
+        quantity,
+        baseAmount: product.basePrice,
+        discount: 0,
+        subtotal,
+        tax: 0,
+        total: subtotal,
+      },
+    ],
+    subtotal,
+    shipping: shippingPrice,
+    total: subtotal + shippingPrice,
+    selectedFulfillmentOptionId: selectedShippingId,
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 /**
  * Left panel containing the agent chat interface and product display
  */
 export function AgentPanel() {
   const [messages] = useState<ChatMessageType[]>(mockChatMessages);
+  const {
+    context,
+    selectProduct,
+    updateQuantity,
+    selectShipping,
+    submitPayment,
+    completePayment,
+    reset,
+  } = useCheckoutFlow();
+
+  // Process payment after submitting
+  useEffect(() => {
+    if (context.state === "processing") {
+      const timer = setTimeout(() => {
+        completePayment(generateOrderId());
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [context.state, completePayment]);
+
+  // Handle pay button click
+  const handlePay = useCallback(() => {
+    submitPayment();
+  }, [submitPayment]);
+
+  // Handle shipping change
+  const handleShippingChange = useCallback(
+    (optionId: string) => {
+      selectShipping(optionId);
+    },
+    [selectShipping]
+  );
+
+  // Handle quantity change
+  const handleQuantityChange = useCallback(
+    (quantity: number) => {
+      updateQuantity(quantity);
+    },
+    [updateQuantity]
+  );
+
+  // Get the selected shipping option for confirmation
+  const selectedShippingOption = mockCheckoutSession.fulfillmentOptions?.find(
+    (opt) => opt.id === context.selectedShippingId
+  );
+
+  // Create checkout session based on current state
+  const currentCheckout = context.selectedProduct
+    ? createCheckoutSession(
+        context.selectedProduct,
+        context.quantity,
+        context.selectedShippingId
+      )
+    : null;
 
   return (
     <section
@@ -39,19 +144,48 @@ export function AgentPanel() {
             ))}
           </Stack>
 
-          {/* Response text */}
-          <Text kind="body/regular/md" className="text-secondary">
-            Here are some options to check out:
-          </Text>
+          {/* Flow-based content */}
+          {context.state === "product_selection" && (
+            <>
+              <Text kind="body/regular/md" className="text-secondary">
+                Here are some options to check out:
+              </Text>
+              <ProductGrid products={mockProducts} onSelect={selectProduct} />
+            </>
+          )}
 
-          {/* Product cards - 3 columns */}
-          <Flex gap="4" wrap="wrap">
-            {mockProducts.map((product) => (
-              <div key={product.id} className="w-[200px]">
-                <ProductCard product={product} />
+          {(context.state === "checkout" || context.state === "processing") &&
+            currentCheckout &&
+            context.selectedProduct && (
+              <div className="checkout-transition">
+                <CheckoutCard
+                  checkout={currentCheckout}
+                  product={context.selectedProduct}
+                  quantity={context.quantity}
+                  isProcessing={context.state === "processing"}
+                  onPay={handlePay}
+                  onQuantityChange={handleQuantityChange}
+                  onShippingChange={handleShippingChange}
+                />
               </div>
-            ))}
-          </Flex>
+            )}
+
+          {context.state === "confirmation" &&
+            context.selectedProduct &&
+            context.orderId && (
+              <div className="checkout-transition">
+                <ConfirmationCard
+                  product={context.selectedProduct}
+                  quantity={context.quantity}
+                  shippingPrice={selectedShippingOption?.price ?? 500}
+                  orderId={context.orderId}
+                  estimatedDelivery={
+                    selectedShippingOption?.estimatedDelivery ?? "5-7 business days"
+                  }
+                  onStartOver={reset}
+                />
+              </div>
+            )}
         </Stack>
       </div>
     </section>

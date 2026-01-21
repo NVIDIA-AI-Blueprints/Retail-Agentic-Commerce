@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a reference implementation of the **Agentic Commerce Protocol (ACP)**: a retailer-operated checkout system that enables agentic negotiation while maintaining merchant control. The backend is built with Python 3.12+ FastAPI and SQLModel ORM, with a planned Next.js frontend.
+This is a reference implementation of the **Agentic Commerce Protocol (ACP)**: a retailer-operated checkout system that enables agentic negotiation while maintaining merchant control. The backend is built with Python 3.12+ FastAPI and SQLModel ORM, and the frontend uses Next.js 15+ with React 19 and Kaizen UI components.
 
 **Key Architecture**: Async Parallel Orchestrator pattern where NVIDIA NeMo Agent Toolkit (NAT) agents perform real-time business logic (promotions, recommendations, post-purchase) using tool-calling SQL queries.
 
@@ -21,6 +21,38 @@ uvicorn src.merchant.main:app --reload
 
 # Health check
 curl http://localhost:8000/health
+```
+
+### UI Operations (Next.js Frontend)
+```bash
+# Navigate to UI directory
+cd src/ui
+
+# Install dependencies
+pnpm install
+
+# Start UI development server
+pnpm run dev
+
+# UI runs at http://localhost:3000
+```
+
+### UI Testing & Quality
+```bash
+cd src/ui
+
+# Run tests
+pnpm test              # Run tests in watch mode
+pnpm test --run        # Run tests once (CI mode)
+pnpm test:coverage     # Run tests with coverage report
+
+# Linting and formatting
+pnpm lint              # Run ESLint
+pnpm format            # Format with Prettier
+pnpm format:check      # Check formatting without changes
+
+# Type checking
+pnpm typecheck         # Run TypeScript type checker
 ```
 
 ### Dependency Management
@@ -199,8 +231,11 @@ Additional security:
 - Feature 7: Recommendation Agent (NAT-based cross-sell)
 - Feature 8: Post-Purchase Agent (NAT-based multilingual updates)
 
+**Completed (Phase 3)**:
+- ✅ Feature 9: Next.js client simulator UI
+- ✅ Feature 12: Agent Panel checkout flow simulation
+
 **Planned (Phase 3)**:
-- Feature 9: Next.js client simulator
 - Feature 10: Multi-panel Protocol Inspector UI
 - Feature 11: Webhook integration for post-purchase events
 

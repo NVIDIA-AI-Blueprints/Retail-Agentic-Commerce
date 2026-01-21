@@ -6,7 +6,7 @@ This document helps AI coding assistants understand how the Agentic Commerce pro
 
 This is an Agentic Commerce Protocol (ACP) reference implementation featuring:
 - **Backend**: Python 3.12+ FastAPI server with SQLModel ORM
-- **Frontend** (planned): Next.js 14+ with React, Tailwind CSS, and shadcn/ui
+- **Frontend**: Next.js 15+ with React 19, Tailwind CSS, and Kaizen UI components
 
 See `docs/features.md` for the complete feature breakdown and `docs/architecture.md` for system design.
 
@@ -44,17 +44,36 @@ uvicorn src.merchant.main:app --reload
 # API docs at http://localhost:8000/docs
 ```
 
-### Frontend (Next.js) - When Available
+### Frontend (Next.js UI)
 
 ```bash
-# Navigate to frontend directory (when created)
-cd src/client
+# Navigate to UI directory
+cd src/ui
 
 # Install dependencies
-pnpm install  # or npm install
+pnpm install
 
 # Start development server
-pnpm dev  # runs at http://localhost:3000
+pnpm run dev  # runs at http://localhost:3000
+```
+
+### UI Testing & Quality
+
+```bash
+cd src/ui
+
+# Run tests
+pnpm test              # Run all tests
+pnpm test --run        # Run tests once (no watch mode)
+pnpm test:coverage     # Run tests with coverage
+
+# Linting and formatting
+pnpm lint              # Run ESLint
+pnpm format            # Format with Prettier
+pnpm format:check      # Check formatting
+
+# Type checking
+pnpm typecheck         # Run TypeScript type checker
 ```
 
 ## Testing Instructions
@@ -129,7 +148,8 @@ pytest tests/ -v
 
 - Use TypeScript with strict mode
 - Follow ESLint and Prettier rules
-- Use shadcn/ui components and Tailwind CSS
+- Use Kaizen UI components and Tailwind CSS
+- Run tests with Vitest: `pnpm test`
 - Validate UI changes with browser MCP tools when available
 
 ## PR Instructions
@@ -164,22 +184,34 @@ Include:
 
 ```
 src/
-└── merchant/           # FastAPI backend
-    ├── main.py         # Application entry point
-    ├── config.py       # Environment configuration
-    ├── api/            # API routes and schemas
-    ├── agents/         # NAT agent implementations
-    ├── db/             # Database models and utilities
-    └── services/       # Business logic layer
+├── merchant/           # FastAPI backend
+│   ├── main.py         # Application entry point
+│   ├── config.py       # Environment configuration
+│   ├── api/            # API routes and schemas
+│   ├── agents/         # NAT agent implementations
+│   ├── db/             # Database models and utilities
+│   └── services/       # Business logic layer
+│
+└── ui/                 # Next.js frontend
+    ├── app/            # Next.js App Router pages
+    ├── components/     # React components
+    │   ├── agent/      # Agent panel components (ProductGrid, CheckoutCard, etc.)
+    │   ├── business/   # Business panel components
+    │   └── layout/     # Layout components (Navbar, etc.)
+    ├── hooks/          # Custom React hooks (useCheckoutFlow)
+    ├── types/          # TypeScript type definitions
+    └── data/           # Mock data for development
 
 tests/
-└── merchant/           # Test files mirror src structure
+└── merchant/           # Backend test files mirror src structure
 
 docs/                   # Project documentation
 .cursor/skills/         # AI assistant skill definitions
 ```
 
 ## Helpful Commands
+
+### Backend
 
 | Task | Command |
 |------|---------|
@@ -189,3 +221,14 @@ docs/                   # Project documentation
 | Format code | `ruff format src/ tests/` |
 | Type check | `pyright src/` |
 | Health check | `curl http://localhost:8000/health` |
+
+### Frontend (run from `src/ui/`)
+
+| Task | Command |
+|------|---------|
+| Start UI | `pnpm run dev` |
+| Run tests | `pnpm test` |
+| Run tests once | `pnpm test --run` |
+| Lint check | `pnpm lint` |
+| Format code | `pnpm format` |
+| Type check | `pnpm typecheck` |

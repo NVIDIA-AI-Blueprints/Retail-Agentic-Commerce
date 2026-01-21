@@ -64,3 +64,59 @@ jobs:
 
       - name: Run pytest
         run: pytest tests/ -v --tb=short
+
+  ui-lint:
+    name: UI Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: src/ui
+        run: pnpm install
+
+      - name: Run ESLint
+        working-directory: src/ui
+        run: pnpm lint
+
+      - name: Run Prettier check
+        working-directory: src/ui
+        run: pnpm format:check
+
+      - name: Run TypeScript check
+        working-directory: src/ui
+        run: pnpm typecheck
+
+  ui-test:
+    name: UI Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: src/ui
+        run: pnpm install
+
+      - name: Run Vitest
+        working-directory: src/ui
+        run: pnpm test --run

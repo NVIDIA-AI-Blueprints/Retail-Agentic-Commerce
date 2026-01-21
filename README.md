@@ -124,6 +124,59 @@ pytest
 
 ---
 
+## Frontend UI
+
+The project includes a Next.js frontend for the Protocol Inspector UI and Agent Simulator.
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm (recommended) or npm
+
+### Running the UI
+
+```bash
+# Navigate to the UI directory
+cd src/ui
+
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm run dev
+```
+
+The UI will be available at `http://localhost:3000`.
+
+### UI Development Commands
+
+```bash
+cd src/ui
+
+# Run tests
+pnpm test              # Run tests in watch mode
+pnpm test --run        # Run tests once
+
+# Linting and formatting
+pnpm lint              # Run ESLint
+pnpm format            # Format with Prettier
+pnpm format:check      # Check formatting
+
+# Type checking
+pnpm typecheck         # Run TypeScript type checker
+
+# Build for production
+pnpm build
+```
+
+### UI Features
+
+- **Agent Panel**: Simulates a client agent with product grid selection and checkout flow
+- **Merchant Panel**: Displays ACP protocol interactions and session state
+- **Checkout Flow**: Complete purchase journey from product selection to order confirmation
+
+---
+
 ## Docs
 - **Product requirements**: `docs/PRD.md`
 - **Architecture**: `docs/architecture.md`

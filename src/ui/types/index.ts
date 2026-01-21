@@ -102,3 +102,30 @@ export interface ACPRequest {
   payload?: Record<string, unknown>;
   response?: Record<string, unknown>;
 }
+
+/**
+ * Checkout flow state machine states
+ */
+export type CheckoutFlowState = "product_selection" | "checkout" | "processing" | "confirmation";
+
+/**
+ * Checkout flow context containing all state
+ */
+export interface CheckoutFlowContext {
+  state: CheckoutFlowState;
+  selectedProduct: Product | null;
+  quantity: number;
+  selectedShippingId: string;
+  orderId: string | null;
+}
+
+/**
+ * Checkout flow actions for the state machine
+ */
+export type CheckoutFlowAction =
+  | { type: "SELECT_PRODUCT"; product: Product }
+  | { type: "UPDATE_QUANTITY"; quantity: number }
+  | { type: "SELECT_SHIPPING"; shippingId: string }
+  | { type: "SUBMIT_PAYMENT" }
+  | { type: "PAYMENT_COMPLETE"; orderId: string }
+  | { type: "RESET" };
