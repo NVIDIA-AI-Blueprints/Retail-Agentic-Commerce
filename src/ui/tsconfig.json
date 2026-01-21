@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
+    "types": ["vitest/globals"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,7 +20,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@kui/foundations-react-external": ["./__mocks__/@kui/foundations-react-external.tsx"],
+      "@kui/foundations-design-tokens": ["./__mocks__/@kui/foundations-design-tokens.ts"]
     },
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": true,
@@ -30,5 +33,5 @@
     "noUncheckedIndexedAccess": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "kui-foundations-react-external"]
 }

@@ -99,8 +99,8 @@ export interface ACPRequest {
   endpoint: string;
   timestamp: string;
   status: number;
-  payload?: Record<string, unknown>;
-  response?: Record<string, unknown>;
+  payload?: unknown;
+  response?: unknown;
 }
 
 /**

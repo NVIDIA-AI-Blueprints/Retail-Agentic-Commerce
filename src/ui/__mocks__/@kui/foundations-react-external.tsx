@@ -4,6 +4,22 @@
  */
 import React from "react";
 
+// ThemeProvider component
+export const ThemeProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+  theme?: string;
+  density?: string;
+  global?: boolean;
+  target?: string;
+}) => <>{children}</>;
+
+// Spinner component
+export const Spinner = ({ size = "medium" }: { size?: "small" | "medium" | "large" }) => (
+  <div data-testid="nv-spinner" className={`nv-spinner nv-spinner--${size}`} />
+);
+
 // AppBar component
 export const AppBar = ({
   slotLeft,
@@ -70,7 +86,7 @@ export const Button = ({
   children,
   kind,
   color,
-  size,
+  size: _size,
   className = "",
   onClick,
   disabled,
@@ -81,13 +97,13 @@ export const Button = ({
   color?: string;
   size?: string;
   className?: string;
-  onClick?: () => void;
+  onClick?: (() => void) | undefined;
   disabled?: boolean;
   "aria-label"?: string;
 }) => (
   <button
     data-testid="nv-button"
-    className={`nv-button nv-button--${kind} nv-button--${color} nv-button--${size} ${className}`}
+    className={`nv-button nv-button--${kind} nv-button--${color} ${className}`}
     onClick={onClick}
     disabled={disabled}
     aria-label={ariaLabel}
@@ -100,7 +116,7 @@ export const Button = ({
 export const Stack = ({
   children,
   gap,
-  align,
+  align: _align,
   className = "",
 }: {
   children: React.ReactNode;
@@ -122,7 +138,7 @@ export const Flex = ({
   gap,
   align,
   justify,
-  wrap,
+  wrap: _wrap,
   direction,
   className = "",
 }: {
@@ -136,7 +152,7 @@ export const Flex = ({
 }) => (
   <div
     data-testid="nv-flex"
-    className={`nv-primitive--gap-${gap} nv-flex nv-flex--align-${align} nv-flex--direction-${direction || "row"} nv-flex--justify-${justify} ${className}`}
+    className={`nv-primitive--gap-${gap} nv-flex nv-flex--align-${align} nv-flex--direction-${direction ?? "row"} nv-flex--justify-${justify} ${className}`}
   >
     {children}
   </div>
@@ -182,7 +198,7 @@ export const Select = ({
   value,
   onValueChange,
   placeholder,
-  size,
+  size: _size,
   disabled,
 }: {
   items: Array<{ value: string; children: string }>;
