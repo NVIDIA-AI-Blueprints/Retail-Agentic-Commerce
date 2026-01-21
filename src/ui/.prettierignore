@@ -1,0 +1,8 @@
+# Third-party libraries
+kui-foundations-react-external/
+
+# Build output
+.next/
+
+# Package manager
+pnpm-lock.yaml

@@ -111,11 +111,7 @@ export function AgentPanel() {
 
   // Create checkout session based on current state
   const currentCheckout = context.selectedProduct
-    ? createCheckoutSession(
-        context.selectedProduct,
-        context.quantity,
-        context.selectedShippingId
-      )
+    ? createCheckoutSession(context.selectedProduct, context.quantity, context.selectedShippingId)
     : null;
 
   return (
@@ -124,11 +120,7 @@ export function AgentPanel() {
       aria-label="Agent Panel"
     >
       {/* Header */}
-      <Flex
-        align="center"
-        justify="start"
-        className="px-6 pt-6 pb-4 border-b border-base"
-      >
+      <Flex align="center" justify="start" className="px-6 pt-6 pb-4 border-b border-base">
         <Badge kind="outline" color="gray">
           Agent
         </Badge>
@@ -170,22 +162,18 @@ export function AgentPanel() {
               </div>
             )}
 
-          {context.state === "confirmation" &&
-            context.selectedProduct &&
-            context.orderId && (
-              <div className="checkout-transition">
-                <ConfirmationCard
-                  product={context.selectedProduct}
-                  quantity={context.quantity}
-                  shippingPrice={selectedShippingOption?.price ?? 500}
-                  orderId={context.orderId}
-                  estimatedDelivery={
-                    selectedShippingOption?.estimatedDelivery ?? "5-7 business days"
-                  }
-                  onStartOver={reset}
-                />
-              </div>
-            )}
+          {context.state === "confirmation" && context.selectedProduct && context.orderId && (
+            <div className="checkout-transition">
+              <ConfirmationCard
+                product={context.selectedProduct}
+                quantity={context.quantity}
+                shippingPrice={selectedShippingOption?.price ?? 500}
+                orderId={context.orderId}
+                estimatedDelivery={selectedShippingOption?.estimatedDelivery ?? "5-7 business days"}
+                onStartOver={reset}
+              />
+            </div>
+          )}
         </Stack>
       </div>
     </section>

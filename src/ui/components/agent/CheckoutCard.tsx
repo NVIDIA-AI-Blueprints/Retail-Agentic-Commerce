@@ -56,12 +56,12 @@ export function CheckoutCard({
   };
 
   // Build shipping options for Select component
-  const shippingItems: Array<{ value: string; children: string }> = (checkout.fulfillmentOptions ?? []).map(
-    (option: FulfillmentOption) => ({
-      value: option.id,
-      children: `${option.name} - ${option.estimatedDelivery} (${formatCurrency(option.price)})`,
-    })
-  );
+  const shippingItems: Array<{ value: string; children: string }> = (
+    checkout.fulfillmentOptions ?? []
+  ).map((option: FulfillmentOption) => ({
+    value: option.id,
+    children: `${option.name} - ${option.estimatedDelivery} (${formatCurrency(option.price)})`,
+  }));
 
   return (
     <Card className="w-full max-w-md fade-in">

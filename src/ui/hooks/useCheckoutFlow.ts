@@ -1,12 +1,7 @@
 "use client";
 
 import { useReducer, useCallback } from "react";
-import type {
-  CheckoutFlowState,
-  CheckoutFlowContext,
-  CheckoutFlowAction,
-  Product,
-} from "@/types";
+import type { CheckoutFlowState, CheckoutFlowContext, CheckoutFlowAction, Product } from "@/types";
 
 const DEFAULT_SHIPPING_ID = "shipping_standard";
 
@@ -31,10 +26,7 @@ const validTransitions: Record<CheckoutFlowState, CheckoutFlowState[]> = {
 /**
  * Check if a state transition is valid
  */
-function isValidTransition(
-  from: CheckoutFlowState,
-  to: CheckoutFlowState
-): boolean {
+function isValidTransition(from: CheckoutFlowState, to: CheckoutFlowState): boolean {
   return validTransitions[from].includes(to);
 }
 

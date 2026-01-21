@@ -56,7 +56,9 @@ body {
 
 /* Checkout flow animations */
 .checkout-transition {
-  transition: opacity 300ms ease-out, transform 300ms ease-out;
+  transition:
+    opacity 300ms ease-out,
+    transform 300ms ease-out;
 }
 
 .fade-in {

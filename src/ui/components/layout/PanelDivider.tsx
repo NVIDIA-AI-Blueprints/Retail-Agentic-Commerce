@@ -14,12 +14,7 @@ export function PanelDivider() {
       {/* Center section with arrows and dot */}
       <div className="relative flex items-center gap-1 z-10">
         {/* Left arrow (pointing to Agent) */}
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="#76b900"
-        >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="#76b900">
           <path d="M10 3L4 7L10 11V3Z" />
         </svg>
 
@@ -27,12 +22,7 @@ export function PanelDivider() {
         <div className="w-4 h-4 rounded-full bg-[#76b900] animate-pulse shadow-[0_0_16px_6px_rgba(118,185,0,0.5)]" />
 
         {/* Right arrow (pointing to Merchant) */}
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="#76b900"
-        >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="#76b900">
           <path d="M4 3L10 7L4 11V3Z" />
         </svg>
       </div>

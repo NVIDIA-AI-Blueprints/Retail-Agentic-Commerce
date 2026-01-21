@@ -128,11 +128,7 @@ describe("CheckoutCard", () => {
     it("calls onQuantityChange with decremented value when minus is clicked", () => {
       const onQuantityChange = vi.fn();
       render(
-        <CheckoutCard
-          checkout={mockCheckout}
-          quantity={3}
-          onQuantityChange={onQuantityChange}
-        />
+        <CheckoutCard checkout={mockCheckout} quantity={3} onQuantityChange={onQuantityChange} />
       );
 
       screen.getByRole("button", { name: /decrease quantity/i }).click();
@@ -143,11 +139,7 @@ describe("CheckoutCard", () => {
     it("calls onQuantityChange with incremented value when plus is clicked", () => {
       const onQuantityChange = vi.fn();
       render(
-        <CheckoutCard
-          checkout={mockCheckout}
-          quantity={3}
-          onQuantityChange={onQuantityChange}
-        />
+        <CheckoutCard checkout={mockCheckout} quantity={3} onQuantityChange={onQuantityChange} />
       );
 
       screen.getByRole("button", { name: /increase quantity/i }).click();
@@ -182,13 +174,7 @@ describe("CheckoutCard", () => {
     });
 
     it("disables quantity controls when processing", () => {
-      render(
-        <CheckoutCard
-          checkout={mockCheckout}
-          quantity={5}
-          isProcessing={true}
-        />
-      );
+      render(<CheckoutCard checkout={mockCheckout} quantity={5} isProcessing={true} />);
 
       expect(screen.getByRole("button", { name: /decrease quantity/i })).toBeDisabled();
       expect(screen.getByRole("button", { name: /increase quantity/i })).toBeDisabled();
@@ -211,13 +197,7 @@ describe("CheckoutCard", () => {
     it("calculates total based on product price and quantity", () => {
       // Product price: 2500, quantity: 2, shipping: 500
       // Total = 2500 * 2 + 500 = 5500 = $55.00
-      render(
-        <CheckoutCard
-          checkout={mockCheckout}
-          product={mockProduct}
-          quantity={2}
-        />
-      );
+      render(<CheckoutCard checkout={mockCheckout} product={mockProduct} quantity={2} />);
 
       expect(screen.getByText("$55.00")).toBeInTheDocument();
     });
@@ -232,12 +212,7 @@ describe("CheckoutCard", () => {
     });
 
     it("disables shipping Select when processing", () => {
-      render(
-        <CheckoutCard
-          checkout={mockCheckout}
-          isProcessing={true}
-        />
-      );
+      render(<CheckoutCard checkout={mockCheckout} isProcessing={true} />);
 
       // The Select should be disabled during processing
       const selectTrigger = screen.getByRole("combobox");

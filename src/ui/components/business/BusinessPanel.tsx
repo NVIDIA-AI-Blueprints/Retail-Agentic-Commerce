@@ -12,11 +12,7 @@ export function BusinessPanel() {
       aria-label="Merchant Panel"
     >
       {/* Header */}
-      <Flex
-        align="center"
-        justify="start"
-        className="px-6 pt-6 pb-4 border-b border-base"
-      >
+      <Flex align="center" justify="start" className="px-6 pt-6 pb-4 border-b border-base">
         <Badge kind="outline" color="gray">
           Merchant
         </Badge>
