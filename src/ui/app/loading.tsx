@@ -9,7 +9,7 @@ export default function Loading() {
       gap="4"
       className="h-screen bg-surface-base"
     >
-      <Spinner size="large" />
+      <Spinner size="large" aria-label="Loading content" />
       <Text kind="body/regular/md" className="text-secondary">
         Loading...
       </Text>

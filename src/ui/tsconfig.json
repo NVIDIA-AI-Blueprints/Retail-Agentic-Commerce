@@ -21,9 +21,7 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@kui/foundations-react-external": ["./__mocks__/@kui/foundations-react-external.tsx"],
-      "@kui/foundations-design-tokens": ["./__mocks__/@kui/foundations-design-tokens.ts"]
+      "@/*": ["./*"]
     },
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": true,

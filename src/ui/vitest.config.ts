@@ -25,6 +25,10 @@ export default defineConfig({
         __dirname,
         "./__mocks__/@kui/foundations-react-external.tsx"
       ),
+      "@kui/foundations-design-tokens": resolve(
+        __dirname,
+        "./__mocks__/@kui/foundations-design-tokens.ts"
+      ),
     },
   },
 });
