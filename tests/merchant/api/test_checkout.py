@@ -205,6 +205,44 @@ class TestCreateCheckoutSession:
         assert response.status_code == 201
         assert len(data["line_items"]) == 2
 
+    def test_create_session_with_buyer_last_name(self, auth_client: TestClient) -> None:
+        """Happy path: Session includes buyer last_name when provided."""
+        response = auth_client.post(
+            "/checkout_sessions",
+            json={
+                "items": [{"id": "prod_1", "quantity": 1}],
+                "buyer": {
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email": "john.doe@example.com",
+                },
+            },
+        )
+        data = response.json()
+
+        assert response.status_code == 201
+        assert data["buyer"] is not None
+        assert data["buyer"]["first_name"] == "John"
+        assert data["buyer"]["last_name"] == "Doe"
+        assert data["buyer"]["email"] == "john.doe@example.com"
+
+    def test_create_session_buyer_last_name_optional(
+        self, auth_client: TestClient
+    ) -> None:
+        """Edge case: Buyer last_name is optional and can be omitted."""
+        response = auth_client.post(
+            "/checkout_sessions",
+            json={
+                "items": [{"id": "prod_1", "quantity": 1}],
+                "buyer": {"first_name": "Jane", "email": "jane@example.com"},
+            },
+        )
+        data = response.json()
+
+        assert response.status_code == 201
+        assert data["buyer"]["first_name"] == "Jane"
+        assert data["buyer"].get("last_name") is None
+
 
 class TestGetCheckoutSession:
     """Test suite for GET /checkout_sessions/{id} endpoint."""
@@ -540,6 +578,30 @@ class TestCompleteCheckoutSession:
         assert data["order"]["id"].startswith("order_")
         assert data["order"]["checkout_session_id"] == session_id
         assert "permalink_url" in data["order"]
+
+    def test_complete_session_with_buyer_last_name(
+        self, auth_client: TestClient
+    ) -> None:
+        """Happy path: Complete checkout can update buyer with last_name."""
+        session_id = self._create_ready_session(auth_client)
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}/complete",
+            json={
+                "buyer": {
+                    "first_name": "Complete",
+                    "last_name": "User",
+                    "email": "complete.user@example.com",
+                },
+                "payment_data": {"token": "tok_test", "provider": "stripe"},
+            },
+        )
+        data = response.json()
+
+        assert response.status_code == 200
+        assert data["buyer"]["first_name"] == "Complete"
+        assert data["buyer"]["last_name"] == "User"
+        assert data["buyer"]["email"] == "complete.user@example.com"
 
     def test_complete_nonexistent_session_returns_404(
         self, auth_client: TestClient

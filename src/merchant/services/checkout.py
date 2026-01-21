@@ -70,6 +70,7 @@ def _buyer_input_to_dict(buyer: BuyerInput) -> dict[str, Any]:
     """Convert BuyerInput to dictionary for JSON storage."""
     return {
         "first_name": buyer.first_name,
+        "last_name": buyer.last_name,
         "email": buyer.email,
         "phone_number": buyer.phone_number,
     }
@@ -79,6 +80,7 @@ def _dict_to_buyer(data: dict[str, Any]) -> Buyer:
     """Convert dictionary to Buyer response model."""
     return Buyer(
         first_name=data["first_name"],
+        last_name=data.get("last_name"),
         email=data["email"],
         phone_number=data.get("phone_number"),
     )

@@ -108,6 +108,9 @@ class BuyerInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     first_name: Annotated[str, Field(max_length=256, description="First name")]
+    last_name: Annotated[
+        str | None, Field(default=None, max_length=256, description="Last name")
+    ] = None
     email: Annotated[str, Field(max_length=256, description="Email address")]
     phone_number: Annotated[
         str | None, Field(default=None, description="Phone number in E.164 format")
@@ -199,6 +202,7 @@ class Buyer(BaseModel):
     """Buyer information in response."""
 
     first_name: str = Field(..., description="First name")
+    last_name: str | None = Field(default=None, description="Last name")
     email: str = Field(..., description="Email address")
     phone_number: str | None = Field(default=None, description="Phone number")
 
