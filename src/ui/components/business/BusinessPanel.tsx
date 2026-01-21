@@ -8,14 +8,14 @@ import { Stack, Flex, Text, Badge } from "@kui/foundations-react-external";
 export function BusinessPanel() {
   return (
     <section
-      className="flex-1 flex flex-col h-full overflow-hidden bg-surface-sunken"
+      className="flex-1 flex flex-col h-full overflow-hidden bg-surface-base rounded-lg"
       aria-label="Merchant Panel"
     >
       {/* Header */}
       <Flex
         align="center"
         justify="start"
-        className="px-6 py-4 bg-surface-raised"
+        className="px-6 pt-6 pb-4 border-b border-base"
       >
         <Badge kind="outline" color="gray">
           Merchant

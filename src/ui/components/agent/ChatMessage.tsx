@@ -18,7 +18,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     <Flex justify="center" className="w-full">
       <div
         className={cn(
-          "rounded-full px-6 py-3",
+          "rounded-3xl px-8 py-3",
           isUser
             ? "bg-[#76b900] text-white"
             : "bg-surface-raised text-primary border border-base"

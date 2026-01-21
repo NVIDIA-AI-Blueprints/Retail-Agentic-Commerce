@@ -15,14 +15,14 @@ export function AgentPanel() {
 
   return (
     <section
-      className="flex-1 flex flex-col h-full overflow-hidden"
+      className="flex-1 flex flex-col h-full overflow-hidden bg-surface-raised rounded-lg"
       aria-label="Agent Panel"
     >
       {/* Header */}
       <Flex
         align="center"
         justify="start"
-        className="px-6 py-4 bg-surface-raised"
+        className="px-6 pt-6 pb-4 border-b border-base"
       >
         <Badge kind="outline" color="gray">
           Agent
@@ -30,7 +30,7 @@ export function AgentPanel() {
       </Flex>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto bg-surface-raised">
+      <div className="flex-1 overflow-y-auto">
         <Stack gap="6" className="p-6">
           {/* Chat message */}
           <Stack gap="3">
