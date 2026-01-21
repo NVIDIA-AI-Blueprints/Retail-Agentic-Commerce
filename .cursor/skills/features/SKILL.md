@@ -8,6 +8,7 @@ description: Backend development guidelines for python code
 ## Feature Development (Mandatory)
 - For every new feature, behavior, or refactor, ALWAYS create or update unit tests.
 - Do not add unnecessary comments unless it's complex code.
+- Do not add secrets, passwords and sensitive information.
 - Tests must exist before the task is considered complete.
 - Prefer pytest for all tests.
 - Include:
@@ -66,5 +67,9 @@ If any step fails or is missing, the work is incomplete.
 - No TODOs without an issue reference
 - No dead code
 - Clear, descriptive function and variable names
+
+## Update documentation
+- Add clear and simple instructions on the README.md
+- Update AGENTS.md and CLAUDE.md for agentic development.
 
 If these standards are not met, the solution MUST be revised.

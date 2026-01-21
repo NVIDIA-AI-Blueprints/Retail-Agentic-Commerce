@@ -12,15 +12,19 @@ This is a reference implementation of the **Agentic Commerce Protocol (ACP)**: a
 
 ### Server Operations
 ```bash
-# Start development server
+# Start Merchant API server
 uvicorn src.merchant.main:app --reload
-
 # Server runs at http://localhost:8000
 # API docs: http://localhost:8000/docs
-# ReDoc: http://localhost:8000/redoc
 
-# Health check
+# Start PSP (Payment Service Provider) server
+uvicorn src.payment.main:app --reload --port 8001
+# Server runs at http://localhost:8001
+# API docs: http://localhost:8001/docs
+
+# Health checks
 curl http://localhost:8000/health
+curl http://localhost:8001/health
 ```
 
 ### UI Operations (Next.js Frontend)
@@ -71,11 +75,19 @@ pip install -e ".[dev]"    # Include dev dependencies
 # Run all tests
 pytest tests/ -v
 
+# Run merchant tests only
+pytest tests/merchant/ -v
+
+# Run PSP tests only
+pytest tests/payment/ -v
+
 # Run specific test file
 pytest tests/merchant/api/test_checkout.py -v
+pytest tests/payment/api/test_payments.py -v
 
 # Run tests matching pattern
 pytest tests/ -v -k "test_create_checkout"
+pytest tests/ -v -k "test_delegate_payment"
 
 # Run with coverage
 pytest tests/ --cov=src
@@ -99,7 +111,7 @@ pyright src/                        # Run type checker
 
 ### Module Organization
 ```
-src/merchant/
+src/merchant/                # Merchant API (port 8000)
 ├── main.py              # FastAPI app entry point with lifespan management
 ├── config.py            # Environment configuration (pydantic-settings)
 ├── api/
@@ -114,6 +126,22 @@ src/merchant/
 │   ├── checkout.py     # Checkout session management
 │   └── idempotency.py  # Idempotency key handling
 └── middleware/         # Request/response middleware (logging, headers)
+
+src/payment/                 # PSP Service (port 8001)
+├── main.py              # FastAPI app entry point
+├── config.py            # PSP configuration (PSP_API_KEY)
+├── api/
+│   ├── routes/
+│   │   └── payments.py  # delegate_payment, create_and_process_payment_intent
+│   ├── schemas.py       # Pydantic models (PaymentMethod, Allowance, RiskSignal)
+│   └── dependencies.py  # verify_psp_api_key
+├── db/
+│   ├── models.py        # VaultToken, PaymentIntent, IdempotencyRecord
+│   └── database.py      # Shared database connection
+└── services/
+    ├── vault_token.py   # create_vault_token logic
+    ├── payment_intent.py # create_and_process_payment_intent logic
+    └── idempotency.py   # DatabaseIdempotencyService
 ```
 
 ### Key Architectural Patterns
@@ -168,6 +196,30 @@ All endpoints in `api/routes/checkout.py`:
 | `/checkout_sessions/{id}/cancel` | POST | 200 | Cancel session (if allowed) |
 
 **Critical**: All responses MUST include `messages[]` and `links[]` arrays per ACP spec.
+
+### PSP Endpoints Implementation
+
+All endpoints in `src/payment/api/routes/payments.py`:
+
+| Endpoint | Method | Status Code | Purpose |
+|----------|--------|-------------|---------|
+| `/health` | GET | 200 | Health check |
+| `/agentic_commerce/delegate_payment` | POST | 201 | Create vault token with payment constraints |
+| `/agentic_commerce/create_and_process_payment_intent` | POST | 200 | Process payment using vault token |
+
+**Vault Token Flow**:
+1. Agent calls `delegate_payment` with payment method, allowance constraints, and risk signals
+2. PSP validates checkout_session_id exists in merchant database
+3. PSP creates vault token (`vt_xxx`) with constraints (max_amount, currency, expiry)
+4. Agent receives opaque token (never sees actual card data)
+5. Agent calls `create_and_process_payment_intent` with vault token
+6. PSP validates token is active, not expired, amount/currency within allowance
+7. Payment is processed, vault token marked as `consumed` (single-use)
+
+**PSP Database Models**:
+- `VaultToken`: id, idempotency_key, payment_method_json, allowance_json, status (active/consumed)
+- `PaymentIntent`: id, vault_token_id (FK), amount, currency, status (pending/completed)
+- `IdempotencyRecord`: idempotency_key (PK), request_hash, response_status, response_body_json
 
 ## Code Standards
 
@@ -225,8 +277,10 @@ Additional security:
 - ✅ Feature 3: Five ACP core endpoints with state machine
 - ✅ Feature 4: API key auth + idempotency + validation
 
+**Completed (Phase 2)**:
+- ✅ Feature 5: PSP delegated payments (vault tokens + payment intents)
+
 **Planned (Phase 2)**:
-- Feature 5: PSP delegated payments (vault tokens + payment intents)
 - Feature 6: Promotion Agent (NAT-based dynamic pricing)
 - Feature 7: Recommendation Agent (NAT-based cross-sell)
 - Feature 8: Post-Purchase Agent (NAT-based multilingual updates)
@@ -245,8 +299,11 @@ See `docs/features.md` for complete breakdown.
 
 Required variables in `.env` (see `env.example`):
 ```env
-# API Security
+# Merchant API Security
 API_KEY=your-api-key
+
+# PSP API Security
+PSP_API_KEY=psp-api-key-12345
 
 # NIM Configuration (for NAT agents)
 NIM_ENDPOINT=https://integrate.api.nvidia.com/v1
@@ -300,3 +357,6 @@ All jobs must pass before merge.
 4. **Direct DB Access in Agents**: Always use tool-calling pattern with parameterized queries
 5. **Skipping Tests**: Every feature requires comprehensive test coverage before completion
 6. **Type Errors**: Pyright runs in strict mode - all type hints must resolve cleanly
+7. **PSP Vault Token Reuse**: Vault tokens are single-use; always check status before processing
+8. **PSP Allowance Violations**: Always validate amount/currency against vault token allowance
+9. **Missing Risk Signals**: PSP `delegate_payment` requires at least one risk signal

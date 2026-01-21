@@ -34,14 +34,18 @@ pip install -e ".[dev]"
 uv pip install -e ".[dev]"
 ```
 
-### Running the Server
+### Running the Servers
 
 ```bash
-# Start the FastAPI server
+# Start the Merchant API server
 uvicorn src.merchant.main:app --reload
-
 # Server runs at http://localhost:8000
 # API docs at http://localhost:8000/docs
+
+# Start the PSP (Payment Service Provider) server
+uvicorn src.payment.main:app --reload --port 8001
+# Server runs at http://localhost:8001
+# API docs at http://localhost:8001/docs
 ```
 
 ### Frontend (Next.js UI)
@@ -184,13 +188,20 @@ Include:
 
 ```
 src/
-├── merchant/           # FastAPI backend
+├── merchant/           # Merchant API (FastAPI backend)
 │   ├── main.py         # Application entry point
 │   ├── config.py       # Environment configuration
 │   ├── api/            # API routes and schemas
 │   ├── agents/         # NAT agent implementations
 │   ├── db/             # Database models and utilities
 │   └── services/       # Business logic layer
+│
+├── payment/            # PSP Service (FastAPI backend, port 8001)
+│   ├── main.py         # PSP application entry point
+│   ├── config.py       # PSP environment configuration (PSP_API_KEY)
+│   ├── api/            # PSP API routes (delegate_payment, payment_intent)
+│   ├── db/             # PSP models (VaultToken, PaymentIntent, IdempotencyRecord)
+│   └── services/       # PSP business logic (vault tokens, idempotency)
 │
 └── ui/                 # Next.js frontend
     ├── app/            # Next.js App Router pages
@@ -203,7 +214,8 @@ src/
     └── data/           # Mock data for development
 
 tests/
-└── merchant/           # Backend test files mirror src structure
+├── merchant/           # Merchant API test files
+└── payment/            # PSP service test files
 
 docs/                   # Project documentation
 .cursor/skills/         # AI assistant skill definitions
@@ -211,16 +223,30 @@ docs/                   # Project documentation
 
 ## Helpful Commands
 
-### Backend
+### Merchant API (port 8000)
 
 | Task | Command |
 |------|---------|
 | Start server | `uvicorn src.merchant.main:app --reload` |
+| Run tests | `pytest tests/merchant/ -v` |
+| Health check | `curl http://localhost:8000/health` |
+
+### PSP Service (port 8001)
+
+| Task | Command |
+|------|---------|
+| Start server | `uvicorn src.payment.main:app --reload --port 8001` |
+| Run tests | `pytest tests/payment/ -v` |
+| Health check | `curl http://localhost:8001/health` |
+
+### Code Quality (Both Services)
+
+| Task | Command |
+|------|---------|
 | Run all tests | `pytest tests/ -v` |
 | Lint check | `ruff check src/ tests/` |
 | Format code | `ruff format src/ tests/` |
 | Type check | `pyright src/` |
-| Health check | `curl http://localhost:8000/health` |
 
 ### Frontend (run from `src/ui/`)
 

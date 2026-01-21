@@ -12,7 +12,7 @@ This document breaks down the project requirements into discrete, implementable 
 | 2 | Database Schema & Seed Data | P0 | Feature 1 | ✅ Complete |
 | 3 | ACP Core Endpoints (CRUD) | P0 | Feature 2 | ✅ Complete |
 | 4 | API Security & Validation | P0 | Feature 3 | ✅ Complete |
-| 5 | PSP - Delegated Payments | P1 | Feature 2 | |
+| 5 | PSP - Delegated Payments | P1 | Feature 2 | ✅ Complete |
 | 6 | Promotion Agent (NAT) | P1 | Features 3, 4 | |
 | 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
 | 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | |
@@ -484,43 +484,43 @@ When 3DS is required, the payment flow includes an authentication step.
 
 ### Tasks
 
-- [ ] Create SQLModel models for `VaultToken` and `PaymentIntent`
-- [ ] Implement `delegate_payment` endpoint with full schema validation
-  - [ ] Validate PaymentMethodCard schema (all required fields)
-  - [ ] Validate Allowance constraints
-  - [ ] Require at least one RiskSignal
-  - [ ] Store billing_address if provided
-- [ ] Implement idempotency handling
-  - [ ] Hash request body for comparison
-  - [ ] Return cached response for matching key + request
-  - [ ] Return 409 for matching key + different request
-- [ ] Implement `create_and_process_payment_intent` endpoint
-  - [ ] Validate vault token status and expiration
-  - [ ] Validate amount/currency against allowance
-  - [ ] Integrate with Stripe for actual payment processing
-  - [ ] Handle 3DS authentication flow
-- [ ] Implement 3D Secure support
+- [x] Create SQLModel models for `VaultToken` and `PaymentIntent`
+- [x] Implement `delegate_payment` endpoint with full schema validation
+  - [x] Validate PaymentMethodCard schema (all required fields)
+  - [x] Validate Allowance constraints
+  - [x] Require at least one RiskSignal
+  - [x] Store billing_address if provided
+- [x] Implement idempotency handling
+  - [x] Hash request body for comparison
+  - [x] Return cached response for matching key + request
+  - [x] Return 409 for matching key + different request
+- [x] Implement `create_and_process_payment_intent` endpoint
+  - [x] Validate vault token status and expiration
+  - [x] Validate amount/currency against allowance
+  - [ ] Integrate with Stripe for actual payment processing (simulated in MVP)
+  - [ ] Handle 3DS authentication flow (deferred to Feature 13)
+- [ ] Implement 3D Secure support (deferred to Feature 13)
   - [ ] Detect when 3DS is required (risk-based)
   - [ ] Return authentication_metadata
   - [ ] Accept and validate authentication_result
-- [ ] Add comprehensive error handling with proper codes
-- [ ] Create unit tests for all scenarios
+- [x] Add comprehensive error handling with proper codes
+- [x] Create unit tests for all scenarios
 
 ### Acceptance Criteria
 
-- [ ] Vault tokens are created with proper allowances and constraints
-- [ ] PaymentMethodCard schema is fully validated (type, card_number_type, display fields)
-- [ ] At least one RiskSignal is required for delegate_payment
-- [ ] Idempotency works correctly:
+- [x] Vault tokens are created with proper allowances and constraints
+- [x] PaymentMethodCard schema is fully validated (type, card_number_type, display fields)
+- [x] At least one RiskSignal is required for delegate_payment
+- [x] Idempotency works correctly:
   - Same key + same request → cached 201 response
   - Same key + different request → 409 Conflict
-- [ ] Payment intents validate against allowance constraints
-- [ ] Payment intents consume vault tokens (single-use)
-- [ ] Expired tokens are rejected with 410 Gone
-- [ ] Consumed tokens are rejected with 409 Conflict
-- [ ] 3DS flow returns proper authentication_metadata when required
-- [ ] 3DS authentication_result is validated before completing payment
-- [ ] All amounts are handled in minor units (cents)
+- [x] Payment intents validate against allowance constraints
+- [x] Payment intents consume vault tokens (single-use)
+- [x] Expired tokens are rejected with 410 Gone
+- [x] Consumed tokens are rejected with 409 Conflict
+- [ ] 3DS flow returns proper authentication_metadata when required (deferred to Feature 13)
+- [ ] 3DS authentication_result is validated before completing payment (deferred to Feature 13)
+- [x] All amounts are handled in minor units (cents)
 
 ---
 
