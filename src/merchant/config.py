@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # API Security
     api_key: str = ""
 
+    # Promotion Agent Configuration
+    promotion_agent_url: str = "http://localhost:8002"
+    promotion_agent_timeout: float = 10.0  # seconds (NFR-LAT target)
+
 
 @lru_cache
 def get_settings() -> Settings:

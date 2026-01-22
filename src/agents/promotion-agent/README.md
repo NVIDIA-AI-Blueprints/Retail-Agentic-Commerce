@@ -249,15 +249,12 @@ promotion-agent/
 ├── pyproject.toml           # Package configuration
 ├── configs/
 │   └── config.yml           # NAT workflow configuration (chat_completion)
-├── data/
-│   ├── __init__.py
-│   └── mock_data.py         # Type definitions, enums, and constants
 └── README.md                # This file
 ```
 
 ## Type Definitions
 
-The `data/mock_data.py` module defines the contract between the ACP endpoint and agent:
+Type definitions and constants are maintained in the ACP server at `src/merchant/services/promotion.py`:
 
 - `PromotionAction` - Enum of allowed actions
 - `ACTION_DISCOUNT_MAP` - Maps actions to discount percentages
@@ -267,15 +264,13 @@ The `data/mock_data.py` module defines the contract between the ACP endpoint and
 - `PromotionContextInput` - TypedDict for input format
 - `PromotionDecisionOutput` - TypedDict for output format
 - `STOCK_THRESHOLD` - Threshold for inventory pressure (50 units)
-- `PRODUCTS` / `COMPETITOR_PRICES` - Mock data for reference
 
-> **TODO (ACP Integration):** Move type definitions and constants to `src/merchant/` 
-> when integrating with the ACP endpoint. The ACP endpoint will use these for:
-> - Computing signals (`InventoryPressure`, `CompetitionPosition`)
-> - Filtering `allowed_actions` by `min_margin` using `ACTION_DISCOUNT_MAP`
-> - Applying the selected action deterministically (Layer 3)
-> 
-> The agent itself only needs the system prompt to understand the classification task.
+The ACP endpoint uses these for:
+- Computing signals (`InventoryPressure`, `CompetitionPosition`)
+- Filtering `allowed_actions` by `min_margin` using `ACTION_DISCOUNT_MAP`
+- Applying the selected action deterministically (Layer 3)
+
+The agent itself only needs the system prompt to understand the classification task.
 
 ## Development
 
@@ -294,10 +289,10 @@ pyright
 
 ### Adding New Actions
 
-1. Add to `PromotionAction` enum in `mock_data.py`
-2. Add discount mapping to `ACTION_DISCOUNT_MAP`
-3. Update system prompt in `config.yml`
-4. Add tests
+1. Add to `PromotionAction` enum in `src/merchant/services/promotion.py`
+2. Add discount mapping to `ACTION_DISCOUNT_MAP` in `src/merchant/services/promotion.py`
+3. Update system prompt in `configs/config.yml`
+4. Add tests in `tests/merchant/services/test_promotion.py`
 
 ## Troubleshooting
 

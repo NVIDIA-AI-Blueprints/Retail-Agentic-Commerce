@@ -13,7 +13,7 @@ This document breaks down the project requirements into discrete, implementable 
 | 3 | ACP Core Endpoints (CRUD) | P0 | Feature 2 | ✅ Complete |
 | 4 | API Security & Validation | P0 | Feature 3 | ✅ Complete |
 | 5 | PSP - Delegated Payments | P1 | Feature 2 | ✅ Complete |
-| 6 | Promotion Agent (NAT) | P1 | Features 3, 4 | ✅ Complete |
+| 6 | Promotion Agent (NAT) + ACP Integration | P1 | Features 3, 4 | ✅ Complete |
 | 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
 | 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | |
 | 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 | ✅ Complete |
@@ -547,7 +547,20 @@ IF stock_count > threshold AND base_price > competitor_price:
 - [x] Define agent system prompt with pricing rules
 - [x] Implement discount calculation logic
 - [x] Ensure parameterized queries (mock data uses dict lookups)
-- [ ] Return discount in checkout session `line_items[].discount` (integration pending)
+- [x] Return discount in checkout session `line_items[].discount`
+- [x] **ACP Integration** (3-Layer Hybrid Architecture):
+  - [x] Layer 1: Deterministic computation in `services/promotion.py`
+    - Compute inventory pressure signal (stock_count > 50 = HIGH)
+    - Compute competition position signal (base_price vs competitor)
+    - Filter allowed_actions by min_margin constraint
+  - [x] Layer 2: REST API call to Promotion Agent (`agents/promotion.py`)
+    - Async HTTP client with timeout
+    - Fail-open behavior (NO_PROMO if agent unavailable)
+  - [x] Layer 3: Deterministic execution
+    - Apply ACTION_DISCOUNT_MAP to calculate discount cents
+    - Validate against margin constraints
+  - [x] Async integration in `create_checkout_session` and `update_checkout_session`
+  - [x] Comprehensive test coverage (`tests/merchant/services/test_promotion.py`)
 
 ### Example Agent Flow
 
@@ -560,10 +573,12 @@ IF stock_count > threshold AND base_price > competitor_price:
 
 ### Acceptance Criteria
 
-- Agent queries database via tool-calling
-- Discounts respect min_margin constraint
-- Reasoning trace is captured for UI display
-- Agent completes within latency target (<10s)
+- [x] Agent queries database via tool-calling
+- [x] Discounts respect min_margin constraint
+- [x] Reasoning trace is captured for UI display
+- [x] Agent completes within latency target (<10s)
+- [x] Fail-open behavior when agent unavailable
+- [x] Line item includes promotion metadata (action, reason_codes, reasoning)
 
 ---
 

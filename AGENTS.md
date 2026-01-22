@@ -267,6 +267,16 @@ docs/                   # Project documentation
 | Run tests | `pytest tests/payment/ -v` |
 | Health check | `curl http://localhost:8001/health` |
 
+### Promotion Agent (port 8002)
+
+| Task | Command |
+|------|---------|
+| Navigate to agent | `cd src/agents/promotion-agent` |
+| Start agent | `nat serve --config_file configs/config.yml --port 8002` |
+| Test with input | `nat run --config_file configs/config.yml --input '{...}'` |
+
+**Note**: Requires `NVIDIA_API_KEY` environment variable.
+
 ### Code Quality (Both Services)
 
 | Task | Command |

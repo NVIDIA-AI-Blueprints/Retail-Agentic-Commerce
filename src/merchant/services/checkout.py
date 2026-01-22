@@ -2,9 +2,13 @@
 
 Handles business logic for creating, updating, completing, and canceling
 checkout sessions according to the Agentic Checkout Protocol specification.
+
+Integrates with the Promotion Agent for dynamic pricing via the 3-layer
+hybrid architecture (see services/promotion.py).
 """
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -36,6 +40,9 @@ from src.merchant.api.schemas import (
     UpdateCheckoutRequest,
 )
 from src.merchant.db.models import CheckoutSession, CheckoutStatus, Product
+from src.merchant.services.promotion import get_promotion_for_product
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Constants
@@ -115,35 +122,78 @@ def _dict_to_address(data: dict[str, Any]) -> Address:
 
 
 def _calculate_line_item(
-    product: Product, quantity: int, discount: int = 0
+    product: Product,
+    quantity: int,
+    discount_per_unit: int = 0,
+    promotion_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Calculate line item totals for a product.
 
     Args:
         product: Product database model.
         quantity: Quantity ordered.
-        discount: Discount amount in cents (default 0).
+        discount_per_unit: Discount amount per unit in cents (default 0).
+        promotion_info: Optional promotion metadata (action, reason_codes, reasoning).
 
     Returns:
         Dictionary with line item data for JSON storage.
     """
     base_amount = product.base_price * quantity
-    subtotal = base_amount - discount
+    total_discount = discount_per_unit * quantity
+    subtotal = base_amount - total_discount
     tax = int(subtotal * TAX_RATE)
     total = subtotal + tax
 
-    return {
+    line_item: dict[str, Any] = {
         "id": _generate_line_item_id(),
         "item": {
             "id": product.id,
             "quantity": quantity,
         },
         "base_amount": base_amount,
-        "discount": discount,
+        "discount": total_discount,
         "subtotal": subtotal,
         "tax": tax,
         "total": total,
     }
+
+    # Add promotion metadata if available
+    if promotion_info:
+        line_item["promotion"] = {
+            "action": promotion_info.get("action", "NO_PROMO"),
+            "reason_codes": promotion_info.get("reason_codes", []),
+            "reasoning": promotion_info.get("reasoning", ""),
+        }
+
+    return line_item
+
+
+async def _calculate_line_item_with_promotion(
+    db: Session, product: Product, quantity: int
+) -> dict[str, Any]:
+    """Calculate line item with promotion agent discount.
+
+    Calls the promotion service to get dynamic pricing based on
+    inventory levels and competitor pricing.
+
+    Args:
+        db: Database session.
+        product: Product database model.
+        quantity: Quantity ordered.
+
+    Returns:
+        Dictionary with line item data including promotion discount.
+    """
+    # Get promotion decision from the agent (fail-open behavior)
+    promotion_result = await get_promotion_for_product(db, product)
+
+    # Calculate line item with the discount
+    return _calculate_line_item(
+        product=product,
+        quantity=quantity,
+        discount_per_unit=promotion_result["discount"],
+        promotion_info=promotion_result,
+    )
 
 
 def _dict_to_line_item(data: dict[str, Any]) -> LineItem:
@@ -485,10 +535,13 @@ class InvalidStateTransitionError(CheckoutServiceError):
         )
 
 
-def create_checkout_session(
+async def create_checkout_session(
     db: Session, request: CreateCheckoutRequest
 ) -> CheckoutSessionResponse:
     """Create a new checkout session.
+
+    Calls the Promotion Agent to get dynamic pricing for each item.
+    Uses fail-open behavior: if agent is unavailable, continues without discounts.
 
     Args:
         db: Database session.
@@ -502,14 +555,17 @@ def create_checkout_session(
     """
     session_id = _generate_session_id()
 
-    # Build line items from products
+    # Build line items from products with promotion discounts
     line_items: list[dict[str, Any]] = []
     for item in request.items:
         product = db.exec(select(Product).where(Product.id == item.id)).first()
         if product is None:
             raise ProductNotFoundError(item.id)
 
-        line_item = _calculate_line_item(product, item.quantity)
+        # Get line item with promotion discount (async call to agent)
+        line_item = await _calculate_line_item_with_promotion(
+            db, product, item.quantity
+        )
         line_items.append(line_item)
 
     # Process optional buyer
@@ -592,10 +648,12 @@ def get_checkout_session(db: Session, session_id: str) -> CheckoutSessionRespons
     return _session_to_response(session)
 
 
-def update_checkout_session(
+async def update_checkout_session(
     db: Session, session_id: str, request: UpdateCheckoutRequest
 ) -> CheckoutSessionResponse:
     """Update a checkout session.
+
+    Recalculates promotions when items are updated, using fail-open behavior.
 
     Args:
         db: Database session.
@@ -621,14 +679,17 @@ def update_checkout_session(
     if session.status in (CheckoutStatus.COMPLETED, CheckoutStatus.CANCELED):
         raise InvalidStateTransitionError(session.status.value, "update")
 
-    # Update items if provided
+    # Update items if provided (recalculate promotions)
     if request.items is not None:
         new_line_items: list[dict[str, Any]] = []
         for item in request.items:
             product = db.exec(select(Product).where(Product.id == item.id)).first()
             if product is None:
                 raise ProductNotFoundError(item.id)
-            line_item = _calculate_line_item(product, item.quantity)
+            # Recalculate with promotion discount
+            line_item = await _calculate_line_item_with_promotion(
+                db, product, item.quantity
+            )
             new_line_items.append(line_item)
         session.line_items_json = json.dumps(new_line_items)
 

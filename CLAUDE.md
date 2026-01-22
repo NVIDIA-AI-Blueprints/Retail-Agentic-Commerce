@@ -118,12 +118,12 @@ src/merchant/                # Merchant API (port 8000)
 │   ├── routes/         # API endpoints (health, checkout)
 │   ├── schemas.py      # Pydantic request/response models
 │   └── dependencies.py # FastAPI dependency injection
-├── agents/             # NAT agent implementations (Promotion, Recommendation, Post-Purchase)
 ├── db/
 │   ├── models.py       # SQLModel ORM models (Product, CheckoutSession, CompetitorPrice)
 │   └── database.py     # Database initialization and seeding
 ├── services/           # Business logic layer
-│   ├── checkout.py     # Checkout session management
+│   ├── checkout.py     # Checkout session management (async, calls promotion service)
+│   ├── promotion.py    # Promotion service (types, client, 3-layer logic all in one)
 │   └── idempotency.py  # Idempotency key handling
 └── middleware/         # Request/response middleware (logging, headers)
 
@@ -170,6 +170,33 @@ NAT agents NEVER access the database directly. They invoke Python tools that exe
 
 **5. Idempotency Enforcement**
 All state-changing endpoints MUST respect `Idempotency-Key` header. Implementation in `services/idempotency.py`.
+
+**6. Promotion Agent Integration (3-Layer Hybrid Architecture)**
+The Promotion Agent follows a hybrid deterministic + LLM pattern:
+
+```
+Layer 1 (ACP Endpoint): Deterministic computation
+├── Query product data (stock_count, base_price, min_margin)
+├── Query competitor prices
+├── Compute signals (inventory_pressure, competition_position)
+└── Filter allowed_actions by margin constraints
+
+Layer 2 (Promotion Agent): LLM arbitration
+├── Receive pre-computed context via REST API
+├── Select action from allowed_actions (classification only)
+└── Return decision with reason codes
+
+Layer 3 (ACP Endpoint): Deterministic execution
+├── Apply ACTION_DISCOUNT_MAP to calculate discount
+├── Validate against margin constraints
+└── Fail closed if invalid
+```
+
+Key files:
+- `src/merchant/services/promotion.py` - All promotion logic (types, enums, client, 3-layer service)
+- `src/agents/promotion-agent/` - Standalone NAT agent (port 8002)
+
+Fail-open behavior: If agent unavailable, checkout proceeds with NO_PROMO.
 
 ### Database Models (SQLModel)
 
@@ -279,9 +306,9 @@ Additional security:
 
 **Completed (Phase 2)**:
 - ✅ Feature 5: PSP delegated payments (vault tokens + payment intents)
+- ✅ Feature 6: Promotion Agent (NAT-based dynamic pricing with ACP integration)
 
 **Planned (Phase 2)**:
-- Feature 6: Promotion Agent (NAT-based dynamic pricing)
 - Feature 7: Recommendation Agent (NAT-based cross-sell)
 - Feature 8: Post-Purchase Agent (NAT-based multilingual updates)
 
@@ -315,6 +342,10 @@ WEBHOOK_SECRET=whsec_xxx
 
 # Database
 DATABASE_URL=sqlite:///./agentic_commerce.db
+
+# Promotion Agent (Feature 6)
+PROMOTION_AGENT_URL=http://localhost:8002
+PROMOTION_AGENT_TIMEOUT=10.0
 
 # Deployment
 DEBUG=true

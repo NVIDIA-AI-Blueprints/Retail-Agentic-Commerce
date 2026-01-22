@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Generator
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 from src.merchant.config import get_settings
 from src.merchant.main import app
 from src.merchant.services.idempotency import reset_idempotency_store
+from src.merchant.services.promotion import PromotionAction, PromotionDecisionOutput
 
 # Test API key for authentication tests
 TEST_API_KEY = "test-api-key-12345"
@@ -83,3 +85,29 @@ def auth_client_x_api_key() -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         test_client.headers["X-API-Key"] = TEST_API_KEY
         yield test_client
+
+
+@pytest.fixture(autouse=True)
+def mock_promotion_agent() -> Generator[AsyncMock, None, None]:
+    """Mock the promotion agent client to return NO_PROMO by default.
+
+    This ensures tests are deterministic and don't require the promotion
+    agent to be running. Tests that need to verify promotion behavior
+    can override this mock in their test methods.
+
+    Yields:
+        AsyncMock: The mocked get_promotion_decision method.
+    """
+    mock_decision = PromotionDecisionOutput(
+        product_id="",
+        action=PromotionAction.NO_PROMO.value,
+        reason_codes=["NO_URGENCY"],
+        reasoning="Mocked: No promotion applied in test environment.",
+    )
+
+    with patch(
+        "src.merchant.services.promotion.PromotionAgentClient.get_promotion_decision",
+        new_callable=AsyncMock,
+        return_value=mock_decision,
+    ) as mock:
+        yield mock

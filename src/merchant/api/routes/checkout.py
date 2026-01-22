@@ -93,11 +93,13 @@ def _handle_service_error(error: Exception) -> HTTPException:
         400: {"description": "Invalid request (e.g., product not found)"},
     },
 )
-def create_checkout(
+async def create_checkout(
     request: CreateCheckoutRequest,
     db: Session = Depends(get_session),
 ) -> CheckoutSessionResponse:
     """Create a new checkout session.
+
+    Calls the Promotion Agent to get dynamic pricing for each item.
 
     Args:
         request: CreateCheckoutRequest with items and optional buyer/address.
@@ -110,7 +112,7 @@ def create_checkout(
         HTTPException: 400 if product not found.
     """
     try:
-        return create_checkout_session(db, request)
+        return await create_checkout_session(db, request)
     except (
         ProductNotFoundError,
         SessionNotFoundError,
@@ -165,12 +167,14 @@ def get_checkout(
         405: {"description": "Cannot update session in current state"},
     },
 )
-def update_checkout(
+async def update_checkout(
     session_id: str,
     request: UpdateCheckoutRequest,
     db: Session = Depends(get_session),
 ) -> CheckoutSessionResponse:
     """Update a checkout session.
+
+    Recalculates promotions when items are updated.
 
     Args:
         session_id: Checkout session ID.
@@ -184,7 +188,7 @@ def update_checkout(
         HTTPException: 404 if session not found, 405 if invalid state.
     """
     try:
-        return update_checkout_session(db, session_id, request)
+        return await update_checkout_session(db, session_id, request)
     except (
         ProductNotFoundError,
         SessionNotFoundError,
