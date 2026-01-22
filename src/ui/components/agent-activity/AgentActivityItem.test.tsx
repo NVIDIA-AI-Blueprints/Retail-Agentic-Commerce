@@ -85,7 +85,8 @@ describe("AgentActivityItem", () => {
   });
 
   it("renders pending status with animation", () => {
-    const { decision: _, ...baseEventWithoutDecision } = baseEvent;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { decision: _unused, ...baseEventWithoutDecision } = baseEvent;
     const pendingEvent: AgentActivityEvent = {
       ...baseEventWithoutDecision,
       status: "pending",
@@ -96,7 +97,8 @@ describe("AgentActivityItem", () => {
   });
 
   it("renders error status correctly", () => {
-    const { decision: _, ...baseEventWithoutDecision } = baseEvent;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { decision: _unused, ...baseEventWithoutDecision } = baseEvent;
     const errorEvent: AgentActivityEvent = {
       ...baseEventWithoutDecision,
       status: "error",
