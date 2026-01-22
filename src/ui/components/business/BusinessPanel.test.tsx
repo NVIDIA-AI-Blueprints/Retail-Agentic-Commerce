@@ -22,7 +22,9 @@ describe("BusinessPanel", () => {
   it("renders placeholder text when no checkout is active", () => {
     renderWithProviders(<BusinessPanel />);
     expect(
-      screen.getByText("Select a product from the Agent panel to view merchant settings and start the ACP flow.")
+      screen.getByText(
+        "Select a product from the Agent panel to view merchant settings and start the ACP flow."
+      )
     ).toBeInTheDocument();
   });
 });

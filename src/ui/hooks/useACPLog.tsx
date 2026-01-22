@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useReducer,
-  useCallback,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useReducer, useCallback, type ReactNode } from "react";
 
 /**
  * ACP Event types for logging communication
@@ -121,16 +115,11 @@ export function ACPLogProvider({ children }: { children: ReactNode }) {
   );
 
   const completeEvent = useCallback(
-    (
-      id: string,
-      status: ACPEventStatus,
-      responseSummary?: string,
-      statusCode?: number
-    ) => {
+    (id: string, status: ACPEventStatus, responseSummary?: string, statusCode?: number) => {
       const timestampStr = id.split("_")[1];
       const startTime = timestampStr ? parseInt(timestampStr, 10) : Date.now();
       const duration = Date.now() - startTime;
-      
+
       dispatch({
         type: "UPDATE_EVENT",
         id,

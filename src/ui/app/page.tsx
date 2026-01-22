@@ -16,11 +16,8 @@ export default function Home() {
       <div className="min-h-screen flex flex-col bg-[#0a0a0a]">
         <Navbar />
         {/* Outer container with generous gutters for premium feel */}
-        <div 
-          className="flex-1 flex flex-col overflow-hidden"
-          style={{ padding: "24px 40px" }}
-        >
-          <main 
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "24px 40px" }}>
+          <main
             className="flex-1 flex items-stretch overflow-hidden w-full h-full mx-auto"
             style={{ gap: "32px", maxWidth: "1440px" }}
           >

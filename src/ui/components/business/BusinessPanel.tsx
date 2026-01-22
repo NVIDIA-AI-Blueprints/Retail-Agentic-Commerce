@@ -51,9 +51,7 @@ function ACPEventItem({ event, isLast }: { event: ACPEvent; isLast: boolean }) {
         <div
           className="absolute left-[11px] top-[28px] w-[2px] h-[calc(100%-14px)]"
           style={{
-            background: isPending
-              ? "linear-gradient(to bottom, #404040, transparent)"
-              : "#333333",
+            background: isPending ? "linear-gradient(to bottom, #404040, transparent)" : "#333333",
           }}
         />
       )}
@@ -78,11 +76,7 @@ function ACPEventItem({ event, isLast }: { event: ACPEvent; isLast: boolean }) {
       <div className="flex-1 min-w-0">
         {/* Header with badge and time */}
         <Flex justify="between" align="center" className="mb-2">
-          <Badge
-            kind="solid"
-            color={isError ? "red" : typeInfo.color}
-            className="text-xs"
-          >
+          <Badge kind="solid" color={isError ? "red" : typeInfo.color} className="text-xs">
             {typeInfo.label}
           </Badge>
           <Text kind="body/regular/sm" className="text-subtle">
@@ -112,10 +106,7 @@ function ACPEventItem({ event, isLast }: { event: ACPEvent; isLast: boolean }) {
             >
               {event.statusCode ?? (isError ? "ERR" : "OK")}
             </span>
-            <Text
-              kind="body/regular/sm"
-              className={isError ? "text-red-400" : "text-green-400"}
-            >
+            <Text kind="body/regular/sm" className={isError ? "text-red-400" : "text-green-400"}>
               {event.responseSummary}
             </Text>
           </Flex>
@@ -159,8 +150,7 @@ function EmptyState() {
           No active session
         </Text>
         <Text kind="body/regular/sm" className="text-subtle">
-          Select a product from the Agent panel to view merchant settings and
-          start the ACP flow.
+          Select a product from the Agent panel to view merchant settings and start the ACP flow.
         </Text>
       </Stack>
     </div>
@@ -183,9 +173,9 @@ function ActiveSession({ events }: { events: ACPEvent[] }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Session header */}
-      <div 
+      <div
         className="border-b border-[#333333] bg-[#1a1a1a]"
-        style={{ padding: '32px 32px 16px 32px', marginTop: '16px' }}
+        style={{ padding: "32px 32px 16px 32px", marginTop: "16px" }}
       >
         <Flex justify="between" align="center">
           <Text kind="label/semibold/md" className="text-secondary">
@@ -201,42 +191,43 @@ function ActiveSession({ events }: { events: ACPEvent[] }) {
       </div>
 
       {/* Event timeline */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 pl-8 bg-[#171717]"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 pl-8 bg-[#171717]">
         <Stack gap="0">
           {events.map((event, index) => (
-            <ACPEventItem
-              key={event.id}
-              event={event}
-              isLast={index === events.length - 1}
-            />
+            <ACPEventItem key={event.id} event={event} isLast={index === events.length - 1} />
           ))}
         </Stack>
       </div>
 
       {/* Footer with legend */}
-      <div 
+      <div
         className="border-t border-[#333333] bg-[#1a1a1a]"
-        style={{ padding: '16px 32px 16px 48px' }}
+        style={{ padding: "16px 32px 16px 48px" }}
       >
         <Flex gap="6" wrap="wrap">
           <Flex align="center" gap="2">
             <div className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0" />
-            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">Create</Text>
+            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">
+              Create
+            </Text>
           </Flex>
           <Flex align="center" gap="2">
             <div className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
-            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">Update</Text>
+            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">
+              Update
+            </Text>
           </Flex>
           <Flex align="center" gap="2">
             <div className="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0" />
-            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">Delegate</Text>
+            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">
+              Delegate
+            </Text>
           </Flex>
           <Flex align="center" gap="2">
             <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0" />
-            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">Complete</Text>
+            <Text kind="body/regular/sm" className="text-subtle whitespace-nowrap">
+              Complete
+            </Text>
           </Flex>
         </Flex>
       </div>
@@ -263,11 +254,7 @@ export function BusinessPanel() {
       </div>
 
       {/* Content - either empty state or active session */}
-      {state.events.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <ActiveSession events={state.events} />
-      )}
+      {state.events.length === 0 ? <EmptyState /> : <ActiveSession events={state.events} />}
     </section>
   );
 }

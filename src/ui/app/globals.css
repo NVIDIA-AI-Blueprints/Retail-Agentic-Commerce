@@ -13,20 +13,20 @@
   --gutter-sm: 24px;
   --gutter-md: 40px;
   --gutter-lg: 64px;
-  
+
   /* Panel Spacing */
   --panel-gap: 32px;
   --panel-padding: 24px;
   --panel-radius: var(--radius-xl); /* 16px */
-  
+
   /* Card Styling */
   --card-radius: var(--radius-lg); /* 8px */
-  
+
   /* Chat Bubble */
   --bubble-radius: var(--radius-xl); /* 16px */
   --bubble-padding-x: 20px;
   --bubble-padding-y: 14px;
-  
+
   /* Consistent Shadows (subtle, Apple-like) */
   --shadow-panel: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
   --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);

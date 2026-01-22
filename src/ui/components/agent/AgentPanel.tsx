@@ -348,7 +348,8 @@ export function AgentPanel() {
     context.session?.order !== undefined;
 
   // Combined modal open state
-  const isAnyModalOpen = showCheckoutModal || showConfirmationModal || (isModalOpen && context.isLoading);
+  const isAnyModalOpen =
+    showCheckoutModal || showConfirmationModal || (isModalOpen && context.isLoading);
 
   return (
     <section
@@ -363,10 +364,7 @@ export function AgentPanel() {
       </div>
 
       {/* Content area with darker background for card contrast */}
-      <div
-        className="flex-1 overflow-y-auto bg-[#171717]"
-        style={{ padding: "24px 32px" }}
-      >
+      <div className="flex-1 overflow-y-auto bg-[#171717]" style={{ padding: "24px 32px" }}>
         <Stack gap="6">
           {/* Chat message */}
           <Stack gap="3">
@@ -384,7 +382,8 @@ export function AgentPanel() {
           {!context.error && (
             <div className="ml-2">
               <Text kind="body/regular/md" className="text-secondary mb-5 block">
-                Here are some great men&apos;s T-shirts you can shop now — from everyday basics to stylish branded tees and value packs
+                Here are some great men&apos;s T-shirts you can shop now — from everyday basics to
+                stylish branded tees and value packs
               </Text>
               <br />
               <ProductGrid products={mockProducts} onSelect={handleSelectProduct} />

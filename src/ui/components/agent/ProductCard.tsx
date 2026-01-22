@@ -48,7 +48,10 @@ export function ProductCard({ product, onBuy }: ProductCardProps) {
       </div>
 
       {/* Product Info */}
-      <div className="bg-[#e8e8ec] rounded-b-xl transition-colors duration-300 group-hover:bg-[#f0f0f4]" style={{ padding: "20px" }}>
+      <div
+        className="bg-[#e8e8ec] rounded-b-xl transition-colors duration-300 group-hover:bg-[#f0f0f4]"
+        style={{ padding: "20px" }}
+      >
         <Stack gap="1.5">
           <Text kind="label/semibold/md" className="text-gray-900">
             {product.name}
