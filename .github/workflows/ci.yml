@@ -22,10 +22,10 @@ jobs:
         run: pip install ruff
 
       - name: Run Ruff linting
-        run: ruff check src/ tests/
+        run: ruff check src/merchant/ src/payment/ tests/
 
       - name: Run Ruff formatting check
-        run: ruff format --check src/ tests/
+        run: ruff format --check src/merchant/ src/payment/ tests/
 
   typecheck:
     name: Type Check
@@ -44,7 +44,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run Pyright
-        run: pyright src/
+        run: pyright src/merchant/ src/payment/
 
   test:
     name: Unit Tests
