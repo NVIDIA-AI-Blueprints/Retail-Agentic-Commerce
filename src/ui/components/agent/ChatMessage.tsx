@@ -1,7 +1,5 @@
 "use client";
 
-import { Flex, Text } from "@kui/foundations-react-external";
-import { cn } from "@/lib/utils";
 import type { ChatMessage as ChatMessageType } from "@/types";
 
 interface ChatMessageProps {
@@ -9,23 +7,28 @@ interface ChatMessageProps {
 }
 
 /**
- * Chat message bubble component for agent/user messages
+ * Simple chat bubble - user messages are green, system messages are gray
  */
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
 
   return (
-    <Flex justify="center" className="w-full">
+    <div className={`w-full flex ${isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
       <div
-        className={cn(
-          "rounded-3xl px-8 py-3",
-          isUser ? "bg-[#76b900] text-white" : "bg-surface-raised text-primary border border-base"
-        )}
+        style={{
+          backgroundColor: isUser ? "#76b900" : "#2a2a2a",
+          color: isUser ? "#000000" : "#ffffff",
+          padding: "14px 24px",
+          borderRadius: "24px",
+          maxWidth: "85%",
+          fontSize: "16px",
+          lineHeight: "1.5",
+        }}
         role="article"
         aria-label={`${message.role} message`}
       >
-        <Text kind="body/regular/md">{message.content}</Text>
+        {message.content}
       </div>
-    </Flex>
+    </div>
   );
 }

@@ -62,9 +62,9 @@ describe("ProductGrid", () => {
   it("renders correct number of product cards", () => {
     render(<ProductGrid products={mockProducts} onSelect={vi.fn()} />);
 
-    // Each product has a "NVShop" label, so we can count those
-    const nvshopLabels = screen.getAllByText("NVShop");
-    expect(nvshopLabels).toHaveLength(3);
+    // Count product cards by their role
+    const productCards = screen.getAllByRole("button");
+    expect(productCards).toHaveLength(3);
   });
 
   it("calls onSelect when a product card is clicked", () => {

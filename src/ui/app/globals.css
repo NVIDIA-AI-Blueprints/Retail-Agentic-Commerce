@@ -1,6 +1,38 @@
 @import "tailwindcss";
 @import "@kui/foundations-react-external/base.css";
 
+/* ============================================
+   Custom Layout Design Tokens
+   ============================================
+   These extend KUI's theme with layout-specific values
+   for consistent spacing and sizing across the app.
+*/
+:root {
+  /* Page Layout */
+  --page-max-width: 1440px;
+  --gutter-sm: 24px;
+  --gutter-md: 40px;
+  --gutter-lg: 64px;
+  
+  /* Panel Spacing */
+  --panel-gap: 32px;
+  --panel-padding: 24px;
+  --panel-radius: var(--radius-xl); /* 16px */
+  
+  /* Card Styling */
+  --card-radius: var(--radius-lg); /* 8px */
+  
+  /* Chat Bubble */
+  --bubble-radius: var(--radius-xl); /* 16px */
+  --bubble-padding-x: 20px;
+  --bubble-padding-y: 14px;
+  
+  /* Consistent Shadows (subtle, Apple-like) */
+  --shadow-panel: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
 /* Custom scrollbar for dark theme */
 ::-webkit-scrollbar {
   width: 8px;
@@ -137,4 +169,187 @@ body {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Payment Modal animations - Full screen version */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: overlayFadeIn 300ms ease-out forwards;
+}
+
+.modal-overlay.closing {
+  animation: overlayFadeOut 200ms ease-in forwards;
+}
+
+.modal-content {
+  position: relative;
+  max-width: 420px;
+  width: 100%;
+  margin: 0 16px;
+  animation: modalSlideUp 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modal-content.closing {
+  animation: modalSlideDown 250ms ease-in forwards;
+}
+
+/* Panel-contained Modal (within Agent Panel only) */
+.panel-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(23, 23, 23, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: panelOverlayFadeIn 300ms ease-out forwards;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.panel-modal-overlay.closing {
+  animation: panelOverlayFadeOut 200ms ease-in forwards;
+}
+
+.panel-modal-content {
+  position: relative;
+  max-width: 380px;
+  width: calc(100% - 48px);
+  margin: 24px;
+  animation: panelModalSlideUp 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.panel-modal-content.closing {
+  animation: panelModalSlideDown 250ms ease-in forwards;
+}
+
+@keyframes panelOverlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panelOverlayFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes panelModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes panelModalSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+}
+
+.modal-close-button {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-gray-800);
+  border: 1px solid var(--color-gray-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 200ms ease;
+  z-index: 10;
+  color: var(--color-gray-300);
+}
+
+.modal-close-button:hover {
+  background: var(--color-gray-700);
+  color: var(--color-gray-100);
+  transform: scale(1.05);
+}
+
+.modal-close-button:active {
+  transform: scale(0.95);
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlayFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100px) scale(0.95);
+  }
+}
+
+/* Agent panel blur when modal is open */
+.agent-panel-blurred {
+  filter: blur(4px);
+  transition: filter 300ms ease;
+}
+
+.agent-panel-normal {
+  filter: blur(0);
+  transition: filter 300ms ease;
 }

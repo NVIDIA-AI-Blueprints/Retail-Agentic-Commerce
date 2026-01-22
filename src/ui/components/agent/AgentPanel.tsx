@@ -1,15 +1,82 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Stack, Flex, Text, Badge } from "@kui/foundations-react-external";
 import { ChatMessage } from "./ChatMessage";
 import { ProductGrid } from "./ProductGrid";
 import { CheckoutCard } from "./CheckoutCard";
 import { ConfirmationCard } from "./ConfirmationCard";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
+import { useACPLog } from "@/hooks/useACPLog";
 import { mockProducts, mockChatMessages } from "@/data/mock-data";
 import { getErrorMessage, getSuggestedAction } from "@/lib/errors";
+import { Close } from "@/components/icons";
 import type { ChatMessage as ChatMessageType, FulfillmentOption, Product } from "@/types";
+
+/**
+ * Payment Modal Component
+ * Displays checkout card in an animated modal overlay
+ */
+interface PaymentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function PaymentModal({ isOpen, onClose, children }: PaymentModalProps) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 250); // Match animation duration
+  }, [onClose]);
+
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        handleClose();
+      }
+    },
+    [handleClose]
+  );
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, handleClose]);
+
+  if (!isOpen && !isClosing) return null;
+
+  return (
+    <div
+      className={`panel-modal-overlay ${isClosing ? "closing" : ""}`}
+      onClick={handleOverlayClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Payment checkout"
+    >
+      <div className={`panel-modal-content ${isClosing ? "closing" : ""}`}>
+        <button
+          className="modal-close-button"
+          onClick={handleClose}
+          aria-label="Close payment modal"
+        >
+          <Close className="w-4 h-4" />
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Loading skeleton for checkout card
@@ -148,6 +215,8 @@ function getSessionShipping(totals: { type: string; amount: number }[]): number 
  */
 export function AgentPanel() {
   const [messages] = useState<ChatMessageType[]>(mockChatMessages);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const acpLog = useACPLog();
   const {
     context,
     selectProduct,
@@ -156,15 +225,23 @@ export function AgentPanel() {
     submitPayment,
     reset,
     clearError,
-  } = useCheckoutFlow();
+  } = useCheckoutFlow(acpLog);
 
-  // Handle product selection
+  // Handle product selection - opens modal
   const handleSelectProduct = useCallback(
     (product: Product) => {
       selectProduct(product);
+      setIsModalOpen(true);
     },
     [selectProduct]
   );
+
+  // Handle modal close
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+    // Reset checkout flow when closing modal
+    reset();
+  }, [reset]);
 
   // Handle pay button click
   const handlePay = useCallback(() => {
@@ -191,6 +268,12 @@ export function AgentPanel() {
   const handleRetry = useCallback(() => {
     clearError();
   }, [clearError]);
+
+  // Close modal and reset on confirmation
+  const handleStartOver = useCallback(() => {
+    setIsModalOpen(false);
+    reset();
+  }, [reset]);
 
   // Get fulfillment options from session
   const fulfillmentOptions = context.session
@@ -249,21 +332,42 @@ export function AgentPanel() {
   // Check if session is ready for payment
   const isReadyForPayment = context.session?.status === "ready_for_payment";
 
+  // Determine if modal should be shown (checkout or processing states)
+  const showCheckoutModal =
+    isModalOpen &&
+    (context.state === "checkout" || context.state === "processing") &&
+    !context.error &&
+    checkoutData !== null &&
+    context.selectedProduct !== null;
+
+  // Show confirmation in modal
+  const showConfirmationModal =
+    isModalOpen &&
+    context.state === "confirmation" &&
+    context.selectedProduct !== null &&
+    context.session?.order !== undefined;
+
+  // Combined modal open state
+  const isAnyModalOpen = showCheckoutModal || showConfirmationModal || (isModalOpen && context.isLoading);
+
   return (
     <section
-      className="flex-1 flex flex-col h-full overflow-hidden bg-surface-raised rounded-lg"
+      className="flex-1 flex flex-col h-full overflow-hidden bg-[#1e1e1e] border border-[#333333] rounded-2xl relative"
       aria-label="Agent Panel"
     >
-      {/* Header */}
-      <Flex align="center" justify="start" className="px-6 pt-6 pb-4 border-b border-base">
-        <Badge kind="outline" color="gray">
+      {/* Clean header with badge */}
+      <div className="px-6 pt-5 pb-4 border-b border-[#333333]">
+        <Badge kind="solid" color="green">
           Agent
         </Badge>
-      </Flex>
+      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <Stack gap="6" className="p-6">
+      {/* Content area with darker background for card contrast */}
+      <div
+        className="flex-1 overflow-y-auto bg-[#171717]"
+        style={{ padding: "24px 32px" }}
+      >
+        <Stack gap="6">
           {/* Chat message */}
           <Stack gap="3">
             {messages.map((message) => (
@@ -276,58 +380,51 @@ export function AgentPanel() {
             <ErrorDisplay error={context.error} onRetry={handleRetry} onDismiss={handleRetry} />
           )}
 
-          {/* Flow-based content */}
-          {context.state === "product_selection" && !context.error && (
-            <>
-              <Text kind="body/regular/md" className="text-secondary">
-                Here are some options to check out:
+          {/* Always show product grid */}
+          {!context.error && (
+            <div className="ml-2">
+              <Text kind="body/regular/md" className="text-secondary mb-5 block">
+                Here are some great men&apos;s T-shirts you can shop now — from everyday basics to stylish branded tees and value packs
               </Text>
+              <br />
               <ProductGrid products={mockProducts} onSelect={handleSelectProduct} />
-            </>
+            </div>
           )}
-
-          {/* Loading state */}
-          {context.isLoading && context.state === "product_selection" && <CheckoutSkeleton />}
-
-          {/* Checkout state */}
-          {(context.state === "checkout" || context.state === "processing") &&
-            !context.error &&
-            checkoutData &&
-            context.selectedProduct && (
-              <div className="checkout-transition">
-                <CheckoutCard
-                  checkout={checkoutData}
-                  product={context.selectedProduct}
-                  quantity={context.quantity}
-                  isProcessing={context.state === "processing" || context.isLoading}
-                  isReadyForPayment={isReadyForPayment}
-                  onPay={handlePay}
-                  onQuantityChange={handleQuantityChange}
-                  onShippingChange={handleShippingChange}
-                />
-              </div>
-            )}
-
-          {/* Confirmation state */}
-          {context.state === "confirmation" &&
-            context.selectedProduct &&
-            context.session?.order && (
-              <div className="checkout-transition">
-                <ConfirmationCard
-                  product={context.selectedProduct}
-                  quantity={context.quantity}
-                  shippingPrice={shipping}
-                  orderId={context.session.order.id}
-                  orderUrl={context.session.order.permalink_url}
-                  estimatedDelivery={
-                    selectedShippingOption?.estimatedDelivery ?? "5-7 business days"
-                  }
-                  onStartOver={reset}
-                />
-              </div>
-            )}
         </Stack>
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal isOpen={isAnyModalOpen} onClose={handleCloseModal}>
+        {/* Loading state */}
+        {context.isLoading && !checkoutData && <CheckoutSkeleton />}
+
+        {/* Checkout state */}
+        {showCheckoutModal && checkoutData && context.selectedProduct && (
+          <CheckoutCard
+            checkout={checkoutData}
+            product={context.selectedProduct}
+            quantity={context.quantity}
+            isProcessing={context.state === "processing" || context.isLoading}
+            isReadyForPayment={isReadyForPayment}
+            onPay={handlePay}
+            onQuantityChange={handleQuantityChange}
+            onShippingChange={handleShippingChange}
+          />
+        )}
+
+        {/* Confirmation state */}
+        {showConfirmationModal && context.session?.order && context.selectedProduct && (
+          <ConfirmationCard
+            product={context.selectedProduct}
+            quantity={context.quantity}
+            shippingPrice={shipping}
+            orderId={context.session.order.id}
+            orderUrl={context.session.order.permalink_url}
+            estimatedDelivery={selectedShippingOption?.estimatedDelivery ?? "5-7 business days"}
+            onStartOver={handleStartOver}
+          />
+        )}
+      </PaymentModal>
     </section>
   );
 }

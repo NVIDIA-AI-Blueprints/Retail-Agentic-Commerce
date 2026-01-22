@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Navbar } from "./Navbar";
 
@@ -23,9 +23,9 @@ describe("Navbar", () => {
     expect(title).toBeInTheDocument();
   });
 
-  it("renders the Protocol Inspector label", () => {
-    render(<Navbar />);
-    const label = screen.getByText("Protocol Inspector");
-    expect(label).toBeInTheDocument();
+  it("has proper styling with border", () => {
+    const { container } = render(<Navbar />);
+    const wrapper = container.firstChild;
+    expect(wrapper).toHaveClass("border-b");
   });
 });

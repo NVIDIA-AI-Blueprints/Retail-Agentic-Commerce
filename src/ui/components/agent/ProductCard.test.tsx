@@ -45,27 +45,28 @@ describe("ProductCard", () => {
     expect(screen.getByAltText("Classic Tee")).toBeInTheDocument();
   });
 
-  it("renders brand name", () => {
+  it("has accessible button role with aria-label", () => {
     render(<ProductCard product={mockProduct} />);
-    expect(screen.getByText("NVShop")).toBeInTheDocument();
+    const card = screen.getByRole("button", { name: /Select Classic Tee/ });
+    expect(card).toBeInTheDocument();
   });
 
   it("calls onBuy when card is clicked", () => {
     const onBuy = vi.fn();
     render(<ProductCard product={mockProduct} onBuy={onBuy} />);
 
-    // The card itself is clickable
-    const card = screen.getByText("Classic Tee").closest('[data-testid="nv-card-root"]');
-    fireEvent.click(card!);
+    // The card is an article with role="button"
+    const card = screen.getByRole("button", { name: /Select Classic Tee/ });
+    fireEvent.click(card);
 
     expect(onBuy).toHaveBeenCalledWith(mockProduct);
   });
 
-  it("does not call onBuy when onBuy is not provided", () => {
+  it("does not throw when clicked without onBuy handler", () => {
     render(<ProductCard product={mockProduct} />);
 
     // Should not throw when clicked without onBuy handler
-    const card = screen.getByText("Classic Tee").closest('[data-testid="nv-card-root"]');
-    expect(() => fireEvent.click(card!)).not.toThrow();
+    const card = screen.getByRole("button", { name: /Select Classic Tee/ });
+    expect(() => fireEvent.click(card)).not.toThrow();
   });
 });

@@ -1,22 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BusinessPanel } from "./BusinessPanel";
+import { ACPLogProvider } from "@/hooks/useACPLog";
+
+// Wrapper component to provide required context
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ACPLogProvider>{ui}</ACPLogProvider>);
+}
 
 describe("BusinessPanel", () => {
-  it("renders the Merchant badge", () => {
-    render(<BusinessPanel />);
-    expect(screen.getByText("Merchant")).toBeInTheDocument();
+  it("renders the Merchant Server badge", () => {
+    renderWithProviders(<BusinessPanel />);
+    expect(screen.getByText("Merchant Server")).toBeInTheDocument();
   });
 
   it("renders with section aria-label", () => {
-    render(<BusinessPanel />);
+    renderWithProviders(<BusinessPanel />);
     expect(screen.getByRole("region", { name: "Merchant Panel" })).toBeInTheDocument();
   });
 
   it("renders placeholder text when no checkout is active", () => {
-    render(<BusinessPanel />);
+    renderWithProviders(<BusinessPanel />);
     expect(
-      screen.getByText("Select a product to load settings and start the ACP flow.")
+      screen.getByText("Select a product from the Agent panel to view merchant settings and start the ACP flow.")
     ).toBeInTheDocument();
   });
 });

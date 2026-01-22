@@ -1,6 +1,5 @@
 "use client";
 
-import { Flex } from "@kui/foundations-react-external";
 import { ProductCard } from "./ProductCard";
 import type { Product } from "@/types";
 
@@ -11,16 +10,21 @@ interface ProductGridProps {
 }
 
 /**
- * Animated grid container for product cards
+ * Responsive grid container for product cards
+ * Uses CSS Grid for consistent spacing and responsive behavior
  */
 export function ProductGrid({ products, onSelect, className = "" }: ProductGridProps) {
   return (
-    <Flex gap="4" wrap="wrap" className={`fade-in ${className}`}>
+    <div
+      className={`grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-5 fade-in ${className}`}
+      role="list"
+      aria-label="Available products"
+    >
       {products.map((product) => (
-        <div key={product.id} className="w-[200px]">
+        <div key={product.id} role="listitem">
           <ProductCard product={product} onBuy={onSelect} />
         </div>
       ))}
-    </Flex>
+    </div>
   );
 }
