@@ -144,11 +144,7 @@ export function ACPLogProvider({ children }: { children: ReactNode }) {
     [state, logEvent, completeEvent, clear]
   );
 
-  return (
-    <ACPLogContext.Provider value={contextValue}>
-      {children}
-    </ACPLogContext.Provider>
-  );
+  return <ACPLogContext.Provider value={contextValue}>{children}</ACPLogContext.Provider>;
 }
 
 export function useACPLog() {

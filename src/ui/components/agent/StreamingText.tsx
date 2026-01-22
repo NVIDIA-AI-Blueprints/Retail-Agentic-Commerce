@@ -17,12 +17,7 @@ interface StreamingTextProps {
  * Streaming text component that reveals text character by character
  * Simulates an AI/LLM streaming response
  */
-export function StreamingText({
-  text,
-  speed = 20,
-  onComplete,
-  className,
-}: StreamingTextProps) {
+export function StreamingText({ text, speed = 20, onComplete, className }: StreamingTextProps) {
   const [displayedText, setDisplayedText] = useState("");
   const [isComplete, setIsComplete] = useState(false);
   // Use refs to avoid re-triggering the effect
@@ -59,9 +54,7 @@ export function StreamingText({
   return (
     <Text kind="body/regular/md" className={className ?? ""}>
       {displayedText}
-      {!isComplete && (
-        <span className="inline-block w-0.5 h-4 bg-green-400 ml-0.5 animate-pulse" />
-      )}
+      {!isComplete && <span className="inline-block w-0.5 h-4 bg-green-400 ml-0.5 animate-pulse" />}
     </Text>
   );
 }

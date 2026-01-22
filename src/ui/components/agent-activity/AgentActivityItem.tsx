@@ -88,9 +88,7 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
         <div
           className="absolute left-[11px] top-[28px] w-[2px] h-[calc(100%-14px)]"
           style={{
-            background: isPending
-              ? "linear-gradient(to bottom, #404040, transparent)"
-              : "#333333",
+            background: isPending ? "linear-gradient(to bottom, #404040, transparent)" : "#333333",
           }}
         />
       )}
@@ -105,9 +103,7 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
             <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
           ) : (
             <span
-              className={
-                isError ? "text-red-400" : isSkipped ? "text-gray-500" : "text-green-400"
-              }
+              className={isError ? "text-red-400" : isSkipped ? "text-gray-500" : "text-green-400"}
             >
               {isError ? "!" : typeInfo.icon}
             </span>
@@ -236,10 +232,7 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
                 <Text kind="label/semibold/sm" className="text-subtle mb-2 block">
                   Agent Reasoning
                 </Text>
-                <Text
-                  kind="body/regular/sm"
-                  className="text-gray-400 italic leading-relaxed"
-                >
+                <Text kind="body/regular/sm" className="text-gray-400 italic leading-relaxed">
                   &quot;{event.decision.reasoning}&quot;
                 </Text>
               </>

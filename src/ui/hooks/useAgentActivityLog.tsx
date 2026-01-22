@@ -113,12 +113,7 @@ export function AgentActivityLogProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const completeAgentCall = useCallback(
-    (
-      id: string,
-      status: AgentActivityStatus,
-      decision?: PromotionDecision,
-      error?: string
-    ) => {
+    (id: string, status: AgentActivityStatus, decision?: PromotionDecision, error?: string) => {
       const timestampStr = id.split("_")[1];
       const startTime = timestampStr ? parseInt(timestampStr, 10) : Date.now();
       const duration = Date.now() - startTime;
