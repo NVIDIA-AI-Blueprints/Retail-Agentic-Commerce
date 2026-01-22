@@ -6,8 +6,10 @@ import { ChatMessage } from "./ChatMessage";
 import { ProductGrid } from "./ProductGrid";
 import { CheckoutCard } from "./CheckoutCard";
 import { ConfirmationCard } from "./ConfirmationCard";
+import { StreamingText } from "./StreamingText";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
 import { useACPLog } from "@/hooks/useACPLog";
+import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
 import { mockProducts, mockChatMessages } from "@/data/mock-data";
 import { getErrorMessage, getSuggestedAction } from "@/lib/errors";
 import { Close } from "@/components/icons";
@@ -213,10 +215,15 @@ function getSessionShipping(totals: { type: string; amount: number }[]): number 
 /**
  * Left panel containing the agent chat interface and product display
  */
+const INTRO_TEXT =
+  "Here are some great men's T-shirts you can shop now — from everyday basics to stylish branded tees and value packs";
+
 export function AgentPanel() {
   const [messages] = useState<ChatMessageType[]>(mockChatMessages);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showProducts, setShowProducts] = useState(false);
   const acpLog = useACPLog();
+  const agentActivityLog = useAgentActivityLog();
   const {
     context,
     selectProduct,
@@ -225,7 +232,7 @@ export function AgentPanel() {
     submitPayment,
     reset,
     clearError,
-  } = useCheckoutFlow(acpLog);
+  } = useCheckoutFlow(acpLog, agentActivityLog);
 
   // Handle product selection - opens modal
   const handleSelectProduct = useCallback(
@@ -274,6 +281,11 @@ export function AgentPanel() {
     setIsModalOpen(false);
     reset();
   }, [reset]);
+
+  // Handle streaming text completion
+  const handleTextComplete = useCallback(() => {
+    setShowProducts(true);
+  }, []);
 
   // Get fulfillment options from session
   const fulfillmentOptions = context.session
@@ -358,8 +370,8 @@ export function AgentPanel() {
     >
       {/* Clean header with badge */}
       <div className="px-6 pt-5 pb-4 border-b border-[#333333]">
-        <Badge kind="solid" color="green">
-          Agent
+        <Badge kind="solid" color="blue">
+          Client Agent
         </Badge>
       </div>
 
@@ -381,12 +393,28 @@ export function AgentPanel() {
           {/* Always show product grid */}
           {!context.error && (
             <div className="ml-2">
-              <Text kind="body/regular/md" className="text-secondary mb-5 block">
-                Here are some great men&apos;s T-shirts you can shop now — from everyday basics to
-                stylish branded tees and value packs
-              </Text>
+              <StreamingText
+                text={INTRO_TEXT}
+                speed={15}
+                onComplete={handleTextComplete}
+                className="text-secondary mb-5 block"
+              />
               <br />
-              <ProductGrid products={mockProducts} onSelect={handleSelectProduct} />
+              <div
+                className={`transition-all duration-700 ease-out ${
+                  showProducts
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-4"
+                }`}
+              >
+                {showProducts && (
+                  <ProductGrid
+                    products={mockProducts}
+                    onSelect={handleSelectProduct}
+                    animateEntrance
+                  />
+                )}
+              </div>
             </div>
           )}
         </Stack>

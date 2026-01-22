@@ -1,87 +1,82 @@
 # AGENTS.md
 
-This document helps AI coding assistants understand how the Agentic Commerce project works.
+This document is the fast-start guide for GPT Codex and other coding agents.
+
+## How to Use This Doc
+
+Read this top to bottom once per session. Prefer:
+1. Skills (mandatory workflows and standards)
+2. Quick Map (where to look first)
+3. Commands (how to run and verify)
 
 ## Project Overview
 
-This is an Agentic Commerce Protocol (ACP) reference implementation featuring:
-- **Backend**: Python 3.12+ FastAPI server with SQLModel ORM
-- **Frontend**: Next.js 15+ with React 19, Tailwind CSS, and Kaizen UI components
+Agentic Commerce Protocol (ACP) reference implementation:
+- **Backend**: Python 3.12+ FastAPI with SQLModel
+- **Frontend**: Next.js 15+ with React 19, Tailwind CSS, Kaizen UI
 
-See `docs/features.md` for the complete feature breakdown and `docs/architecture.md` for system design.
+Core docs:
+- `docs/features.md` for feature status and acceptance criteria
+- `docs/architecture.md` for system design
 
-## Cursor Skills
+## Cursor Skills (Mandatory)
 
-Before making changes, review the relevant skill files in `.cursor/skills/`:
-- **`.cursor/skills/features/SKILL.md`** - Python backend development standards (Ruff, Pyright, pytest)
-- **`.cursor/skills/ui/SKILL.md`** - Frontend development standards (React, Next.js, browser validation)
+Before changing code, read the skill files in `.cursor/skills/`:
+- **`.cursor/skills/features/SKILL.md`** - Python backend standards (Ruff, Pyright, pytest)
+- **`.cursor/skills/ui/SKILL.md`** - Frontend standards (React, Next.js, browser validation)
 
-These skills define mandatory workflows, tooling requirements, and code standards.
+## Quick Map (Where to Look First)
 
-## Dev Environment Setup
+Backend:
+- API routes: `src/merchant/api/routes/`
+- Business logic: `src/merchant/services/`
+- Models: `src/merchant/db/models.py`
 
-### Backend (Python)
+Frontend:
+- Main UI layout: `src/ui/app/page.tsx`
+- Panels: `src/ui/components/agent/`, `src/ui/components/business/`, `src/ui/components/agent-activity/`
+- Checkout state machine: `src/ui/hooks/useCheckoutFlow.ts`
+- Protocol loggers: `src/ui/hooks/useACPLog.tsx`, `src/ui/hooks/useAgentActivityLog.tsx`
 
+## Runtime Commands
+
+### Backend
 ```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-
-# Install dependencies (including dev tools)
-pip install -e ".[dev]"
-
-# Or with uv (faster)
-uv pip install -e ".[dev]"
-```
-
-### Running the Servers
-
-```bash
-# Start the Merchant API server
+# Merchant API
 uvicorn src.merchant.main:app --reload
-# Server runs at http://localhost:8000
-# API docs at http://localhost:8000/docs
 
-# Start the PSP (Payment Service Provider) server
+# PSP
 uvicorn src.payment.main:app --reload --port 8001
-# Server runs at http://localhost:8001
-# API docs at http://localhost:8001/docs
 ```
 
-### Frontend (Next.js UI)
-
+### Frontend
 ```bash
-# Navigate to UI directory
 cd src/ui
-
-# Configure environment (copy and edit as needed)
-cp env.example .env.local
-
-# Install dependencies
 pnpm install
-
-# Start development server
-pnpm run dev  # runs at http://localhost:3000
+pnpm run dev
 ```
 
-### UI-Backend Integration
+## UI-Backend Integration
 
-The UI connects to both the Merchant API and PSP Service. Key integration files:
+Key files:
+- `src/ui/lib/api-client.ts` - API client
+- `src/ui/hooks/useCheckoutFlow.ts` - Checkout flow state machine
+- `src/ui/hooks/useACPLog.tsx` - ACP protocol event logging
+- `src/ui/hooks/useAgentActivityLog.tsx` - Agent decision tracking
+- `src/ui/types/index.ts` - ACP and agent types
 
-| File | Purpose |
-|------|---------|
-| `src/ui/lib/api-client.ts` | Type-safe API client for merchant and PSP endpoints |
-| `src/ui/lib/errors.ts` | Error handling and user-friendly messages |
-| `src/ui/hooks/useCheckoutFlow.ts` | Checkout flow state machine with API calls |
-| `src/ui/types/index.ts` | ACP-compliant TypeScript types |
+Checkout flow:
+1. Select product → `createCheckoutSession()` → POST /checkout_sessions
+2. Select shipping → `updateCheckoutSession()` → POST /checkout_sessions/{id}
+3. Delegate payment → `delegatePayment()` → POST /agentic_commerce/delegate_payment
+4. Complete checkout → `completeCheckout()` → POST /checkout_sessions/{id}/complete
 
-**Checkout Flow:**
-1. User selects product → `createCheckoutSession()` → POST /checkout_sessions
-2. User selects shipping → `updateCheckoutSession()` → POST /checkout_sessions/{id}
-3. User clicks Pay → `delegatePayment()` → POST /agentic_commerce/delegate_payment (PSP)
-4. Payment completion → `completeCheckout()` → POST /checkout_sessions/{id}/complete
+Three-panel layout (Feature 10):
+- **Client Agent Panel**: product selection + checkout modal
+- **Merchant Server Panel**: ACP protocol events and session state
+- **Agent Activity Panel**: promotion agent decisions, input signals, reasoning
 
-**Environment Variables** (`src/ui/.env.local`):
+Environment (`src/ui/.env.local`):
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_PSP_URL=http://localhost:8001
@@ -89,76 +84,18 @@ NEXT_PUBLIC_API_KEY=your-api-key
 NEXT_PUBLIC_PSP_API_KEY=psp-api-key-12345
 ```
 
-### UI Testing & Quality
+## Quality Gates
 
+Frontend:
 ```bash
 cd src/ui
-
-# Run tests
-pnpm test              # Run tests in watch mode
-pnpm test:run          # Run tests once (CI mode)
-pnpm test:coverage     # Run tests with coverage
-
-# Linting and formatting
-pnpm lint              # Run ESLint
-pnpm format            # Format with Prettier
-pnpm format:check      # Check formatting
-
-# Type checking
-pnpm typecheck         # Run TypeScript type checker
+pnpm test:run
+pnpm lint
+pnpm format:check
+pnpm typecheck
 ```
 
-## Testing Instructions
-
-### Find the CI Plan
-
-Check `.github/workflows/ci.yml` for the complete CI pipeline. It runs:
-1. Ruff linting and formatting
-2. Pyright type checking
-3. Pytest unit tests
-
-### Running Tests Locally
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run specific test file
-pytest tests/merchant/api/test_checkout.py -v
-
-# Run specific test by name pattern
-pytest tests/ -v -k "test_create_checkout"
-
-# Run with coverage (if configured)
-pytest tests/ --cov=src
-```
-
-### Linting and Formatting
-
-```bash
-# Check linting
-ruff check src/ tests/
-
-# Auto-fix linting issues
-ruff check src/ tests/ --fix
-
-# Check formatting
-ruff format --check src/ tests/
-
-# Apply formatting
-ruff format src/ tests/
-```
-
-### Type Checking
-
-```bash
-# Run Pyright type checker
-pyright src/
-```
-
-### Pre-Commit Checklist
-
-Before committing, ensure all checks pass:
+Backend:
 ```bash
 ruff check src/ tests/
 ruff format --check src/ tests/
@@ -168,26 +105,20 @@ pytest tests/ -v
 
 ## Code Standards
 
-### Python Backend
+Python:
+- Type hints required for public APIs
+- Ruff enforces formatting and linting
+- Add tests for each change
 
-- Follow PEP 8 (enforced by Ruff)
-- Use type hints for all public APIs
-- 4-space indentation, 88-character line length
-- No unused imports or dead code
-- Add/update tests for every change
-
-### Frontend (React/Next.js)
-
-- Use TypeScript with strict mode
-- Follow ESLint and Prettier rules
-- Use Kaizen UI components and Tailwind CSS
-- Run tests with Vitest: `pnpm test`
+Frontend:
+- Strict TypeScript
+- ESLint + Prettier compliance
+- Use Kaizen UI and Tailwind
 - Validate UI changes with browser MCP tools when available
 
 ## PR Instructions
 
-### Title Format
-
+Title format:
 ```
 [component] Brief description of change
 ```
@@ -197,20 +128,10 @@ Examples:
 - `[frontend] Create product card component`
 - `[docs] Update feature breakdown for Phase 2`
 
-### Before Creating a PR
-
-1. Run linting: `ruff check src/ tests/`
-2. Run formatting: `ruff format src/ tests/`
-3. Run type checks: `pyright src/`
-4. Run tests: `pytest tests/ -v`
-5. Ensure all CI checks would pass
-
-### PR Description
-
-Include:
-- Summary of changes (1-3 bullet points)
-- Test plan or verification steps
-- Related issue/feature number if applicable
+PR description should include:
+- Summary (1-3 bullets)
+- Test plan
+- Related issue/feature (if any)
 
 ## Project Structure
 
@@ -234,11 +155,12 @@ src/
 └── ui/                 # Next.js frontend
     ├── app/            # Next.js App Router pages
     ├── components/     # React components
-    │   ├── agent/      # Agent panel components (ProductGrid, CheckoutCard, etc.)
-    │   ├── business/   # Business panel components
+    │   ├── agent/      # Client Agent panel
+    │   ├── agent-activity/ # Agent Activity panel
+    │   ├── business/   # Merchant Server panel
     │   └── layout/     # Layout components (Navbar, etc.)
-    ├── hooks/          # Custom React hooks (useCheckoutFlow)
-    ├── types/          # TypeScript type definitions
+    ├── hooks/          # Custom React hooks (useCheckoutFlow, useACPLog, useAgentActivityLog)
+    ├── types/          # TypeScript type definitions (ACP types, agent types)
     └── data/           # Mock data for development
 
 tests/
@@ -249,50 +171,25 @@ docs/                   # Project documentation
 .cursor/skills/         # AI assistant skill definitions
 ```
 
-## Helpful Commands
+## Helper Commands
 
-### Merchant API (port 8000)
+Merchant API:
+- Start server: `uvicorn src.merchant.main:app --reload`
+- Run tests: `pytest tests/merchant/ -v`
+- Health: `curl http://localhost:8000/health`
 
-| Task | Command |
-|------|---------|
-| Start server | `uvicorn src.merchant.main:app --reload` |
-| Run tests | `pytest tests/merchant/ -v` |
-| Health check | `curl http://localhost:8000/health` |
+PSP Service:
+- Start server: `uvicorn src.payment.main:app --reload --port 8001`
+- Run tests: `pytest tests/payment/ -v`
+- Health: `curl http://localhost:8001/health`
 
-### PSP Service (port 8001)
+Promotion Agent:
+- Start agent: `cd src/agents/promotion-agent && nat serve --config_file configs/config.yml --port 8002`
+- Test input: `nat run --config_file configs/config.yml --input '{...}'`
 
-| Task | Command |
-|------|---------|
-| Start server | `uvicorn src.payment.main:app --reload --port 8001` |
-| Run tests | `pytest tests/payment/ -v` |
-| Health check | `curl http://localhost:8001/health` |
-
-### Promotion Agent (port 8002)
-
-| Task | Command |
-|------|---------|
-| Navigate to agent | `cd src/agents/promotion-agent` |
-| Start agent | `nat serve --config_file configs/config.yml --port 8002` |
-| Test with input | `nat run --config_file configs/config.yml --input '{...}'` |
-
-**Note**: Requires `NVIDIA_API_KEY` environment variable.
-
-### Code Quality (Both Services)
-
-| Task | Command |
-|------|---------|
-| Run all tests | `pytest tests/ -v` |
-| Lint check | `ruff check src/ tests/` |
-| Format code | `ruff format src/ tests/` |
-| Type check | `pyright src/` |
-
-### Frontend (run from `src/ui/`)
-
-| Task | Command |
-|------|---------|
-| Start UI | `pnpm run dev` |
-| Run tests | `pnpm test` |
-| Run tests once | `pnpm test:run` |
-| Lint check | `pnpm lint` |
-| Format code | `pnpm format` |
-| Type check | `pnpm typecheck` |
+Frontend (from `src/ui/`):
+- Start UI: `pnpm run dev`
+- Run tests: `pnpm test:run`
+- Lint: `pnpm lint`
+- Format check: `pnpm format:check`
+- Type check: `pnpm typecheck`

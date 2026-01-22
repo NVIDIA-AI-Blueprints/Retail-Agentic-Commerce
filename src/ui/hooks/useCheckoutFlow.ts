@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useCallback } from "react";
+import { useReducer, useCallback, useRef } from "react";
 import type {
   CheckoutFlowState,
   CheckoutFlowContext,
@@ -17,6 +17,14 @@ import {
 } from "@/lib/api-client";
 import { createAPIError } from "@/lib/errors";
 import type { ACPEventType, ACPEventStatus } from "@/hooks/useACPLog";
+import type {
+  AgentType,
+  AgentActivityStatus,
+  PromotionInputSignals,
+  PromotionDecision,
+  LineItem,
+  Product as ProductType,
+} from "@/types";
 
 const DEFAULT_SHIPPING_ID = "ship_standard";
 
@@ -45,6 +53,82 @@ export interface ACPLogger {
     statusCode?: number
   ) => void;
   clear: () => void;
+}
+
+/**
+ * Logger interface for agent activity events
+ */
+export interface AgentActivityLogger {
+  addAgentEvent: (
+    agentType: AgentType,
+    inputSignals: PromotionInputSignals,
+    decision: PromotionDecision | undefined,
+    status: AgentActivityStatus
+  ) => void;
+  clear: () => void;
+}
+
+/**
+ * Extract promotion data from line items and log agent activity
+ */
+function logPromotionAgentActivity(
+  lineItems: LineItem[],
+  product: ProductType | null,
+  agentLogger?: AgentActivityLogger
+): void {
+  if (!agentLogger || !product) return;
+
+  for (const lineItem of lineItems) {
+    // Build input signals from product data
+    const inputSignals: PromotionInputSignals = {
+      productId: product.id,
+      productName: lineItem.name ?? product.name,
+      stockCount: product.stockCount,
+      basePrice: lineItem.base_amount,
+      competitorPrice: null, // Not available from frontend
+      inventoryPressure: product.stockCount > 50 ? "high" : "low",
+      competitionPosition: "unknown",
+    };
+
+    // Check if we have promotion metadata
+    if (lineItem.promotion) {
+      const decision: PromotionDecision = {
+        action: lineItem.promotion.action,
+        discountAmount: lineItem.discount,
+        reasonCodes: lineItem.promotion.reason_codes,
+        reasoning: lineItem.promotion.reasoning,
+      };
+
+      // Infer competition position from reason codes
+      if (lineItem.promotion.reason_codes.includes("ABOVE_MARKET")) {
+        inputSignals.competitionPosition = "above_market";
+      } else if (lineItem.promotion.reason_codes.includes("BELOW_MARKET")) {
+        inputSignals.competitionPosition = "below_market";
+      } else if (lineItem.promotion.reason_codes.includes("AT_MARKET")) {
+        inputSignals.competitionPosition = "at_market";
+      }
+
+      agentLogger.addAgentEvent("promotion", inputSignals, decision, "success");
+    } else if (lineItem.discount > 0) {
+      // Discount exists but no metadata - agent ran but metadata not exposed
+      const decision: PromotionDecision = {
+        action: "DISCOUNT",
+        discountAmount: lineItem.discount,
+        reasonCodes: [],
+        reasoning: "Promotion applied (details not available)",
+      };
+      agentLogger.addAgentEvent("promotion", inputSignals, decision, "success");
+    } else {
+      // No discount - either no promo or agent skipped
+      const decision: PromotionDecision = {
+        action: "NO_PROMO",
+        discountAmount: 0,
+        reasonCodes: [],
+        reasoning: "No promotion applied",
+      };
+      agentLogger.addAgentEvent("promotion", inputSignals, decision, "success");
+    }
+  }
 }
 
 // Default buyer info for demo purposes
@@ -251,82 +335,88 @@ function checkoutFlowReducer(
 /**
  * Hook for managing checkout flow state machine with real API calls
  */
-export function useCheckoutFlow(logger?: ACPLogger) {
+export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityLogger) {
   const [context, dispatch] = useReducer(checkoutFlowReducer, initialContext);
+
+  // Use refs for loggers to avoid recreating callbacks when context changes
+  const loggerRef = useRef(logger);
+  const agentLoggerRef = useRef(agentLogger);
+  loggerRef.current = logger;
+  agentLoggerRef.current = agentLogger;
 
   /**
    * Select a product and create a checkout session
    */
-  const selectProduct = useCallback(
-    async (product: Product) => {
-      dispatch({ type: "SELECT_PRODUCT", product });
+  const selectProduct = useCallback(async (product: Product) => {
+    dispatch({ type: "SELECT_PRODUCT", product });
 
-      const eventId = logger?.logEvent(
-        "session_create",
-        "POST",
-        "/checkout_sessions",
-        `Create session for ${product.name}`
-      );
+    const eventId = loggerRef.current?.logEvent(
+      "session_create",
+      "POST",
+      "/checkout_sessions",
+      `Create session for ${product.name}`
+    );
 
-      try {
-        const session = await createCheckoutSession({
-          items: [{ id: product.id, quantity: 1 }],
-          buyer: DEFAULT_BUYER,
-          fulfillment_address: DEFAULT_FULFILLMENT_ADDRESS,
-        });
+    try {
+      const session = await createCheckoutSession({
+        items: [{ id: product.id, quantity: 1 }],
+        buyer: DEFAULT_BUYER,
+        fulfillment_address: DEFAULT_FULFILLMENT_ADDRESS,
+      });
 
-        if (eventId) {
-          logger?.completeEvent(
-            eventId,
-            "success",
-            `Session ${session.id.slice(0, 8)}... created`,
-            201
-          );
-        }
-
-        dispatch({ type: "SESSION_CREATED", session });
-
-        // Auto-select first shipping option if available
-        const firstOption = session.fulfillment_options[0];
-        if (firstOption) {
-          const updateEventId = logger?.logEvent(
-            "session_update",
-            "POST",
-            `/checkout_sessions/${truncateId(session.id)}`,
-            `Select shipping: ${firstOption.title}`
-          );
-
-          try {
-            const updatedSession = await updateCheckoutSession(session.id, {
-              fulfillment_option_id: firstOption.id,
-            });
-
-            if (updateEventId) {
-              logger?.completeEvent(
-                updateEventId,
-                "success",
-                `Status: ${updatedSession.status}`,
-                200
-              );
-            }
-
-            dispatch({ type: "SESSION_UPDATED", session: updatedSession });
-          } catch (error) {
-            if (updateEventId) {
-              logger?.completeEvent(updateEventId, "error", "Update failed", 400);
-            }
-            dispatch({ type: "SET_ERROR", error: createAPIError(error) });
-          }
-        }
-      } catch (error) {
-        if (eventId) {
-          logger?.completeEvent(eventId, "error", "Session creation failed", 400);
-        }
-        dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+      if (eventId) {
+        loggerRef.current?.completeEvent(
+          eventId,
+          "success",
+          `Session ${session.id.slice(0, 8)}... created`,
+          201
+        );
       }
-    },
-    [logger]
-  );
+
+      // Log promotion agent activity from line items
+      logPromotionAgentActivity(session.line_items, product, agentLoggerRef.current);
+
+      dispatch({ type: "SESSION_CREATED", session });
+
+      // Auto-select first shipping option if available
+      const firstOption = session.fulfillment_options[0];
+      if (firstOption) {
+        const updateEventId = loggerRef.current?.logEvent(
+          "session_update",
+          "POST",
+          `/checkout_sessions/${truncateId(session.id)}`,
+          `Select shipping: ${firstOption.title}`
+        );
+
+        try {
+          const updatedSession = await updateCheckoutSession(session.id, {
+            fulfillment_option_id: firstOption.id,
+          });
+
+          if (updateEventId) {
+            loggerRef.current?.completeEvent(
+              updateEventId,
+              "success",
+              `Status: ${updatedSession.status}`,
+              200
+            );
+          }
+
+          dispatch({ type: "SESSION_UPDATED", session: updatedSession });
+        } catch (error) {
+          if (updateEventId) {
+            loggerRef.current?.completeEvent(updateEventId, "error", "Update failed", 400);
+          }
+          dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+        }
+      }
+    } catch (error) {
+      if (eventId) {
+        loggerRef.current?.completeEvent(eventId, "error", "Session creation failed", 400);
+      }
+      dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+    }
+  }, []);
 
   /**
    * Update quantity and refresh session
@@ -341,7 +431,7 @@ export function useCheckoutFlow(logger?: ACPLogger) {
 
       dispatch({ type: "SET_LOADING", isLoading: true });
 
-      const eventId = logger?.logEvent(
+      const eventId = loggerRef.current?.logEvent(
         "session_update",
         "POST",
         `/checkout_sessions/${truncateId(context.sessionId)}`,
@@ -357,18 +447,23 @@ export function useCheckoutFlow(logger?: ACPLogger) {
 
         if (eventId) {
           const total = session.totals.find((t) => t.type === "total")?.amount ?? 0;
-          logger?.completeEvent(eventId, "success", `Total: $${(total / 100).toFixed(2)}`, 200);
+          loggerRef.current?.completeEvent(
+            eventId,
+            "success",
+            `Total: $${(total / 100).toFixed(2)}`,
+            200
+          );
         }
 
         dispatch({ type: "SESSION_UPDATED", session });
       } catch (error) {
         if (eventId) {
-          logger?.completeEvent(eventId, "error", "Update failed", 400);
+          loggerRef.current?.completeEvent(eventId, "error", "Update failed", 400);
         }
         dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
     },
-    [context.sessionId, context.selectedProduct, logger]
+    [context.sessionId, context.selectedProduct]
   );
 
   /**
@@ -388,7 +483,7 @@ export function useCheckoutFlow(logger?: ACPLogger) {
       const shippingName =
         context.session?.fulfillment_options.find((o) => o.id === shippingId)?.title ?? shippingId;
 
-      const eventId = logger?.logEvent(
+      const eventId = loggerRef.current?.logEvent(
         "session_update",
         "POST",
         `/checkout_sessions/${truncateId(context.sessionId)}`,
@@ -402,18 +497,23 @@ export function useCheckoutFlow(logger?: ACPLogger) {
 
         if (eventId) {
           const total = session.totals.find((t) => t.type === "total")?.amount ?? 0;
-          logger?.completeEvent(eventId, "success", `Total: $${(total / 100).toFixed(2)}`, 200);
+          loggerRef.current?.completeEvent(
+            eventId,
+            "success",
+            `Total: $${(total / 100).toFixed(2)}`,
+            200
+          );
         }
 
         dispatch({ type: "SESSION_UPDATED", session });
       } catch (error) {
         if (eventId) {
-          logger?.completeEvent(eventId, "error", "Update failed", 400);
+          loggerRef.current?.completeEvent(eventId, "error", "Update failed", 400);
         }
         dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
     },
-    [context.sessionId, context.selectedProduct, context.session, logger]
+    [context.sessionId, context.selectedProduct, context.session]
   );
 
   /**
@@ -430,7 +530,7 @@ export function useCheckoutFlow(logger?: ACPLogger) {
     const totalAmount = getTotalFromSession(context.session);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    const delegateEventId = logger?.logEvent(
+    const delegateEventId = loggerRef.current?.logEvent(
       "delegate_payment",
       "POST",
       "/agentic_commerce/delegate_payment",
@@ -467,7 +567,7 @@ export function useCheckoutFlow(logger?: ACPLogger) {
       });
 
       if (delegateEventId) {
-        logger?.completeEvent(
+        loggerRef.current?.completeEvent(
           delegateEventId,
           "success",
           `Vault token: ${delegateResponse.id.slice(0, 10)}...`,
@@ -478,7 +578,7 @@ export function useCheckoutFlow(logger?: ACPLogger) {
       dispatch({ type: "PAYMENT_DELEGATED", vaultToken: delegateResponse.id });
 
       // Step 2: Complete checkout with vault token
-      const completeEventId = logger?.logEvent(
+      const completeEventId = loggerRef.current?.logEvent(
         "session_complete",
         "POST",
         `/checkout_sessions/${truncateId(context.sessionId)}/complete`,
@@ -496,13 +596,13 @@ export function useCheckoutFlow(logger?: ACPLogger) {
       // Check if 3DS is required
       if (completedSession.status === "authentication_required") {
         if (completeEventId) {
-          logger?.completeEvent(completeEventId, "success", "3DS required", 200);
+          loggerRef.current?.completeEvent(completeEventId, "success", "3DS required", 200);
         }
         dispatch({ type: "AUTHENTICATION_REQUIRED", session: completedSession });
         // For now, we'll simulate 3DS completion after a delay
         // In production, this would redirect to the 3DS URL
         setTimeout(async () => {
-          const authEventId = logger?.logEvent(
+          const authEventId = loggerRef.current?.logEvent(
             "session_complete",
             "POST",
             `/checkout_sessions/${truncateId(context.sessionId!)}/complete`,
@@ -525,7 +625,7 @@ export function useCheckoutFlow(logger?: ACPLogger) {
               },
             });
             if (authEventId) {
-              logger?.completeEvent(
+              loggerRef.current?.completeEvent(
                 authEventId,
                 "success",
                 `Order: ${finalSession.order?.id.slice(0, 10)}...`,
@@ -535,14 +635,14 @@ export function useCheckoutFlow(logger?: ACPLogger) {
             dispatch({ type: "PAYMENT_COMPLETE", session: finalSession });
           } catch (error) {
             if (authEventId) {
-              logger?.completeEvent(authEventId, "error", "Payment failed", 400);
+              loggerRef.current?.completeEvent(authEventId, "error", "Payment failed", 400);
             }
             dispatch({ type: "SET_ERROR", error: createAPIError(error) });
           }
         }, 2000);
       } else if (completedSession.status === "completed") {
         if (completeEventId) {
-          logger?.completeEvent(
+          loggerRef.current?.completeEvent(
             completeEventId,
             "success",
             `Order: ${completedSession.order?.id.slice(0, 10)}...`,
@@ -552,7 +652,7 @@ export function useCheckoutFlow(logger?: ACPLogger) {
         dispatch({ type: "PAYMENT_COMPLETE", session: completedSession });
       } else {
         if (completeEventId) {
-          logger?.completeEvent(
+          loggerRef.current?.completeEvent(
             completeEventId,
             "success",
             `Status: ${completedSession.status}`,
@@ -564,19 +664,20 @@ export function useCheckoutFlow(logger?: ACPLogger) {
       }
     } catch (error) {
       if (delegateEventId) {
-        logger?.completeEvent(delegateEventId, "error", "Payment failed", 400);
+        loggerRef.current?.completeEvent(delegateEventId, "error", "Payment failed", 400);
       }
       dispatch({ type: "SET_ERROR", error: createAPIError(error) });
     }
-  }, [context.sessionId, context.session, logger]);
+  }, [context.sessionId, context.session]);
 
   /**
    * Reset to initial state
    */
   const reset = useCallback(() => {
-    logger?.clear();
+    loggerRef.current?.clear();
+    agentLoggerRef.current?.clear();
     dispatch({ type: "RESET" });
-  }, [logger]);
+  }, []);
 
   /**
    * Clear error and return to appropriate state

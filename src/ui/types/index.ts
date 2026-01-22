@@ -27,6 +27,15 @@ export interface Item {
 }
 
 /**
+ * Promotion metadata from the Promotion Agent
+ */
+export interface PromotionMetadata {
+  action: string; // e.g., "DISCOUNT_10_PCT", "NO_PROMO"
+  reason_codes: string[]; // e.g., ["HIGH_INVENTORY", "ABOVE_MARKET"]
+  reasoning: string; // LLM explanation of the decision
+}
+
+/**
  * Line item in a checkout session
  */
 export interface LineItem {
@@ -41,6 +50,7 @@ export interface LineItem {
   subtotal: number;
   tax: number;
   total: number;
+  promotion?: PromotionMetadata;
 }
 
 // =============================================================================
@@ -619,6 +629,57 @@ export interface ACPRequest {
   status: number;
   payload?: unknown;
   response?: unknown;
+}
+
+// =============================================================================
+// Agent Activity Types
+// =============================================================================
+
+/**
+ * Agent types for activity logging
+ */
+export type AgentType = "promotion" | "recommendation" | "post_purchase";
+
+/**
+ * Agent activity event status
+ */
+export type AgentActivityStatus = "pending" | "success" | "error" | "skipped";
+
+/**
+ * Input signals for promotion agent
+ */
+export interface PromotionInputSignals {
+  productId: string;
+  productName: string;
+  stockCount: number;
+  basePrice: number; // in cents
+  competitorPrice: number | null; // in cents, null if not available
+  inventoryPressure: "high" | "low";
+  competitionPosition: "above_market" | "at_market" | "below_market" | "unknown";
+}
+
+/**
+ * Promotion decision from agent
+ */
+export interface PromotionDecision {
+  action: string; // e.g., "DISCOUNT_10_PCT"
+  discountAmount: number; // in cents
+  reasonCodes: string[];
+  reasoning: string;
+}
+
+/**
+ * Agent activity event for the activity panel
+ */
+export interface AgentActivityEvent {
+  id: string;
+  timestamp: Date;
+  status: AgentActivityStatus;
+  duration?: number; // in milliseconds
+  agentType: AgentType;
+  inputSignals: PromotionInputSignals;
+  decision?: PromotionDecision;
+  error?: string;
 }
 
 // =============================================================================

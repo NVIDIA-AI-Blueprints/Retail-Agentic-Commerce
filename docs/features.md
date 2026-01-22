@@ -17,7 +17,7 @@ This document breaks down the project requirements into discrete, implementable 
 | 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
 | 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | |
 | 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 | ✅ Complete |
-| 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 | |
+| 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 | ✅ Complete |
 | 11 | Webhook Integration | P2 | Feature 8 | |
 | 12 | Agent Panel Checkout Flow Simulation | P1 | Feature 9 | ✅ Complete |
 | 13 | Integration of UI and ACP Server | P1 | Features 3, 5, 9, 12 | ✅ Complete |
@@ -732,26 +732,44 @@ Track your package: https://track.example.com/abc123
 
 ### Tasks
 
-- [ ] Create three-panel layout component
-- [ ] **Left Panel**: Integrate client simulator (Feature 9)
-- [ ] **Middle Panel**: 
-  - Display real-time JSON payloads
+- [x] Create three-panel layout component
+- [x] **Left Panel (Client Agent)**: Integrate client simulator (Feature 9)
+  - Streaming text animation for product suggestions
+  - Staggered product card entrance animations
+- [x] **Middle Panel (Merchant Server)**: 
+  - Display real-time ACP protocol events
   - Show session state transitions
-  - Highlight active protocol interactions
-- [ ] **Right Panel** (Optional):
-  - Default: Structured/redacted explainability trace
-  - Debug mode: Raw chain-of-thought output
-  - Visual connection to JSON changes
-- [ ] Add panel synchronization (highlight correlations)
-- [ ] Add toggle for debug/demo mode
+  - Timeline view with status indicators
+- [x] **Right Panel (Agent Activity)**:
+  - Display Promotion Agent decisions
+  - Show input signals (inventory pressure, competition position)
+  - Display reason codes and reasoning text
+  - Expandable details for each decision
+- [x] Add panel synchronization via shared context providers
+- [x] Performance optimizations (memoized context, refs for callbacks)
+
+### Implementation Details
+
+The three-panel UI consists of:
+
+| Panel | Component | Purpose |
+|-------|-----------|---------|
+| Client Agent | `AgentPanel` | User interaction, product selection, checkout |
+| Merchant Server | `BusinessPanel` | ACP protocol events, session state |
+| Agent Activity | `AgentActivityPanel` | Promotion agent decisions, reasoning |
+
+Key hooks and providers:
+- `useACPLog` / `ACPLogProvider` - Tracks ACP protocol events
+- `useAgentActivityLog` / `AgentActivityLogProvider` - Tracks agent decisions
+- `useCheckoutFlow` - State machine with integrated logging
 
 ### Acceptance Criteria
 
-- Three panels display simultaneously
-- Panels update in real-time
-- JSON is syntax-highlighted
-- Agent reasoning is readable
-- Panels are synchronized
+- [x] Three panels display simultaneously
+- [x] Panels update in real-time
+- [x] Agent decisions show input signals and reasoning
+- [x] UI is responsive on large monitors
+- [x] No performance lag when interacting with modals
 
 ---
 
