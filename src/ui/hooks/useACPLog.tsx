@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useReducer, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useReducer, useCallback, useMemo, type ReactNode } from "react";
 
 /**
  * ACP Event types for logging communication
@@ -138,11 +138,13 @@ export function ACPLogProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "CLEAR" });
   }, []);
 
-  return (
-    <ACPLogContext.Provider value={{ state, logEvent, completeEvent, clear }}>
-      {children}
-    </ACPLogContext.Provider>
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({ state, logEvent, completeEvent, clear }),
+    [state, logEvent, completeEvent, clear]
   );
+
+  return <ACPLogContext.Provider value={contextValue}>{children}</ACPLogContext.Provider>;
 }
 
 export function useACPLog() {

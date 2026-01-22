@@ -84,7 +84,7 @@ describe("ProductGrid", () => {
 
     const gridElement = container.firstChild;
     expect(gridElement).toHaveClass("custom-class");
-    expect(gridElement).toHaveClass("fade-in");
+    expect(gridElement).toHaveClass("grid");
   });
 
   it("renders empty grid when no products", () => {

@@ -4,3 +4,4 @@ export { ProductCard } from "./ProductCard";
 export { CheckoutCard } from "./CheckoutCard";
 export { ProductGrid } from "./ProductGrid";
 export { ConfirmationCard } from "./ConfirmationCard";
+export { StreamingText } from "./StreamingText";
