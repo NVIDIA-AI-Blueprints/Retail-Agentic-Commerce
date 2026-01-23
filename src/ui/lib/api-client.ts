@@ -208,6 +208,130 @@ export async function delegatePayment(
 }
 
 // =============================================================================
+// Post-Purchase Agent API Methods
+// =============================================================================
+
+/**
+ * Brand persona for post-purchase messages
+ */
+export interface BrandPersona {
+  company_name: string;
+  tone: "friendly" | "professional" | "casual" | "urgent";
+  preferred_language: "en" | "es" | "fr";
+}
+
+/**
+ * Order context for post-purchase messages
+ */
+export interface OrderContext {
+  order_id: string;
+  customer_name: string;
+  product_name: string;
+  tracking_url: string | null;
+  estimated_delivery: string;
+}
+
+/**
+ * Post-purchase message request
+ */
+export interface PostPurchaseMessageRequest {
+  brand_persona: BrandPersona;
+  order: OrderContext;
+  status: "order_confirmed" | "order_shipped" | "out_for_delivery" | "delivered";
+}
+
+/**
+ * Post-purchase message response from agent
+ */
+export interface PostPurchaseMessageResponse {
+  order_id: string;
+  status: string;
+  language: string;
+  subject: string;
+  message: string;
+}
+
+/**
+ * Generate a post-purchase shipping message using the NAT agent
+ * Uses the Next.js proxy route to avoid CORS issues
+ */
+export async function generatePostPurchaseMessage(
+  request: PostPurchaseMessageRequest
+): Promise<PostPurchaseMessageResponse> {
+  const response = await fetch("/api/agents/post-purchase", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw {
+      type: "processing_error",
+      code: "agent_error",
+      message: errorData.error || `Post-Purchase Agent error: ${response.status}`,
+    };
+  }
+
+  return response.json();
+}
+
+/**
+ * Webhook payload for shipping updates (matches ACP spec)
+ */
+export interface WebhookShippingPayload {
+  type: "shipping_update";
+  data: {
+    type: "shipping_update";
+    checkout_session_id: string;
+    order_id: string;
+    status: "order_confirmed" | "order_shipped" | "out_for_delivery" | "delivered";
+    language: string;
+    subject: string;
+    message: string;
+    tracking_url?: string;
+  };
+}
+
+/**
+ * Response from webhook endpoint
+ */
+export interface WebhookResponse {
+  received: boolean;
+  event_id: string;
+}
+
+/**
+ * Post shipping update to the client agent's webhook endpoint
+ * This simulates the merchant sending a notification to the client agent
+ */
+export async function postWebhookShippingUpdate(
+  payload: WebhookShippingPayload
+): Promise<WebhookResponse> {
+  const response = await fetch("/api/webhooks/acp", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Webhook-Timestamp": new Date().toISOString(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw {
+      type: "processing_error",
+      code: "webhook_error",
+      message: errorData.error || `Webhook error: ${response.status}`,
+    };
+  }
+
+  return response.json();
+}
+
+// =============================================================================
 // API Client Object (for convenience)
 // =============================================================================
 
@@ -221,6 +345,12 @@ export const apiClient = {
 
   // PSP endpoints
   delegatePayment,
+
+  // Post-Purchase Agent
+  generatePostPurchaseMessage,
+
+  // Webhook
+  postWebhookShippingUpdate,
 
   // Utilities
   generateIdempotencyKey,

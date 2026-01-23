@@ -3,12 +3,12 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools >= 64", "setuptools-scm>=8"]
 
 [tool.setuptools]
-packages = ["data"]
+packages = []
 
 [project]
-name = "promotion-agent"
+name = "acp-agents"
 version = "0.1.0"
-description = "Promotion Agent using NVIDIA NeMo Agent Toolkit for strategy selection"
+description = "NAT Agents for Agentic Commerce Protocol - Promotion and Post-Purchase agents"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [

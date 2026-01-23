@@ -669,6 +669,39 @@ export interface PromotionDecision {
 }
 
 /**
+ * Input signals for post-purchase agent
+ */
+export interface PostPurchaseInputSignals {
+  orderId: string;
+  customerName: string;
+  productName: string;
+  status: "order_confirmed" | "order_shipped" | "out_for_delivery" | "delivered";
+  tone: "friendly" | "professional" | "casual" | "urgent";
+  language: "en" | "es" | "fr";
+}
+
+/**
+ * Post-purchase message decision from agent
+ */
+export interface PostPurchaseDecision {
+  subject: string;
+  message: string;
+  status: string;
+  language: string;
+  trackingUrl?: string;
+}
+
+/**
+ * Union type for agent input signals
+ */
+export type AgentInputSignals = PromotionInputSignals | PostPurchaseInputSignals;
+
+/**
+ * Union type for agent decisions
+ */
+export type AgentDecision = PromotionDecision | PostPurchaseDecision;
+
+/**
  * Agent activity event for the activity panel
  */
 export interface AgentActivityEvent {
@@ -677,8 +710,8 @@ export interface AgentActivityEvent {
   status: AgentActivityStatus;
   duration?: number; // in milliseconds
   agentType: AgentType;
-  inputSignals: PromotionInputSignals;
-  decision?: PromotionDecision;
+  inputSignals: AgentInputSignals;
+  decision?: AgentDecision;
   error?: string;
 }
 

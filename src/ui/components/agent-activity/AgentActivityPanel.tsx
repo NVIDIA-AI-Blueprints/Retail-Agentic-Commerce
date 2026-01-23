@@ -3,6 +3,16 @@
 import { useEffect, useRef } from "react";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
 import { AgentActivityItem } from "./AgentActivityItem";
+import type { AgentActivityEvent, PromotionDecision, PostPurchaseDecision } from "@/types";
+
+/**
+ * Type guard for promotion decision
+ */
+function isPromotionDecision(
+  decision: PromotionDecision | PostPurchaseDecision
+): decision is PromotionDecision {
+  return "action" in decision && "discountAmount" in decision;
+}
 
 /**
  * Convert action code to human-readable text for timeline display
@@ -22,6 +32,37 @@ function getHumanReadableAction(action: string): string {
     default:
       return action;
   }
+}
+
+/**
+ * Get timeline message for an event
+ */
+function getTimelineMessage(event: AgentActivityEvent): string {
+  // Get product name from input signals - all signal types have productName
+  const productName =
+    "productName" in event.inputSignals
+      ? (event.inputSignals as { productName: string }).productName
+      : "Unknown";
+
+  if (event.status === "pending") {
+    return event.agentType === "post_purchase"
+      ? `Generating message for ${productName}...`
+      : `Evaluating ${productName}...`;
+  }
+
+  if (event.agentType === "post_purchase") {
+    if (event.status === "success" && event.decision) {
+      return `Generated confirmation for ${productName}`;
+    }
+    return `Failed to generate message for ${productName}`;
+  }
+
+  // Promotion events
+  if (event.decision && isPromotionDecision(event.decision)) {
+    return `${getHumanReadableAction(event.decision.action)} for ${productName}`;
+  }
+
+  return `Processed ${productName}`;
 }
 
 /**
@@ -177,13 +218,7 @@ function ActiveAgentActivity() {
                   second: "2-digit",
                 })}
               </div>
-              <div className="msg">
-                {event.status === "pending"
-                  ? `Evaluating ${event.inputSignals.productName}...`
-                  : event.decision
-                    ? `${getHumanReadableAction(event.decision.action)} for ${event.inputSignals.productName}`
-                    : `Processed ${event.inputSignals.productName}`}
-              </div>
+              <div className="msg">{getTimelineMessage(event)}</div>
               <div
                 className={`glass-tag ${event.status === "success" ? "green" : event.status === "error" ? "" : "yellow"}`}
               >

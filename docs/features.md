@@ -15,12 +15,14 @@ This document breaks down the project requirements into discrete, implementable 
 | 5 | PSP - Delegated Payments | P1 | Feature 2 | ✅ Complete |
 | 6 | Promotion Agent (NAT) + ACP Integration | P1 | Features 3, 4 | ✅ Complete |
 | 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
-| 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | |
+| 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | ✅ Complete (webhook deferred to F11) |
 | 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 | ✅ Complete |
 | 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 | ✅ Complete |
-| 11 | Webhook Integration | P2 | Feature 8 | |
+| 11 | Webhook Integration | P2 | Feature 8 | ✅ Complete |
 | 12 | Agent Panel Checkout Flow Simulation | P1 | Feature 9 | ✅ Complete |
 | 13 | Integration of UI and ACP Server | P1 | Features 3, 5, 9, 12 | ✅ Complete |
+| 14 | Enhanced Checkout (Payment & Shipping) | P1 | Feature 13 | ⬜ Not Started |
+| 15 | Multi-Language Post-Purchase Messages | P2 | Feature 8 | ⬜ Not Started |
 
 ---
 
@@ -42,7 +44,7 @@ This document breaks down the project requirements into discrete, implementable 
   ```env
   # NIM Configuration
   NIM_ENDPOINT=https://integrate.api.nvidia.com/v1
-  NIM_API_KEY=nvapi-xxx
+  NVIDIA_API_KEY=nvapi-xxx
   
   # Webhook Configuration
   WEBHOOK_URL=https://your-client.example.com/webhooks/acp
@@ -637,12 +639,12 @@ Generates human-like shipping updates using the Brand Persona configuration.
 
 ### Tasks
 
-- [ ] Create NAT workflow for Post-Purchase Agent
-- [ ] Implement Brand Persona loading from config
-- [ ] Generate shipping pulses in 3 languages (EN/ES/FR)
-- [ ] Define tone variations for messaging
+- [x] Create NAT workflow for Post-Purchase Agent
+- [x] Implement Brand Persona loading from config
+- [x] Generate shipping pulses in 3 languages (EN/ES/FR)
+- [x] Define tone variations for messaging
 - [ ] Integrate with global webhook delivery (Feature 11)
-- [ ] Create shipping status templates:
+- [x] Create shipping status templates:
   - Order confirmed
   - Order shipped
   - Out for delivery
@@ -658,10 +660,10 @@ Track your package: https://track.example.com/abc123
 
 ### Acceptance Criteria
 
-- Messages reflect Brand Persona tone
-- Messages are in correct language
-- All shipping statuses are supported
-- Messages are delivered to global webhook
+- [x] Messages reflect Brand Persona tone
+- [x] Messages are in correct language
+- [x] All shipping statuses are supported
+- [ ] Messages are delivered to global webhook (deferred to Feature 11)
 
 ---
 
@@ -775,17 +777,44 @@ Key hooks and providers:
 
 ## Feature 11: Webhook Integration
 
-**Goal**: Implement global webhook delivery for post-purchase events.
+**Goal**: Implement webhook delivery for post-purchase events between merchant and client agent.
+
+### Architecture
+
+In ACP, the **client agent exposes a webhook endpoint** that the **merchant calls** for order lifecycle updates:
+
+```
+Merchant Backend                    Client Agent (UI)
+      │                                   │
+      │  1. Order status changes          │
+      │  2. Generate message via          │
+      │     Post-Purchase Agent           │
+      │                                   │
+      │  POST /api/webhooks/acp           │
+      │  {type: "shipping_update", ...}   │
+      │ ─────────────────────────────────▶│
+      │                                   │
+      │       200 OK {received: true}     │
+      │ ◀─────────────────────────────────│
+      │                                   │
+      │                            3. UI displays
+      │                               notification
+```
 
 ### Configuration
 
 ```env
-WEBHOOK_URL=https://your-client.example.com/webhooks/acp
-WEBHOOK_SECRET=whsec_xxx
+# Merchant backend (env.example)
+WEBHOOK_URL=http://localhost:3000/api/webhooks/acp
+WEBHOOK_SECRET=whsec_demo_secret
+
+# Client UI (src/ui/env.example)
+WEBHOOK_SECRET=whsec_demo_secret
 ```
 
 ### Webhook Event Schema
 
+Standard ACP events:
 ```json
 {
   "type": "order_created|order_updated",
@@ -799,23 +828,49 @@ WEBHOOK_SECRET=whsec_xxx
 }
 ```
 
+Extended shipping_update event (for Post-Purchase Agent messages):
+```json
+{
+  "type": "shipping_update",
+  "data": {
+    "type": "shipping_update",
+    "checkout_session_id": "cs_abc123",
+    "order_id": "order_xyz789",
+    "status": "order_shipped",
+    "language": "en",
+    "subject": "Your Classic Tee is on its way! 🚚",
+    "message": "Hey John! Great news...",
+    "tracking_url": "https://track.example.com/abc123"
+  }
+}
+```
+
 ### Tasks
 
-- [ ] Create webhook service
-- [ ] Implement HMAC signing for webhook payloads
-- [ ] Create webhook event types:
-  - `order_created`
-  - `order_updated`
-- [ ] Implement retry logic for failed deliveries
-- [ ] Log webhook delivery status
-- [ ] Integrate with Post-Purchase Agent (Feature 8)
+**Client-Side (UI):**
+- [x] Create webhook API route (`src/ui/app/api/webhooks/acp/route.ts`)
+- [x] Implement HMAC signature verification
+- [x] Create webhook event types: `order_created`, `order_updated`, `shipping_update`
+- [x] Create `useWebhookNotifications` hook for UI integration
+- [x] Support polling for new notifications
+
+**Agent Activity Panel Integration:**
+- [x] Display post-purchase messages in Agent Activity panel
+- [x] Show webhook POST events in Merchant Panel
+- [x] Integrate with checkout flow state machine
+
+**Post-Purchase Agent Proxy:**
+- [x] Create Next.js API proxy route for NAT agent (`/api/agents/post-purchase`)
+- [x] Handle CORS for browser-to-agent communication
+- [x] Trigger post-purchase agent after checkout completion
 
 ### Acceptance Criteria
 
-- Webhooks are signed with HMAC
-- Events are delivered to global URL
-- Failed deliveries are retried
-- All order statuses trigger updates
+- [x] Client webhook endpoint validates HMAC signatures
+- [x] Events include checkout_session_id for association
+- [x] Post-purchase messages display in Agent Activity panel
+- [x] Webhook POST events logged in Merchant Panel
+- [x] LLM generates all messages (no hardcoding)
 
 ---
 
@@ -1441,6 +1496,223 @@ type CheckoutAction =
 
 ---
 
+## Feature 14: Enhanced Checkout (Payment & Shipping Information)
+
+**Goal**: Extend the checkout flow to collect and display real payment method details and shipping address information, providing a complete e-commerce experience.
+
+### Current State
+
+The current checkout flow uses hardcoded buyer information and simulated payment details. This feature adds:
+- Real payment method input (card number, expiry, CVV)
+- Shipping address collection
+- Address validation
+- Payment method display (masked card number)
+
+### UI Components
+
+#### Payment Information Form
+```
+┌─────────────────────────────────────────────────┐
+│  Payment Method                                 │
+├─────────────────────────────────────────────────┤
+│  Card Number    [4242 4242 4242 4242]          │
+│  Expiry         [12/28]    CVV [•••]           │
+│  Cardholder     [John Doe                    ] │
+├─────────────────────────────────────────────────┤
+│  ☑ Save card for future purchases              │
+└─────────────────────────────────────────────────┘
+```
+
+#### Shipping Address Form
+```
+┌─────────────────────────────────────────────────┐
+│  Shipping Address                               │
+├─────────────────────────────────────────────────┤
+│  Full Name      [John Doe                    ] │
+│  Address Line 1 [123 Main Street             ] │
+│  Address Line 2 [Apt 4B                      ] │
+│  City           [San Francisco]  State [CA]   │
+│  ZIP Code       [94102]   Country [US ▼]      │
+│  Phone          [+1 415-555-0123             ] │
+├─────────────────────────────────────────────────┤
+│  ☑ Use as billing address                      │
+└─────────────────────────────────────────────────┘
+```
+
+### Tasks
+
+**Payment Information:**
+- [ ] Create `PaymentForm` component with card input fields
+- [ ] Implement card number formatting (spaces every 4 digits)
+- [ ] Add card type detection (Visa, Mastercard, Amex)
+- [ ] Implement expiry date validation (MM/YY format)
+- [ ] Add CVV input with masking
+- [ ] Display card brand icon based on card number
+- [ ] Validate card against `supported_card_networks` from session
+
+**Shipping Address:**
+- [ ] Create `ShippingAddressForm` component
+- [ ] Implement address autocomplete (optional - Google Places API)
+- [ ] Add country/state selection dropdowns
+- [ ] Validate required fields (name, address, city, state, zip, country)
+- [ ] Support international address formats
+- [ ] Add phone number input with country code
+
+**Checkout Flow Integration:**
+- [ ] Update `useCheckoutFlow` to manage payment/shipping state
+- [ ] Store shipping address in checkout session via API
+- [ ] Pass payment details to PSP delegate_payment
+- [ ] Show summary of payment method (masked) in confirmation
+- [ ] Display shipping address in order confirmation
+
+**Validation & Error Handling:**
+- [ ] Client-side validation for all fields
+- [ ] Display field-level error messages
+- [ ] Handle address validation errors from API
+- [ ] Support "billing same as shipping" toggle
+
+### API Integration
+
+Update checkout session with fulfillment address:
+```json
+POST /checkout_sessions/{id}
+{
+  "fulfillment_address": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "address_line_1": "123 Main Street",
+    "address_line_2": "Apt 4B",
+    "city": "San Francisco",
+    "state": "CA",
+    "postal_code": "94102",
+    "country": "US",
+    "phone": "+14155550123"
+  }
+}
+```
+
+### Acceptance Criteria
+
+- [ ] Payment form validates card number format and type
+- [ ] Card type icon displays based on card number prefix
+- [ ] Shipping address form collects all required fields
+- [ ] Address is stored in checkout session
+- [ ] Payment method (masked) displays in confirmation
+- [ ] Shipping address displays in order confirmation
+- [ ] Form validation prevents submission with invalid data
+- [ ] Error messages are clear and actionable
+
+---
+
+## Feature 15: Multi-Language Post-Purchase Messages
+
+**Goal**: Enable the Post-Purchase Agent to generate messages in multiple languages based on customer preferences, with language selection in the UI.
+
+### Supported Languages
+
+| Code | Language | Agent Support | UI Support |
+|------|----------|---------------|------------|
+| `en` | English | ✅ Implemented | ⬜ Pending |
+| `es` | Spanish | ✅ Implemented | ⬜ Pending |
+| `fr` | French | ✅ Implemented | ⬜ Pending |
+
+### Current State
+
+The Post-Purchase Agent backend (`src/merchant/services/post_purchase.py`) already supports:
+- Multi-language message generation via NAT agent
+- Fallback templates in EN/ES/FR
+- Language parameter in API requests
+
+This feature adds UI support for language selection and display.
+
+### UI Components
+
+#### Language Selector
+```
+┌─────────────────────────────────────┐
+│  🌐 Language Preference             │
+│  ┌─────────────────────────────┐   │
+│  │  English                  ▼ │   │
+│  ├─────────────────────────────┤   │
+│  │  🇺🇸 English                │   │
+│  │  🇪🇸 Español                │   │
+│  │  🇫🇷 Français               │   │
+│  └─────────────────────────────┘   │
+└─────────────────────────────────────┘
+```
+
+#### Localized Message Display
+```
+┌─────────────────────────────────────────────────┐
+│  🛍️ Post-Purchase Message                       │
+│  ─────────────────────────────────────────────  │
+│  Subject: ¡Tu pedido está en camino! 🚚        │
+│                                                 │
+│  ¡Hola Juan! Tenemos excelentes noticias...    │
+│                                                 │
+│  [Language: Español]                            │
+└─────────────────────────────────────────────────┘
+```
+
+### Tasks
+
+**Language Selection:**
+- [ ] Add language selector to checkout flow or user preferences
+- [ ] Store language preference in checkout session
+- [ ] Pass language to Post-Purchase Agent API
+- [ ] Persist language preference in localStorage
+
+**Agent Activity Panel:**
+- [ ] Display language indicator on post-purchase message cards
+- [ ] Show language flag/icon alongside message
+- [ ] Support RTL languages in future (Arabic, Hebrew)
+
+**Message Generation:**
+- [ ] Update `triggerPostPurchaseAgent` to use selected language
+- [ ] Ensure NAT agent prompt handles all supported languages
+- [ ] Validate language code before API call
+- [ ] Fall back to English if language not supported
+
+**Localization Infrastructure:**
+- [ ] Create i18n utility for UI strings
+- [ ] Translate UI labels (buttons, headers, error messages)
+- [ ] Support browser language detection as default
+- [ ] Add language switcher to navigation
+
+### API Updates
+
+Post-purchase message request with language:
+```json
+POST /api/agents/post-purchase
+{
+  "brand_persona": {
+    "company_name": "ACME Store",
+    "tone": "friendly",
+    "preferred_language": "es"  // Language selection
+  },
+  "order": {
+    "order_id": "order_123",
+    "customer_name": "Juan",
+    "product_name": "Camiseta Clásica",
+    "tracking_url": null,
+    "estimated_delivery": "2026-01-29T00:00:00Z"
+  },
+  "status": "order_confirmed"
+}
+```
+
+### Acceptance Criteria
+
+- [ ] Language selector available in checkout flow
+- [ ] Selected language persists across sessions
+- [ ] Post-purchase messages generate in selected language
+- [ ] Language indicator displays on message cards
+- [ ] Fallback to English if generation fails
+- [ ] UI labels support localization framework
+- [ ] Browser language detected as default preference
+
+---
+
 ## Implementation Order
 
 ### Phase 1: Foundation (Features 1-4)
@@ -1467,6 +1739,12 @@ Build the frontend, observability layer, and backend integration.
 11. **Feature 11**: Webhook Integration
 12. **Feature 12**: Agent Panel Checkout Flow Simulation
 13. **Feature 13**: Integration of UI and ACP Server
+
+### Phase 4: Polish (Features 14-15)
+Enhance checkout experience and internationalization.
+
+14. **Feature 14**: Enhanced Checkout (Payment & Shipping)
+15. **Feature 15**: Multi-Language Post-Purchase Messages
 
 ---
 

@@ -137,13 +137,21 @@ PR description should include:
 
 ```
 src/
-├── merchant/           # Merchant API (FastAPI backend)
+├── agents/             # NAT Agents (NVIDIA NeMo Agent Toolkit)
+│   ├── pyproject.toml  # Shared dependencies for all agents
+│   ├── README.md       # Agent documentation
+│   └── configs/        # Agent workflow configurations
+│       ├── promotion.yml      # Promotion strategy arbiter (port 8002)
+│       └── post-purchase.yml  # Multilingual shipping messages (port 8003)
+│
+├── merchant/           # Merchant API (FastAPI backend, port 8000)
 │   ├── main.py         # Application entry point
 │   ├── config.py       # Environment configuration
 │   ├── api/            # API routes and schemas
-│   ├── agents/         # NAT agent implementations
 │   ├── db/             # Database models and utilities
 │   └── services/       # Business logic layer
+│       ├── promotion.py       # Promotion agent integration (3-layer)
+│       └── post_purchase.py   # Post-purchase agent integration
 │
 ├── payment/            # PSP Service (FastAPI backend, port 8001)
 │   ├── main.py         # PSP application entry point
@@ -152,7 +160,7 @@ src/
 │   ├── db/             # PSP models (VaultToken, PaymentIntent, IdempotencyRecord)
 │   └── services/       # PSP business logic (vault tokens, idempotency)
 │
-└── ui/                 # Next.js frontend
+└── ui/                 # Next.js frontend (port 3000)
     ├── app/            # Next.js App Router pages
     ├── components/     # React components
     │   ├── agent/      # Client Agent panel
@@ -183,9 +191,12 @@ PSP Service:
 - Run tests: `pytest tests/payment/ -v`
 - Health: `curl http://localhost:8001/health`
 
-Promotion Agent:
-- Start agent: `cd src/agents/promotion-agent && nat serve --config_file configs/config.yml --port 8002`
-- Test input: `nat run --config_file configs/config.yml --input '{...}'`
+NAT Agents (from `src/agents/`):
+- Install: `uv pip install -e ".[dev]" --prerelease=allow`
+- Start Promotion Agent: `nat serve --config_file configs/promotion.yml --port 8002`
+- Start Post-Purchase Agent: `nat serve --config_file configs/post-purchase.yml --port 8003`
+- Test Promotion: `nat run --config_file configs/promotion.yml --input '{...}'`
+- Test Post-Purchase: `nat run --config_file configs/post-purchase.yml --input '{...}'`
 
 Frontend (from `src/ui/`):
 - Start UI: `pnpm run dev`

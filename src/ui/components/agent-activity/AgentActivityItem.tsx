@@ -1,7 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import type { AgentActivityEvent, AgentType } from "@/types";
+import type {
+  AgentActivityEvent,
+  AgentType,
+  PromotionInputSignals,
+  PromotionDecision,
+  PostPurchaseInputSignals,
+  PostPurchaseDecision,
+} from "@/types";
+
+/**
+ * Type guards for discriminating event types
+ */
+function isPromotionEvent(event: AgentActivityEvent): event is AgentActivityEvent & {
+  inputSignals: PromotionInputSignals;
+  decision?: PromotionDecision;
+} {
+  return event.agentType === "promotion";
+}
+
+function isPostPurchaseEvent(event: AgentActivityEvent): event is AgentActivityEvent & {
+  inputSignals: PostPurchaseInputSignals;
+  decision?: PostPurchaseDecision;
+} {
+  return event.agentType === "post_purchase";
+}
 
 /**
  * Get display info for agent types
@@ -104,6 +128,188 @@ interface AgentActivityItemProps {
 }
 
 /**
+ * Post-Purchase Card - displays shipping message from post-purchase agent
+ */
+function PostPurchaseCard({
+  event,
+  isLast,
+}: {
+  event: AgentActivityEvent & {
+    inputSignals: PostPurchaseInputSignals;
+    decision?: PostPurchaseDecision;
+  };
+  isLast: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const typeInfo = getAgentTypeInfo(event.agentType);
+  const isPending = event.status === "pending";
+  const isError = event.status === "error";
+  const isSuccess = event.status === "success" && event.decision;
+
+  const toggleExpanded = () => setIsExpanded(!isExpanded);
+
+  return (
+    <div style={{ marginBottom: isLast ? 0 : "12px" }}>
+      <div className={`glass-decision ${isSuccess ? "highlight" : ""}`}>
+        {/* Header row */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "12px",
+          }}
+        >
+          <div className="glass-kicker">
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: isPending
+                  ? "rgba(255, 255, 255, 0.4)"
+                  : isError
+                    ? "#FF6B6B"
+                    : "rgba(118, 185, 0, 0.9)",
+                boxShadow: isPending
+                  ? "none"
+                  : isError
+                    ? "0 0 0 4px rgba(255, 107, 107, 0.12)"
+                    : "0 0 0 4px rgba(118, 185, 0, 0.12)",
+                display: "inline-block",
+              }}
+            ></span>
+            {typeInfo.label} Message
+          </div>
+          <div className={`glass-pill ${isPending ? "yellow" : isError ? "" : "green"}`}>
+            {isPending ? "Generating" : isError ? "Error" : "Sent"}
+          </div>
+        </div>
+
+        {/* Order ID */}
+        <div
+          style={{
+            marginTop: "8px",
+            fontSize: "13px",
+            color: "var(--text-secondary)",
+            fontWeight: "650",
+          }}
+        >
+          {event.inputSignals.productName}
+        </div>
+
+        {/* Subject Line */}
+        {event.decision && (
+          <div
+            style={{
+              marginTop: "10px",
+              color: "var(--text-primary)",
+              fontSize: "13px",
+              fontWeight: "600",
+              lineHeight: "1.35",
+            }}
+          >
+            {event.decision.subject}
+          </div>
+        )}
+
+        {/* Message Preview */}
+        {event.decision && (
+          <div
+            style={{
+              marginTop: "8px",
+              color: "var(--text-muted)",
+              fontSize: "12px",
+              lineHeight: "1.45",
+              whiteSpace: "pre-wrap",
+              maxHeight: isExpanded ? "none" : "60px",
+              overflow: "hidden",
+            }}
+          >
+            {event.decision.message}
+          </div>
+        )}
+
+        {isPending && (
+          <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "10px" }}>
+            Generating personalized confirmation message...
+          </div>
+        )}
+
+        {/* Error message */}
+        {isError && event.error && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "10px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255, 107, 107, 0.25)",
+              background: "rgba(255, 107, 107, 0.08)",
+              fontSize: "12px",
+              color: "#FF6B6B",
+            }}
+          >
+            {event.error}
+          </div>
+        )}
+
+        {/* Details toggle */}
+        {!isPending && event.decision && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              marginTop: "12px",
+            }}
+          >
+            <button
+              className="glass-details-toggle"
+              onClick={toggleExpanded}
+              aria-expanded={isExpanded}
+              type="button"
+            >
+              <span className="glass-chevron"></span>
+              <span>{isExpanded ? "Less" : "More"}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Expandable details panel */}
+        {isExpanded && !isPending && event.decision && (
+          <div className="glass-details" style={{ display: "block" }}>
+            <div className="glass-kv">
+              <div className="k">Order ID</div>
+              <div className="v">{event.inputSignals.orderId}</div>
+              <div className="k">Customer</div>
+              <div className="v">{event.inputSignals.customerName}</div>
+              <div className="k">Status</div>
+              <div className="v" style={{ textTransform: "capitalize" }}>
+                {event.inputSignals.status.replace(/_/g, " ")}
+              </div>
+              <div className="k">Tone</div>
+              <div className="v" style={{ textTransform: "capitalize" }}>
+                {event.inputSignals.tone}
+              </div>
+              <div className="k">Language</div>
+              <div className="v" style={{ textTransform: "uppercase" }}>
+                {event.decision.language}
+              </div>
+              {event.duration !== undefined && (
+                <>
+                  <div className="k">Generation time</div>
+                  <div className="v">{formatDuration(event.duration)}</div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Decision Card - displays a single agent decision with glass design
  */
 export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
@@ -112,9 +318,19 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
   const isPending = event.status === "pending";
   const isError = event.status === "error";
 
+  // Handle post-purchase events with specialized card
+  if (isPostPurchaseEvent(event)) {
+    return <PostPurchaseCard event={event} isLast={isLast} />;
+  }
+
+  // Only process promotion events from here
+  if (!isPromotionEvent(event)) {
+    return null;
+  }
+
   const toggleExpanded = () => setIsExpanded(!isExpanded);
 
-  // Get outcome info
+  // Get outcome info (only for promotion events)
   const outcomeInfo = event.decision
     ? getOutcomeInfo(event.decision.action, event.decision.discountAmount)
     : null;
@@ -204,10 +420,10 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
           </div>
         </div>
 
-        {/* Why this happened - shows LLM reasoning */}
+        {/* Agent's reasoning - shows LLM reasoning */}
         {llmReasoning && !isPending && !isError && (
           <div className="glass-section">
-            <h3>Why this happened</h3>
+            <h3>Agent&apos;s reasoning</h3>
             <p
               style={{
                 margin: 0,
