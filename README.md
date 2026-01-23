@@ -29,6 +29,23 @@ cp env.example .env
 uv sync
 ```
 
+### Environment Variables
+
+Copy `env.example` to `.env`. Most variables have sensible defaults and work out of the box:
+
+```env
+# Required - get your key from https://build.nvidia.com/settings/api-keys
+NVIDIA_API_KEY=nvapi-xxx   # For agents to call Nemotron Nano v3
+
+# Optional - these have working defaults
+API_KEY=your-api-key                        # Merchant API auth
+PSP_API_KEY=psp-api-key-12345               # PSP service auth
+PROMOTION_AGENT_URL=http://localhost:8002
+POST_PURCHASE_AGENT_URL=http://localhost:8003
+```
+
+> **Note**: `NVIDIA_API_KEY` is the only variable you must set. It enables the NAT agents (Promotion and Post-Purchase) to communicate with the nemontron-nano-v3 public endpoint.
+
 ### Run the Services
 
 ```bash
@@ -55,8 +72,6 @@ pnpm install && pnpm run dev
 ```bash
 curl http://localhost:8000/health  # Merchant API
 curl http://localhost:8001/health  # PSP Service
-curl http://localhost:8002/health  # Promotion Agent
-curl http://localhost:8003/health  # Post-Purchase Agent
 # Visit http://localhost:3000 for the UI
 ```
 
@@ -72,15 +87,7 @@ The frontend connects to both the Merchant API and PSP Service for end-to-end ch
 
 ### Environment Variables (UI)
 
-Copy `src/ui/env.example` to `src/ui/.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_PSP_URL=http://localhost:8001
-NEXT_PUBLIC_API_KEY=your-api-key
-NEXT_PUBLIC_PSP_API_KEY=psp-api-key-12345
-NEXT_PUBLIC_API_VERSION=2026-01-16
-```
+The UI has its own environment file at `src/ui/.env.local`. Copy from `src/ui/env.example` - the defaults work out of the box for local development.
 
 ## API Documentation
 
