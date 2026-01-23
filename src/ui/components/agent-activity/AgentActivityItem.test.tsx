@@ -47,9 +47,9 @@ describe("AgentActivityItem", () => {
     expect(screen.getByText("−$2.50")).toBeInTheDocument();
   });
 
-  it("renders 'Why this happened' with LLM reasoning", () => {
+  it("renders 'Agent's reasoning' with LLM reasoning", () => {
     render(<AgentActivityItem event={baseEvent} isLast={false} />);
-    expect(screen.getByText("Why this happened")).toBeInTheDocument();
+    expect(screen.getByText("Agent's reasoning")).toBeInTheDocument();
     // Should show the actual LLM reasoning from the decision
     expect(
       screen.getByText("High inventory and below market price suggest a discount is appropriate.")

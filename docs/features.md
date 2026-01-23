@@ -15,10 +15,10 @@ This document breaks down the project requirements into discrete, implementable 
 | 5 | PSP - Delegated Payments | P1 | Feature 2 | ✅ Complete |
 | 6 | Promotion Agent (NAT) + ACP Integration | P1 | Features 3, 4 | ✅ Complete |
 | 7 | Recommendation Agent (NAT) | P1 | Features 3, 4 | |
-| 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | |
+| 8 | Post-Purchase Agent (NAT) | P1 | Features 3, 4 | ✅ Complete (webhook deferred to F11) |
 | 9 | Client Agent Simulator (Frontend) | P1 | Feature 3 | ✅ Complete |
 | 10 | Multi-Panel Protocol Inspector UI | P2 | Feature 9 | ✅ Complete |
-| 11 | Webhook Integration | P2 | Feature 8 | |
+| 11 | Webhook Integration | P2 | Feature 8 | 🟡 In Progress (client-side done) |
 | 12 | Agent Panel Checkout Flow Simulation | P1 | Feature 9 | ✅ Complete |
 | 13 | Integration of UI and ACP Server | P1 | Features 3, 5, 9, 12 | ✅ Complete |
 
@@ -42,7 +42,7 @@ This document breaks down the project requirements into discrete, implementable 
   ```env
   # NIM Configuration
   NIM_ENDPOINT=https://integrate.api.nvidia.com/v1
-  NIM_API_KEY=nvapi-xxx
+  NVIDIA_API_KEY=nvapi-xxx
   
   # Webhook Configuration
   WEBHOOK_URL=https://your-client.example.com/webhooks/acp
@@ -637,12 +637,12 @@ Generates human-like shipping updates using the Brand Persona configuration.
 
 ### Tasks
 
-- [ ] Create NAT workflow for Post-Purchase Agent
-- [ ] Implement Brand Persona loading from config
-- [ ] Generate shipping pulses in 3 languages (EN/ES/FR)
-- [ ] Define tone variations for messaging
+- [x] Create NAT workflow for Post-Purchase Agent
+- [x] Implement Brand Persona loading from config
+- [x] Generate shipping pulses in 3 languages (EN/ES/FR)
+- [x] Define tone variations for messaging
 - [ ] Integrate with global webhook delivery (Feature 11)
-- [ ] Create shipping status templates:
+- [x] Create shipping status templates:
   - Order confirmed
   - Order shipped
   - Out for delivery
@@ -658,10 +658,10 @@ Track your package: https://track.example.com/abc123
 
 ### Acceptance Criteria
 
-- Messages reflect Brand Persona tone
-- Messages are in correct language
-- All shipping statuses are supported
-- Messages are delivered to global webhook
+- [x] Messages reflect Brand Persona tone
+- [x] Messages are in correct language
+- [x] All shipping statuses are supported
+- [ ] Messages are delivered to global webhook (deferred to Feature 11)
 
 ---
 
@@ -775,17 +775,44 @@ Key hooks and providers:
 
 ## Feature 11: Webhook Integration
 
-**Goal**: Implement global webhook delivery for post-purchase events.
+**Goal**: Implement webhook delivery for post-purchase events between merchant and client agent.
+
+### Architecture
+
+In ACP, the **client agent exposes a webhook endpoint** that the **merchant calls** for order lifecycle updates:
+
+```
+Merchant Backend                    Client Agent (UI)
+      │                                   │
+      │  1. Order status changes          │
+      │  2. Generate message via          │
+      │     Post-Purchase Agent           │
+      │                                   │
+      │  POST /api/webhooks/acp           │
+      │  {type: "shipping_update", ...}   │
+      │ ─────────────────────────────────▶│
+      │                                   │
+      │       200 OK {received: true}     │
+      │ ◀─────────────────────────────────│
+      │                                   │
+      │                            3. UI displays
+      │                               notification
+```
 
 ### Configuration
 
 ```env
-WEBHOOK_URL=https://your-client.example.com/webhooks/acp
-WEBHOOK_SECRET=whsec_xxx
+# Merchant backend (env.example)
+WEBHOOK_URL=http://localhost:3000/api/webhooks/acp
+WEBHOOK_SECRET=whsec_demo_secret
+
+# Client UI (src/ui/env.example)
+WEBHOOK_SECRET=whsec_demo_secret
 ```
 
 ### Webhook Event Schema
 
+Standard ACP events:
 ```json
 {
   "type": "order_created|order_updated",
@@ -799,23 +826,51 @@ WEBHOOK_SECRET=whsec_xxx
 }
 ```
 
+Extended shipping_update event (for Post-Purchase Agent messages):
+```json
+{
+  "type": "shipping_update",
+  "data": {
+    "type": "shipping_update",
+    "checkout_session_id": "cs_abc123",
+    "order_id": "order_xyz789",
+    "status": "order_shipped",
+    "language": "en",
+    "subject": "Your Classic Tee is on its way! 🚚",
+    "message": "Hey John! Great news...",
+    "tracking_url": "https://track.example.com/abc123"
+  }
+}
+```
+
 ### Tasks
 
-- [ ] Create webhook service
-- [ ] Implement HMAC signing for webhook payloads
-- [ ] Create webhook event types:
-  - `order_created`
-  - `order_updated`
+**Client-Side (UI) - Completed:**
+- [x] Create webhook API route (`src/ui/app/api/webhooks/acp/route.ts`)
+- [x] Implement HMAC signature verification
+- [x] Create webhook event types: `order_created`, `order_updated`, `shipping_update`
+- [x] Create `useWebhookNotifications` hook for UI integration
+- [x] Support polling for new notifications
+
+**Server-Side (Merchant) - Pending:**
+- [ ] Create webhook delivery service in merchant backend
+- [ ] Implement HMAC signing for outgoing webhooks
 - [ ] Implement retry logic for failed deliveries
 - [ ] Log webhook delivery status
 - [ ] Integrate with Post-Purchase Agent (Feature 8)
 
+**UI Integration - Pending:**
+- [ ] Add notification bell/panel to UI
+- [ ] Display shipping update messages in real-time
+- [ ] Support multiple languages (EN/ES/FR)
+
 ### Acceptance Criteria
 
-- Webhooks are signed with HMAC
-- Events are delivered to global URL
-- Failed deliveries are retried
-- All order statuses trigger updates
+- [x] Client webhook endpoint validates HMAC signatures
+- [x] Events include checkout_session_id for association
+- [ ] Merchant delivers webhooks with HMAC signing
+- [ ] Failed deliveries are retried
+- [ ] UI displays notifications in real-time
 
 ---
 

@@ -20,6 +20,8 @@ function getEventTypeInfo(type: ACPEventType): {
       return { label: "DELEGATE", tagClass: "glass-tag yellow", icon: "🔐" };
     case "session_complete":
       return { label: "COMPLETE", tagClass: "glass-tag green", icon: "✓" };
+    case "webhook_post":
+      return { label: "WEBHOOK", tagClass: "glass-tag green", icon: "📤" };
   }
 }
 

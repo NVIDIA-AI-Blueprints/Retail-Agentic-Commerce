@@ -14,6 +14,8 @@ import {
   updateCheckoutSession,
   completeCheckout,
   delegatePayment,
+  generatePostPurchaseMessage,
+  postWebhookShippingUpdate,
 } from "@/lib/api-client";
 import { createAPIError } from "@/lib/errors";
 import type { ACPEventType, ACPEventStatus } from "@/hooks/useACPLog";
@@ -22,6 +24,8 @@ import type {
   AgentActivityStatus,
   PromotionInputSignals,
   PromotionDecision,
+  PostPurchaseInputSignals,
+  PostPurchaseDecision,
   LineItem,
   Product as ProductType,
 } from "@/types";
@@ -64,6 +68,12 @@ export interface AgentActivityLogger {
     inputSignals: PromotionInputSignals,
     decision: PromotionDecision | undefined,
     status: AgentActivityStatus
+  ) => void;
+  addPostPurchaseEvent: (
+    inputSignals: PostPurchaseInputSignals,
+    decision: PostPurchaseDecision | undefined,
+    status: AgentActivityStatus,
+    error?: string
   ) => void;
   clear: () => void;
 }
@@ -517,6 +527,109 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
   );
 
   /**
+   * Trigger Post-Purchase Agent to generate shipping confirmation message
+   * Then POST the message to the client's webhook endpoint
+   */
+  const triggerPostPurchaseAgent = useCallback(
+    async (
+      orderId: string,
+      productName: string,
+      sessionId: string,
+      customerName: string = DEFAULT_BUYER.first_name
+    ) => {
+      const inputSignals: PostPurchaseInputSignals = {
+        orderId,
+        customerName,
+        productName,
+        status: "order_confirmed",
+        tone: "friendly",
+        language: "en",
+      };
+
+      try {
+        // Step 1: Generate the message using the Post-Purchase Agent (LLM)
+        const response = await generatePostPurchaseMessage({
+          brand_persona: {
+            company_name: "NVShop",
+            tone: "friendly",
+            preferred_language: "en",
+          },
+          order: {
+            order_id: orderId,
+            customer_name: customerName,
+            product_name: productName,
+            tracking_url: null,
+            estimated_delivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          status: "order_confirmed",
+        });
+
+        const decision: PostPurchaseDecision = {
+          subject: response.subject,
+          message: response.message,
+          status: response.status,
+          language: response.language,
+        };
+
+        // Log the agent decision
+        agentLoggerRef.current?.addPostPurchaseEvent(inputSignals, decision, "success");
+
+        // Step 2: POST the generated message to the client's webhook
+        const webhookEventId = loggerRef.current?.logEvent(
+          "webhook_post",
+          "POST",
+          "/api/webhooks/acp",
+          `Shipping update: ${response.status}`
+        );
+
+        try {
+          const webhookResponse = await postWebhookShippingUpdate({
+            type: "shipping_update",
+            data: {
+              type: "shipping_update",
+              checkout_session_id: sessionId,
+              order_id: orderId,
+              status: "order_confirmed",
+              language: response.language,
+              subject: response.subject,
+              message: response.message,
+            },
+          });
+
+          if (webhookEventId) {
+            loggerRef.current?.completeEvent(
+              webhookEventId,
+              "success",
+              `Event: ${webhookResponse.event_id.slice(0, 12)}...`,
+              200
+            );
+          }
+        } catch (webhookError) {
+          console.error("[PostPurchase] Webhook error:", webhookError);
+          if (webhookEventId) {
+            loggerRef.current?.completeEvent(
+              webhookEventId,
+              "error",
+              "Webhook delivery failed",
+              500
+            );
+          }
+        }
+      } catch (error) {
+        console.error("[PostPurchase] Agent error:", error);
+        // Log error but don't fail the checkout
+        agentLoggerRef.current?.addPostPurchaseEvent(
+          inputSignals,
+          undefined,
+          "error",
+          "Failed to generate confirmation message"
+        );
+      }
+    },
+    []
+  );
+
+  /**
    * Submit payment - delegates to PSP and completes checkout
    */
   const submitPayment = useCallback(async () => {
@@ -633,6 +746,16 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
               );
             }
             dispatch({ type: "PAYMENT_COMPLETE", session: finalSession });
+
+            // Trigger Post-Purchase Agent after successful payment
+            if (finalSession.order?.id && context.selectedProduct && context.sessionId) {
+              triggerPostPurchaseAgent(
+                finalSession.order.id,
+                context.selectedProduct.name,
+                context.sessionId,
+                DEFAULT_BUYER.first_name
+              );
+            }
           } catch (error) {
             if (authEventId) {
               loggerRef.current?.completeEvent(authEventId, "error", "Payment failed", 400);
@@ -650,6 +773,16 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
           );
         }
         dispatch({ type: "PAYMENT_COMPLETE", session: completedSession });
+
+        // Trigger Post-Purchase Agent after successful payment
+        if (completedSession.order?.id && context.selectedProduct && context.sessionId) {
+          triggerPostPurchaseAgent(
+            completedSession.order.id,
+            context.selectedProduct.name,
+            context.sessionId,
+            DEFAULT_BUYER.first_name
+          );
+        }
       } else {
         if (completeEventId) {
           loggerRef.current?.completeEvent(
@@ -668,7 +801,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
       }
       dispatch({ type: "SET_ERROR", error: createAPIError(error) });
     }
-  }, [context.sessionId, context.session]);
+  }, [context.sessionId, context.session, context.selectedProduct, triggerPostPurchaseAgent]);
 
   /**
    * Reset to initial state

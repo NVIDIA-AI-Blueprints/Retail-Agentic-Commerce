@@ -11,6 +11,7 @@ Guidance for Claude Code when working with this repository.
 | Merchant API | Python 3.12+ / FastAPI / SQLModel | 8000 |
 | PSP Service | Python 3.12+ / FastAPI / SQLModel | 8001 |
 | Promotion Agent | NVIDIA NeMo Agent Toolkit (NAT) | 8002 |
+| Post-Purchase Agent | NVIDIA NeMo Agent Toolkit (NAT) | 8003 |
 | Frontend | Next.js 15+ / React 19 / Kaizen UI | 3000 |
 
 **Key Architecture**: Async Parallel Orchestrator where NAT agents perform real-time business logic via tool-calling SQL queries.
@@ -85,6 +86,13 @@ pip install -e ".[dev]"         # Alternative
 ## Module Organization
 
 ```
+src/agents/                     # NAT Agents (shared dependencies)
+├── pyproject.toml              # nvidia-nat-langchain dependency
+├── README.md                   # Agent documentation
+└── configs/
+    ├── promotion.yml           # Promotion strategy arbiter (port 8002)
+    └── post-purchase.yml       # Multilingual shipping messages (port 8003)
+
 src/merchant/                   # Merchant API (port 8000)
 ├── main.py                     # FastAPI entry + lifespan
 ├── config.py                   # pydantic-settings config
@@ -97,7 +105,8 @@ src/merchant/                   # Merchant API (port 8000)
 │   └── database.py             # Init + seeding
 ├── services/
 │   ├── checkout.py             # Session management (async, calls promotion)
-│   ├── promotion.py            # 3-layer promotion logic
+│   ├── promotion.py            # 3-layer promotion agent integration
+│   ├── post_purchase.py        # 3-layer post-purchase agent integration
 │   └── idempotency.py          # Idempotency handling
 └── middleware/                 # Logging, headers
 
@@ -110,28 +119,55 @@ src/payment/                    # PSP Service (port 8001)
 
 src/ui/                         # Next.js Frontend (port 3000)
 ├── app/                        # App router pages
+│   └── api/webhooks/acp/       # Webhook endpoint for merchant notifications
 ├── components/agent/           # Agent panel components
 └── hooks/
     ├── useACPLog.tsx           # ACP protocol event tracking
     ├── useAgentActivityLog.tsx # Agent decision tracking
-    └── useCheckoutFlow.ts      # Checkout state machine
+    ├── useCheckoutFlow.ts      # Checkout state machine
+    └── useWebhookNotifications.tsx # Webhook notification management
 ```
 
 ## Key Patterns
 
-### 1. Promotion Agent (3-Layer Hybrid)
+### 1. NAT Agents (3-Layer Hybrid Architecture)
+
+All NAT agents follow the same pattern:
+```
+Layer 1 (Deterministic): Query data → compute signals → filter options
+Layer 2 (LLM): Select action or generate content (classification/generation only)
+Layer 3 (Deterministic): Apply result → validate constraints → fail closed if invalid
+```
+
+**Promotion Agent** (`src/agents/configs/promotion.yml`):
+- Service: `src/merchant/services/promotion.py`
+- Fail-open: If unavailable, checkout proceeds with NO_PROMO
+
+**Post-Purchase Agent** (`src/agents/configs/post-purchase.yml`):
+- Service: `src/merchant/services/post_purchase.py`
+- Fail-open: If unavailable, uses fallback templates in EN/ES/FR
+
+### 2. Webhook Flow (Merchant → Client Agent)
+
+The client agent exposes a webhook endpoint that the merchant calls for order updates:
 
 ```
-Layer 1 (Deterministic): Query data → compute signals → filter allowed_actions
-Layer 2 (LLM): Select action from allowed_actions (classification only)
-Layer 3 (Deterministic): Apply discount → validate margin → fail closed if invalid
+Merchant Backend                    Client Agent (UI)
+      │                                   │
+      │  POST /api/webhooks/acp           │
+      │  {type: "shipping_update", ...}   │
+      │ ─────────────────────────────────▶│
+      │                                   │
+      │       200 OK {received: true}     │
+      │ ◀─────────────────────────────────│
+      │                                   │
+      │                            UI polls/displays
+      │                            notification to user
 ```
 
-Files: `src/merchant/services/promotion.py`, `src/agents/promotion-agent/`
+Events: `order_created`, `order_updated`, `shipping_update`
 
-Fail-open: If agent unavailable, checkout proceeds with NO_PROMO.
-
-### 2. Middleware Chain Order (Critical)
+### 3. Middleware Chain Order (Critical)
 
 ```python
 # main.py - applied in this order:
@@ -238,8 +274,9 @@ Test files: `test_*.py` in `tests/` mirroring `src/` structure.
 API_KEY=your-api-key                              # Merchant API
 PSP_API_KEY=psp-api-key-12345                     # PSP API
 NIM_ENDPOINT=https://integrate.api.nvidia.com/v1  # NAT agents
-NIM_API_KEY=nvapi-xxx
-PROMOTION_AGENT_URL=http://localhost:8002
+NVIDIA_API_KEY=nvapi-xxx                          # NVIDIA API key for agents
+PROMOTION_AGENT_URL=http://localhost:8002         # Promotion agent endpoint
+POST_PURCHASE_AGENT_URL=http://localhost:8003     # Post-purchase agent endpoint
 DATABASE_URL=sqlite:///./agentic_commerce.db
 ```
 
@@ -247,12 +284,12 @@ DATABASE_URL=sqlite:///./agentic_commerce.db
 
 **Completed:**
 - Features 1-6: Foundation, DB, ACP endpoints, auth, PSP, Promotion Agent
+- Feature 8: Post-Purchase Agent (multilingual shipping messages)
 - Features 9-10, 12: UI, Protocol Inspector, Agent Panel
 
 **Planned:**
 - Feature 7: Recommendation Agent
-- Feature 8: Post-Purchase Agent
-- Feature 11: Webhook integration
+- Feature 11: Webhook integration (post-purchase delivery)
 
 ## References
 
@@ -262,5 +299,6 @@ DATABASE_URL=sqlite:///./agentic_commerce.db
 | `docs/architecture.md` | Fullstack patterns |
 | `docs/acp-spec.md` | Protocol spec |
 | `docs/features.md` | Implementation roadmap |
+| `src/agents/README.md` | NAT agents documentation |
 | `.cursor/skills/features/SKILL.md` | Backend standards |
 | `.cursor/skills/ui/SKILL.md` | Frontend standards |

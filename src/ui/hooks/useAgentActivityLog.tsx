@@ -5,8 +5,10 @@ import type {
   AgentType,
   AgentActivityStatus,
   AgentActivityEvent,
-  PromotionInputSignals,
-  PromotionDecision,
+  PostPurchaseInputSignals,
+  PostPurchaseDecision,
+  AgentInputSignals,
+  AgentDecision,
 } from "@/types";
 
 /**
@@ -66,14 +68,14 @@ interface AgentActivityLogContextType {
   /**
    * Log the start of an agent call
    */
-  logAgentCall: (agentType: AgentType, inputSignals: PromotionInputSignals) => string;
+  logAgentCall: (agentType: AgentType, inputSignals: AgentInputSignals) => string;
   /**
    * Complete an agent call with the decision
    */
   completeAgentCall: (
     id: string,
     status: AgentActivityStatus,
-    decision?: PromotionDecision,
+    decision?: AgentDecision,
     error?: string
   ) => void;
   /**
@@ -81,9 +83,18 @@ interface AgentActivityLogContextType {
    */
   addAgentEvent: (
     agentType: AgentType,
-    inputSignals: PromotionInputSignals,
-    decision: PromotionDecision | undefined,
+    inputSignals: AgentInputSignals,
+    decision: AgentDecision | undefined,
     status: AgentActivityStatus
+  ) => void;
+  /**
+   * Add a post-purchase agent event specifically
+   */
+  addPostPurchaseEvent: (
+    inputSignals: PostPurchaseInputSignals,
+    decision: PostPurchaseDecision | undefined,
+    status: AgentActivityStatus,
+    error?: string
   ) => void;
   /**
    * Clear all events
@@ -99,7 +110,7 @@ const AgentActivityLogContext = createContext<AgentActivityLogContextType | null
 export function AgentActivityLogProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(agentActivityLogReducer, initialState);
 
-  const logAgentCall = useCallback((agentType: AgentType, inputSignals: PromotionInputSignals) => {
+  const logAgentCall = useCallback((agentType: AgentType, inputSignals: AgentInputSignals) => {
     const id = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const event: AgentActivityEvent = {
       id,
@@ -113,7 +124,7 @@ export function AgentActivityLogProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const completeAgentCall = useCallback(
-    (id: string, status: AgentActivityStatus, decision?: PromotionDecision, error?: string) => {
+    (id: string, status: AgentActivityStatus, decision?: AgentDecision, error?: string) => {
       const timestampStr = id.split("_")[1];
       const startTime = timestampStr ? parseInt(timestampStr, 10) : Date.now();
       const duration = Date.now() - startTime;
@@ -138,8 +149,8 @@ export function AgentActivityLogProvider({ children }: { children: ReactNode }) 
   const addAgentEvent = useCallback(
     (
       agentType: AgentType,
-      inputSignals: PromotionInputSignals,
-      decision: PromotionDecision | undefined,
+      inputSignals: AgentInputSignals,
+      decision: AgentDecision | undefined,
       status: AgentActivityStatus
     ) => {
       const id = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -159,14 +170,40 @@ export function AgentActivityLogProvider({ children }: { children: ReactNode }) 
     []
   );
 
+  const addPostPurchaseEvent = useCallback(
+    (
+      inputSignals: PostPurchaseInputSignals,
+      decision: PostPurchaseDecision | undefined,
+      status: AgentActivityStatus,
+      error?: string
+    ) => {
+      const id = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const event: AgentActivityEvent = {
+        id,
+        timestamp: new Date(),
+        status,
+        agentType: "post_purchase",
+        inputSignals,
+      };
+      if (decision !== undefined) {
+        event.decision = decision;
+      }
+      if (error !== undefined) {
+        event.error = error;
+      }
+      dispatch({ type: "ADD_EVENT", event });
+    },
+    []
+  );
+
   const clear = useCallback(() => {
     dispatch({ type: "CLEAR" });
   }, []);
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(
-    () => ({ state, logAgentCall, completeAgentCall, addAgentEvent, clear }),
-    [state, logAgentCall, completeAgentCall, addAgentEvent, clear]
+    () => ({ state, logAgentCall, completeAgentCall, addAgentEvent, addPostPurchaseEvent, clear }),
+    [state, logAgentCall, completeAgentCall, addAgentEvent, addPostPurchaseEvent, clear]
   );
 
   return (

@@ -9,7 +9,8 @@ export type ACPEventType =
   | "session_create"
   | "session_update"
   | "delegate_payment"
-  | "session_complete";
+  | "session_complete"
+  | "webhook_post";
 
 export type ACPEventStatus = "pending" | "success" | "error";
 

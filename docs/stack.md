@@ -31,11 +31,11 @@ The inference engine is **configurable** via environment variables:
 ```env
 # Option 1: NVIDIA hosted API
 NIM_ENDPOINT=https://integrate.api.nvidia.com/v1
-NIM_API_KEY=nvapi-xxx
+NVIDIA_API_KEY=nvapi-xxx
 
 # Option 2: Local Docker container
 NIM_ENDPOINT=http://localhost:8000/v1
-NIM_API_KEY=local
+NVIDIA_API_KEY=local
 ```
 
 ---
