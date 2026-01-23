@@ -346,6 +346,7 @@ describe("useCheckoutFlow", () => {
   const mockBillingAddress = {
     fullName: "John Doe",
     address: "123 Main St, San Francisco, CA 94102",
+    preferredLanguage: "en" as const,
   };
 
   describe("submitPayment - happy path", () => {

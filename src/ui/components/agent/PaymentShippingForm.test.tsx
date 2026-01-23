@@ -85,6 +85,7 @@ describe("PaymentShippingForm", () => {
     const initialBillingAddress: BillingAddressFormData = {
       fullName: "Jane Smith",
       address: "456 Oak Ave, Los Angeles, CA 90001",
+      preferredLanguage: "es",
     };
 
     it("uses initial payment info when provided", () => {
@@ -238,6 +239,7 @@ describe("PaymentShippingForm", () => {
         {
           fullName: "John Doe",
           address: "123 Main St, San Francisco, CA 94102",
+          preferredLanguage: "en",
         }
       );
     });
@@ -283,6 +285,8 @@ describe("PaymentShippingForm", () => {
       expect(screen.getByLabelText(/security code/i)).toBeDisabled();
       expect(screen.getByLabelText(/full name/i)).toBeDisabled();
       expect(screen.getByLabelText(/^address$/i)).toBeDisabled();
+      // KUI Select uses data-testid="nv-select"
+      expect(screen.getByTestId("nv-select")).toBeDisabled();
     });
   });
 
@@ -309,6 +313,86 @@ describe("PaymentShippingForm", () => {
 
       fireEvent.change(cardInput, { target: { value: "3782822463100005" } });
       expect(cardInput).toHaveValue("3782 8224 6310 0005");
+    });
+  });
+
+  describe("language preference", () => {
+    // Helper to get the language select - KUI Select uses data-testid="nv-select"
+    const getLanguageSelect = () => screen.getByTestId("nv-select");
+
+    it("renders the language preference section label", () => {
+      render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
+      expect(screen.getByText("Language preference")).toBeInTheDocument();
+    });
+
+    it("renders the language selector with default English selected", () => {
+      render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
+      const languageSelect = getLanguageSelect();
+      expect(languageSelect).toHaveValue("en");
+    });
+
+    it("renders all three language options", () => {
+      render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
+      const languageSelect = getLanguageSelect();
+
+      expect(languageSelect).toContainHTML("English (English)");
+      expect(languageSelect).toContainHTML("Spanish (Espanol)");
+      expect(languageSelect).toContainHTML("French (Francais)");
+    });
+
+    it("allows changing the language to Spanish", () => {
+      render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
+      const languageSelect = getLanguageSelect();
+
+      fireEvent.change(languageSelect, { target: { value: "es" } });
+      expect(languageSelect).toHaveValue("es");
+    });
+
+    it("allows changing the language to French", () => {
+      render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
+      const languageSelect = getLanguageSelect();
+
+      fireEvent.change(languageSelect, { target: { value: "fr" } });
+      expect(languageSelect).toHaveValue("fr");
+    });
+
+    it("includes selected language in form submission", () => {
+      render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
+      const languageSelect = getLanguageSelect();
+      const payButton = screen.getByRole("button", { name: /pay now/i });
+
+      // Change to Spanish
+      fireEvent.change(languageSelect, { target: { value: "es" } });
+      fireEvent.click(payButton);
+
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          preferredLanguage: "es",
+        })
+      );
+    });
+
+    it("uses initial language preference when provided", () => {
+      const initialBillingAddress: BillingAddressFormData = {
+        fullName: "Jane Smith",
+        address: "456 Oak Ave, Los Angeles, CA 90001",
+        preferredLanguage: "fr",
+      };
+      render(
+        <PaymentShippingForm
+          onSubmit={mockOnSubmit}
+          initialBillingAddress={initialBillingAddress}
+        />
+      );
+      const languageSelect = getLanguageSelect();
+      expect(languageSelect).toHaveValue("fr");
+    });
+
+    it("disables language selector when processing", () => {
+      render(<PaymentShippingForm onSubmit={mockOnSubmit} isProcessing={true} />);
+      const languageSelect = getLanguageSelect();
+      expect(languageSelect).toBeDisabled();
     });
   });
 });

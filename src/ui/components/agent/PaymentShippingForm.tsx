@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { Card, Text, Button, Stack, Flex, Divider } from "@kui/foundations-react-external";
-import { CreditCard, ChevronLeft } from "@/components/icons";
-import type { PaymentFormData, BillingAddressFormData } from "@/types";
-import { DEFAULT_PAYMENT_FORM, DEFAULT_BILLING_ADDRESS } from "@/types";
+import { Card, Text, Button, Stack, Flex, Divider, Select } from "@kui/foundations-react-external";
+import { CreditCard, ChevronLeft, Globe } from "@/components/icons";
+import type { PaymentFormData, BillingAddressFormData, SupportedLanguage } from "@/types";
+import { DEFAULT_PAYMENT_FORM, DEFAULT_BILLING_ADDRESS, LANGUAGE_OPTIONS } from "@/types";
 
 /**
  * Styled input component using NVIDIA KUI native classes
@@ -88,6 +88,9 @@ export function PaymentShippingForm({
   const [address, setAddress] = useState(
     initialBillingAddress?.address ?? DEFAULT_BILLING_ADDRESS.address
   );
+  const [preferredLanguage, setPreferredLanguage] = useState<SupportedLanguage>(
+    initialBillingAddress?.preferredLanguage ?? DEFAULT_BILLING_ADDRESS.preferredLanguage
+  );
 
   // Form validation
   const isValid = useMemo(() => {
@@ -115,10 +118,20 @@ export function PaymentShippingForm({
     const billingAddress: BillingAddressFormData = {
       fullName,
       address,
+      preferredLanguage,
     };
 
     onSubmit(paymentInfo, billingAddress);
-  }, [isValid, cardNumber, expirationDate, securityCode, fullName, address, onSubmit]);
+  }, [
+    isValid,
+    cardNumber,
+    expirationDate,
+    securityCode,
+    fullName,
+    address,
+    preferredLanguage,
+    onSubmit,
+  ]);
 
   return (
     <Card className="w-full max-w-md fade-in">
@@ -212,6 +225,26 @@ export function PaymentShippingForm({
             placeholder="Address"
             disabled={isProcessing}
             aria-label="Address"
+          />
+        </Stack>
+
+        {/* Language Preference Section */}
+        <Stack gap="2">
+          <Flex align="center" gap="2">
+            <Globe className="w-4 h-4 text-secondary" />
+            <Text kind="label/semibold/sm">Language preference</Text>
+          </Flex>
+          <Select
+            items={LANGUAGE_OPTIONS.map((option) => ({
+              value: option.code,
+              children: `${option.label} (${option.nativeLabel})`,
+            }))}
+            value={preferredLanguage}
+            onValueChange={(value) => setPreferredLanguage(value as SupportedLanguage)}
+            placeholder="Select language"
+            size="medium"
+            disabled={isProcessing}
+            aria-label="Language preference"
           />
         </Stack>
 

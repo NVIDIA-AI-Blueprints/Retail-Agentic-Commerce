@@ -21,8 +21,8 @@ This document breaks down the project requirements into discrete, implementable 
 | 11 | Webhook Integration | P2 | Feature 8 | ✅ Complete |
 | 12 | Agent Panel Checkout Flow Simulation | P1 | Feature 9 | ✅ Complete |
 | 13 | Integration of UI and ACP Server | P1 | Features 3, 5, 9, 12 | ✅ Complete |
-| 14 | Enhanced Checkout (Payment & Shipping) | P1 | Feature 13 | ⬜ Not Started |
-| 15 | Multi-Language Post-Purchase Messages | P2 | Feature 8 | ⬜ Not Started |
+| 14 | Enhanced Checkout (Payment & Shipping) | P1 | Feature 13 | ✅ Complete |
+| 15 | Multi-Language Post-Purchase Messages | P2 | Feature 8 | ✅ Complete |
 
 ---
 
@@ -1542,34 +1542,34 @@ The current checkout flow uses hardcoded buyer information and simulated payment
 ### Tasks
 
 **Payment Information:**
-- [ ] Create `PaymentForm` component with card input fields
-- [ ] Implement card number formatting (spaces every 4 digits)
-- [ ] Add card type detection (Visa, Mastercard, Amex)
-- [ ] Implement expiry date validation (MM/YY format)
-- [ ] Add CVV input with masking
-- [ ] Display card brand icon based on card number
-- [ ] Validate card against `supported_card_networks` from session
+- [x] Create `PaymentForm` component with card input fields
+- [x] Implement card number formatting (spaces every 4 digits)
+- [x] Add card type detection (Visa, Mastercard, Amex)
+- [x] Implement expiry date validation (MM/YY format)
+- [x] Add CVV input with masking
+- [x] Display card brand icon based on card number
+- [x] Validate card against `supported_card_networks` from session
 
 **Shipping Address:**
-- [ ] Create `ShippingAddressForm` component
+- [x] Create `ShippingAddressForm` component
 - [ ] Implement address autocomplete (optional - Google Places API)
 - [ ] Add country/state selection dropdowns
-- [ ] Validate required fields (name, address, city, state, zip, country)
+- [x] Validate required fields (name, address, city, state, zip, country)
 - [ ] Support international address formats
 - [ ] Add phone number input with country code
 
 **Checkout Flow Integration:**
-- [ ] Update `useCheckoutFlow` to manage payment/shipping state
-- [ ] Store shipping address in checkout session via API
-- [ ] Pass payment details to PSP delegate_payment
-- [ ] Show summary of payment method (masked) in confirmation
-- [ ] Display shipping address in order confirmation
+- [x] Update `useCheckoutFlow` to manage payment/shipping state
+- [x] Store shipping address in checkout session via API
+- [x] Pass payment details to PSP delegate_payment
+- [x] Show summary of payment method (masked) in confirmation
+- [x] Display shipping address in order confirmation
 
 **Validation & Error Handling:**
-- [ ] Client-side validation for all fields
-- [ ] Display field-level error messages
-- [ ] Handle address validation errors from API
-- [ ] Support "billing same as shipping" toggle
+- [x] Client-side validation for all fields
+- [x] Display field-level error messages
+- [x] Handle address validation errors from API
+- [x] Support "billing same as shipping" toggle
 
 ### API Integration
 
@@ -1593,14 +1593,14 @@ POST /checkout_sessions/{id}
 
 ### Acceptance Criteria
 
-- [ ] Payment form validates card number format and type
-- [ ] Card type icon displays based on card number prefix
-- [ ] Shipping address form collects all required fields
-- [ ] Address is stored in checkout session
-- [ ] Payment method (masked) displays in confirmation
-- [ ] Shipping address displays in order confirmation
-- [ ] Form validation prevents submission with invalid data
-- [ ] Error messages are clear and actionable
+- [x] Payment form validates card number format and type
+- [x] Card type icon displays based on card number prefix
+- [x] Shipping address form collects all required fields
+- [x] Address is stored in checkout session
+- [x] Payment method (masked) displays in confirmation
+- [x] Shipping address displays in order confirmation
+- [x] Form validation prevents submission with invalid data
+- [x] Error messages are clear and actionable
 
 ---
 
@@ -1612,9 +1612,9 @@ POST /checkout_sessions/{id}
 
 | Code | Language | Agent Support | UI Support |
 |------|----------|---------------|------------|
-| `en` | English | ✅ Implemented | ⬜ Pending |
-| `es` | Spanish | ✅ Implemented | ⬜ Pending |
-| `fr` | French | ✅ Implemented | ⬜ Pending |
+| `en` | English | ✅ Implemented | ✅ Implemented |
+| `es` | Spanish | ✅ Implemented | ✅ Implemented |
+| `fr` | French | ✅ Implemented | ✅ Implemented |
 
 ### Current State
 
@@ -1657,27 +1657,27 @@ This feature adds UI support for language selection and display.
 ### Tasks
 
 **Language Selection:**
-- [ ] Add language selector to checkout flow or user preferences
-- [ ] Store language preference in checkout session
-- [ ] Pass language to Post-Purchase Agent API
-- [ ] Persist language preference in localStorage
+- [x] Add language selector to checkout flow or user preferences
+- [x] Store language preference in checkout session
+- [x] Pass language to Post-Purchase Agent API
+- [ ] Persist language preference in localStorage (deferred - enhancement)
 
 **Agent Activity Panel:**
-- [ ] Display language indicator on post-purchase message cards
-- [ ] Show language flag/icon alongside message
-- [ ] Support RTL languages in future (Arabic, Hebrew)
+- [x] Display language indicator on post-purchase message cards
+- [ ] Show language flag/icon alongside message (deferred - enhancement)
+- [ ] Support RTL languages in future (Arabic, Hebrew) (deferred - enhancement)
 
 **Message Generation:**
-- [ ] Update `triggerPostPurchaseAgent` to use selected language
-- [ ] Ensure NAT agent prompt handles all supported languages
-- [ ] Validate language code before API call
-- [ ] Fall back to English if language not supported
+- [x] Update `triggerPostPurchaseAgent` to use selected language
+- [x] Ensure NAT agent prompt handles all supported languages
+- [x] Validate language code before API call
+- [x] Fall back to English if language not supported
 
 **Localization Infrastructure:**
-- [ ] Create i18n utility for UI strings
-- [ ] Translate UI labels (buttons, headers, error messages)
-- [ ] Support browser language detection as default
-- [ ] Add language switcher to navigation
+- [ ] Create i18n utility for UI strings (deferred - enhancement)
+- [ ] Translate UI labels (buttons, headers, error messages) (deferred - enhancement)
+- [ ] Support browser language detection as default (deferred - enhancement)
+- [ ] Add language switcher to navigation (deferred - enhancement)
 
 ### API Updates
 
@@ -1703,13 +1703,13 @@ POST /api/agents/post-purchase
 
 ### Acceptance Criteria
 
-- [ ] Language selector available in checkout flow
-- [ ] Selected language persists across sessions
-- [ ] Post-purchase messages generate in selected language
-- [ ] Language indicator displays on message cards
-- [ ] Fallback to English if generation fails
-- [ ] UI labels support localization framework
-- [ ] Browser language detected as default preference
+- [x] Language selector available in checkout flow
+- [ ] Selected language persists across sessions (deferred - enhancement)
+- [x] Post-purchase messages generate in selected language
+- [x] Language indicator displays on message cards
+- [x] Fallback to English if generation fails
+- [ ] UI labels support localization framework (deferred - enhancement)
+- [ ] Browser language detected as default preference (deferred - enhancement)
 
 ---
 

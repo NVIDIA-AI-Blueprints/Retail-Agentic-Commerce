@@ -790,12 +790,48 @@ export interface PaymentFormData {
   securityCode: string;
 }
 
+// =============================================================================
+// Language Types (Feature 15)
+// =============================================================================
+
+/**
+ * Supported languages for post-purchase messages
+ * - en: English
+ * - es: Spanish (Espanol)
+ * - fr: French (Francais)
+ */
+export type SupportedLanguage = "en" | "es" | "fr";
+
+/**
+ * Language option for display in the UI
+ */
+export interface LanguageOption {
+  code: SupportedLanguage;
+  label: string;
+  nativeLabel: string;
+}
+
+/**
+ * Available language options for the language selector
+ */
+export const LANGUAGE_OPTIONS: LanguageOption[] = [
+  { code: "en", label: "English", nativeLabel: "English" },
+  { code: "es", label: "Spanish", nativeLabel: "Espanol" },
+  { code: "fr", label: "French", nativeLabel: "Francais" },
+];
+
+/**
+ * Default language for post-purchase messages
+ */
+export const DEFAULT_LANGUAGE: SupportedLanguage = "en";
+
 /**
  * Billing address form data
  */
 export interface BillingAddressFormData {
   fullName: string;
   address: string;
+  preferredLanguage: SupportedLanguage;
 }
 
 /**
@@ -813,4 +849,5 @@ export const DEFAULT_PAYMENT_FORM: PaymentFormData = {
 export const DEFAULT_BILLING_ADDRESS: BillingAddressFormData = {
   fullName: "John Doe",
   address: "123 Main St, San Francisco, CA 94102",
+  preferredLanguage: "en",
 };

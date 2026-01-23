@@ -10,6 +10,7 @@ import type {
   UpdateCheckoutRequest,
   PaymentFormData,
   BillingAddressFormData,
+  SupportedLanguage,
 } from "@/types";
 import {
   createCheckoutSession,
@@ -568,13 +569,20 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
   /**
    * Trigger Post-Purchase Agent to generate shipping confirmation message
    * Then POST the message to the client's webhook endpoint
+   *
+   * @param orderId - The order ID
+   * @param productName - The product name for the message
+   * @param sessionId - The checkout session ID
+   * @param customerName - Customer's first name for personalization
+   * @param language - Preferred language for the message (en, es, fr)
    */
   const triggerPostPurchaseAgent = useCallback(
     async (
       orderId: string,
       productName: string,
       sessionId: string,
-      customerName: string = DEFAULT_BUYER.first_name
+      customerName: string = DEFAULT_BUYER.first_name,
+      language: SupportedLanguage = "en"
     ) => {
       const inputSignals: PostPurchaseInputSignals = {
         orderId,
@@ -582,7 +590,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         productName,
         status: "order_confirmed",
         tone: "friendly",
-        language: "en",
+        language,
       };
 
       try {
@@ -591,7 +599,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
           brand_persona: {
             company_name: "NVShop",
             tone: "friendly",
-            preferred_language: "en",
+            preferred_language: language,
           },
           order: {
             order_id: orderId,
@@ -822,7 +830,8 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
                   finalSession.order.id,
                   context.selectedProduct.name,
                   context.sessionId,
-                  customerFirstName
+                  customerFirstName,
+                  billingAddress?.preferredLanguage ?? "en"
                 );
               }
             } catch (error) {
@@ -851,7 +860,8 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
               completedSession.order.id,
               context.selectedProduct.name,
               context.sessionId,
-              customerName
+              customerName,
+              billingAddress?.preferredLanguage ?? "en"
             );
           }
         } else {
