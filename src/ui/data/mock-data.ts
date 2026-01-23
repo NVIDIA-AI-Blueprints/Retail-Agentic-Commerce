@@ -1,42 +1,42 @@
 import type { Product, ChatMessage, ACPRequest } from "@/types";
 
 /**
- * Mock product data - 3 casual t-shirts
+ * Mock product data - aligned with database seed data in src/merchant/db/database.py
  */
 export const mockProducts: Product[] = [
   {
     id: "prod_1",
     sku: "TS-001",
-    name: "Deluxe Shirt",
+    name: "Classic Tee",
     description: "Premium quality cotton t-shirt with a comfortable fit",
-    basePrice: 2600,
+    basePrice: 2500,
     stockCount: 100,
     minMargin: 0.15,
-    imageUrl: "",
+    imageUrl: "https://placehold.co/400x400/png?text=Classic+Tee",
     variant: "Black",
     size: "Large",
   },
   {
     id: "prod_2",
     sku: "TS-002",
-    name: "Heavyweight",
-    description: "Durable heavyweight cotton for everyday comfort",
-    basePrice: 2600,
+    name: "V-Neck Tee",
+    description: "Stylish v-neck design for a modern look",
+    basePrice: 2800,
     stockCount: 50,
     minMargin: 0.12,
-    imageUrl: "",
+    imageUrl: "https://placehold.co/400x400/png?text=V-Neck+Tee",
     variant: "Natural",
     size: "Large",
   },
   {
     id: "prod_3",
     sku: "TS-003",
-    name: "Vintage Tee",
-    description: "Classic vintage style with modern comfort",
-    basePrice: 2600,
+    name: "Graphic Tee",
+    description: "Eye-catching graphic design with premium print",
+    basePrice: 3200,
     stockCount: 200,
     minMargin: 0.18,
-    imageUrl: "",
+    imageUrl: "https://placehold.co/400x400/png?text=Graphic+Tee",
     variant: "Grey",
     size: "Large",
   },
@@ -44,6 +44,7 @@ export const mockProducts: Product[] = [
 
 /**
  * Mock checkout session (legacy format for UI compatibility)
+ * Aligned with database seed data in src/merchant/db/database.py
  */
 export const mockCheckoutSession = {
   id: "checkout_kt6dhmz0",
@@ -51,25 +52,25 @@ export const mockCheckoutSession = {
   currency: "usd",
   lineItems: [
     {
-      id: "li_sku_deluxe_shirt",
+      id: "li_prod_1",
       item: {
-        id: "sku_deluxe_shirt",
-        name: "Deluxe Shirt",
-        imageUrl: "https://placehold.co/400x400/1a1a1a/76b900?text=Deluxe+Shirt",
+        id: "prod_1",
+        name: "Classic Tee",
+        imageUrl: "https://placehold.co/400x400/png?text=Classic+Tee",
       },
       quantity: 1,
-      baseAmount: 2600,
+      baseAmount: 2500,
       discount: 0,
-      subtotal: 2600,
+      subtotal: 2500,
       tax: 0,
-      total: 2600,
+      total: 2500,
     },
   ],
-  subtotal: 2600,
+  subtotal: 2500,
   discount: 0,
   tax: 0,
   shipping: 500,
-  total: 3100,
+  total: 3000,
   fulfillmentOptions: [
     {
       id: "shipping_standard",
@@ -118,7 +119,7 @@ export const mockACPRequests: ACPRequest[] = [
     timestamp: new Date().toISOString(),
     status: 201,
     payload: {
-      items: [{ sku: "sku_deluxe_shirt", quantity: 1 }],
+      items: [{ sku: "TS-001", quantity: 1 }],
     },
     response: mockCheckoutSession,
   },

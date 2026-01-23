@@ -87,9 +87,12 @@ export function CheckoutCard({
 
   // Use authoritative totals from backend API response
   // The checkout object contains totals from the server (including tax, discounts, etc.)
-  const itemBaseAmount = lineItem?.baseAmount ?? product?.basePrice ?? 0;
-  const itemsTotal = itemBaseAmount * quantity;
-  const discount = checkout.discount > 0 ? checkout.discount : (lineItem?.discount ?? 0) * quantity;
+  // Note: lineItem.baseAmount is the TOTAL for the line (already multiplied by quantity)
+  // For display, we need the per-unit price
+  const unitPrice = product?.basePrice ?? (lineItem ? lineItem.baseAmount / lineItem.quantity : 0);
+  const itemsTotal = lineItem?.baseAmount ?? unitPrice * quantity;
+  // lineItem.discount is also already the total discount for the line item
+  const discount = checkout.discount > 0 ? checkout.discount : (lineItem?.discount ?? 0);
   const subtotal = checkout.subtotal;
   const shippingPrice = checkout.shipping;
   const tax = checkout.tax;
@@ -172,7 +175,7 @@ export function CheckoutCard({
                 {product?.variant ?? "Black"} - {product?.size ?? "Large"}
               </Text>
               <Text kind="label/semibold/md" className="text-primary">
-                {formatCurrency(itemBaseAmount)}
+                {formatCurrency(unitPrice * quantity)}
               </Text>
             </Stack>
             <Flex align="center" gap="2">
