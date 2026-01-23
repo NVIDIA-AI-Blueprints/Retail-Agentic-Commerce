@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Stack, Flex, Text, Badge } from "@kui/foundations-react-external";
+import { Stack, Flex, Text } from "@kui/foundations-react-external";
 import { ChatMessage } from "./ChatMessage";
 import { ProductGrid } from "./ProductGrid";
 import { CheckoutCard } from "./CheckoutCard";
@@ -216,7 +216,7 @@ function getSessionShipping(totals: { type: string; amount: number }[]): number 
  * Left panel containing the agent chat interface and product display
  */
 const INTRO_TEXT =
-  "Here are some great men's T-shirts you can shop now — from everyday basics to stylish branded tees and value packs";
+  "Here are some great T-shirts you can shop now — from everyday basics to stylish branded tees and value packs 👕👇🏼";
 
 export function AgentPanel() {
   const [messages] = useState<ChatMessageType[]>(mockChatMessages);
@@ -365,18 +365,19 @@ export function AgentPanel() {
 
   return (
     <section
-      className="flex-1 flex flex-col h-full overflow-hidden bg-[#1e1e1e] border border-[#333333] rounded-2xl relative"
+      className="glass-panel flex-1 flex flex-col h-full overflow-hidden relative"
       aria-label="Agent Panel"
     >
-      {/* Clean header with badge */}
-      <div className="px-6 pt-5 pb-4 border-b border-[#333333]">
-        <Badge kind="solid" color="blue">
+      {/* Glass Panel Header */}
+      <div className="glass-panel-header">
+        <div className="glass-badge gray">
+          <span className="glass-dot"></span>
           Client Agent
-        </Badge>
+        </div>
       </div>
 
-      {/* Content area with darker background for card contrast */}
-      <div className="flex-1 overflow-y-auto bg-[#171717]" style={{ padding: "24px 32px" }}>
+      {/* Content area */}
+      <div className="glass-content flex-1 overflow-y-auto" style={{ padding: "24px 32px" }}>
         <Stack gap="6">
           {/* Chat message */}
           <Stack gap="3">

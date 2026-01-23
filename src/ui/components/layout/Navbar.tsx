@@ -5,11 +5,11 @@ import { AppBar, Text, Flex } from "@kui/foundations-react-external";
 
 /**
  * Main navigation bar with NVIDIA branding
- * Clean, minimal header that doesn't compete with panel content
+ * Transparent header that blends with the Nebula background
  */
 export function Navbar() {
   return (
-    <div className="border-b border-[#222] bg-[#0a0a0a]">
+    <div className="transparent-header">
       <AppBar
         slotLeft={
           <Flex align="center" gap="3">

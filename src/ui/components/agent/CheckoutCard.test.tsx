@@ -194,10 +194,17 @@ describe("CheckoutCard", () => {
       expect(screen.getByText("Black - Large")).toBeInTheDocument();
     });
 
-    it("calculates total based on product price and quantity", () => {
-      // Product price: 2500, quantity: 2, shipping: 500
-      // Total = 2500 * 2 + 500 = 5500 = $55.00
-      render(<CheckoutCard checkout={mockCheckout} product={mockProduct} quantity={2} />);
+    it("displays total from backend checkout data", () => {
+      // CheckoutCard uses the authoritative totals from the backend (checkout.total)
+      // When quantity changes, backend recalculates and returns updated totals
+      // This test verifies UI displays the backend-provided total correctly
+      const checkoutWithQuantity2 = {
+        ...mockCheckout,
+        subtotal: 5000, // 2500 * 2
+        shipping: 500,
+        total: 5500, // Backend-calculated: subtotal + shipping
+      };
+      render(<CheckoutCard checkout={checkoutWithQuantity2} product={mockProduct} quantity={2} />);
 
       expect(screen.getByText("$55.00")).toBeInTheDocument();
     });

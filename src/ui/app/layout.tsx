@@ -13,8 +13,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>
+    <html
+      lang="en"
+      className="nv-dark"
+      style={{ backgroundColor: "#0c0c0c" }}
+      suppressHydrationWarning
+    >
+      <body style={{ backgroundColor: "var(--background-color-surface-base)" }}>
         <ThemeProvider theme="dark" density="standard" global target="html">
           {children}
         </ThemeProvider>

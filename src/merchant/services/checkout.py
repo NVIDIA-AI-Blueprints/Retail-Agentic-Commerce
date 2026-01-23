@@ -34,6 +34,7 @@ from src.merchant.api.schemas import (
     PaymentMethodEnum,
     PaymentProvider,
     PaymentProviderEnum,
+    PromotionMetadata,
     ShippingFulfillmentOption,
     Total,
     TotalTypeEnum,
@@ -198,6 +199,15 @@ async def _calculate_line_item_with_promotion(
 
 def _dict_to_line_item(data: dict[str, Any]) -> LineItem:
     """Convert dictionary to LineItem response model."""
+    # Extract promotion metadata if present
+    promotion = None
+    if "promotion" in data and data["promotion"]:
+        promotion = PromotionMetadata(
+            action=data["promotion"].get("action", "NO_PROMO"),
+            reason_codes=data["promotion"].get("reason_codes", []),
+            reasoning=data["promotion"].get("reasoning", ""),
+        )
+
     return LineItem(
         id=data["id"],
         item=Item(id=data["item"]["id"], quantity=data["item"]["quantity"]),
@@ -206,6 +216,7 @@ def _dict_to_line_item(data: dict[str, Any]) -> LineItem:
         subtotal=data["subtotal"],
         tax=data["tax"],
         total=data["total"],
+        promotion=promotion,
     )
 
 

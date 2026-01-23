@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@kui/foundations-react-external/base.css";
+@import "../kui-foundations-react-external/nebula/dist/styles.css";
 
 /* ============================================
    Custom Layout Design Tokens
@@ -31,6 +32,43 @@
   --shadow-panel: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
   --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-card-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+
+  /* ============================================
+     Glassmorphic Panel Design System
+     ============================================
+     Inspired by modern dark-mode UIs with glass effect
+  */
+  --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.035));
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  --glass-radius: 18px;
+  --glass-radius-sm: 14px;
+  --glass-radius-xs: 16px;
+
+  /* Panel Header */
+  --header-bg: rgba(0, 0, 0, 0.12);
+  --header-blur: blur(10px);
+
+  /* Accent Colors - NVIDIA Green */
+  --accent-green: #76b900;
+  --accent-green-glow: rgba(118, 185, 0, 0.15);
+  --accent-green-border: rgba(118, 185, 0, 0.35);
+  --accent-green-bg: rgba(118, 185, 0, 0.12);
+  --accent-green-subtle: rgba(118, 185, 0, 0.1);
+  --accent-yellow: #ffd36b;
+  --accent-yellow-border: rgba(255, 211, 107, 0.3);
+  --accent-yellow-bg: rgba(255, 211, 107, 0.1);
+
+  /* Text Colors */
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.82);
+  --text-muted: rgba(255, 255, 255, 0.62);
+  --text-faint: rgba(255, 255, 255, 0.4);
+
+  /* Block/Card backgrounds */
+  --block-bg: rgba(255, 255, 255, 0.045);
+  --block-bg-elevated: rgba(255, 255, 255, 0.06);
 }
 
 /* Custom scrollbar for dark theme */
@@ -352,4 +390,456 @@ body {
 .agent-panel-normal {
   filter: blur(0);
   transition: filter 300ms ease;
+}
+
+/* ============================================
+   Glassmorphic Panel Styles
+   ============================================
+*/
+.glass-panel {
+  background: linear-gradient(180deg, rgba(12, 12, 12, 0.75), rgba(12, 12, 12, 0.65));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+.glass-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--glass-border-subtle);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Glass Badge (with pulsing dot) */
+.glass-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.85);
+  background: rgba(118, 185, 0, 0.95);
+  padding: 6px 10px;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px var(--accent-green-glow);
+}
+
+.glass-badge.green {
+  background: rgba(118, 185, 0, 0.95);
+  box-shadow: 0 10px 30px var(--accent-green-glow);
+}
+
+.glass-badge.yellow {
+  background: rgba(255, 211, 107, 0.95);
+  box-shadow: 0 10px 30px rgba(255, 211, 107, 0.15);
+}
+
+.glass-badge.gray {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Pulsing Dot */
+.glass-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.glass-dot.live {
+  position: relative;
+}
+
+.glass-dot.live::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  animation: glassPulse 1.6s infinite ease-out;
+  opacity: 0.9;
+}
+
+@keyframes glassPulse {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+/* Glass Button */
+.glass-btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 140ms ease;
+  user-select: none;
+}
+
+.glass-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.glass-btn:active {
+  transform: translateY(0);
+}
+
+.glass-btn.primary {
+  border-color: var(--accent-green-border);
+  background: var(--accent-green-bg);
+}
+
+/* Glass Content Area */
+.glass-content {
+  padding: 16px;
+  overflow: auto;
+}
+
+.glass-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.glass-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.glass-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Glass Block (placeholder content) */
+.glass-block {
+  background: var(--block-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  padding: 14px;
+  min-height: 90px;
+}
+
+.glass-line {
+  height: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  margin-top: 10px;
+}
+
+.glass-line.w50 {
+  width: 50%;
+}
+.glass-line.w70 {
+  width: 70%;
+}
+.glass-line.w85 {
+  width: 85%;
+}
+
+/* Glass Caption */
+.glass-caption {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.glass-caption strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* Glass Pills */
+.glass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.glass-pill.green {
+  border-color: rgba(118, 185, 0, 0.28);
+  background: var(--accent-green-subtle);
+}
+
+.glass-pill.yellow {
+  border-color: var(--accent-yellow-border);
+  background: var(--accent-yellow-bg);
+}
+
+/* Glass Decision Card */
+.glass-decision {
+  border: 1px solid var(--glass-border);
+  background: var(--block-bg);
+  border-radius: var(--glass-radius-xs);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.glass-decision.highlight {
+  background: linear-gradient(180deg, var(--accent-green-subtle), rgba(255, 255, 255, 0.04));
+  border-color: rgba(118, 185, 0, 0.18);
+}
+
+/* Glass Kicker (section label) */
+.glass-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+}
+
+/* Glass Value Display */
+.glass-value {
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: 0.2px;
+  color: var(--text-primary);
+}
+
+.glass-value.positive {
+  color: var(--accent-green);
+}
+
+/* Glass Section */
+.glass-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border-subtle);
+}
+
+.glass-section h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+/* Glass Bullets */
+.glass-bullets {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.glass-bullets li {
+  margin: 5px 0;
+}
+
+/* Glass Confidence Bars */
+.glass-bars {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.glass-bar {
+  width: 10px;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-bar.on {
+  background: rgba(118, 185, 0, 0.55);
+  border-color: var(--accent-green-border);
+}
+
+/* Glass Details Toggle */
+.glass-details-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 650;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  transition: 140ms ease;
+}
+
+.glass-details-toggle:hover {
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-1px);
+}
+
+.glass-chevron {
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid rgba(255, 255, 255, 0.65);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.65);
+  transform: rotate(45deg);
+  transition: 140ms ease;
+  margin-top: -2px;
+}
+
+.glass-details-toggle[aria-expanded="true"] .glass-chevron {
+  transform: rotate(-135deg);
+  margin-top: 2px;
+}
+
+/* Glass Details Panel */
+.glass-details {
+  margin-top: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  background: rgba(0, 0, 0, 0.12);
+  padding: 12px;
+}
+
+/* Glass Key-Value Grid */
+.glass-kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.glass-kv .k {
+  color: var(--text-muted);
+}
+
+.glass-kv .v {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 650;
+}
+
+/* Glass Divider */
+.glass-divider {
+  height: 1px;
+  background: var(--glass-border-subtle);
+  margin: 12px 0;
+}
+
+/* Glass Timeline */
+.glass-timeline {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.glass-event {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  border-radius: var(--glass-radius-sm);
+  border: 1px solid var(--glass-border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.glass-event .time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  min-width: 72px;
+  padding-top: 1px;
+}
+
+.glass-event .msg {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.glass-tag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 750;
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+}
+
+.glass-tag.green {
+  border-color: rgba(118, 185, 0, 0.25);
+  background: rgba(118, 185, 0, 0.08);
+}
+
+.glass-tag.yellow {
+  border-color: rgba(255, 211, 107, 0.25);
+  background: rgba(255, 211, 107, 0.08);
+}
+
+/* ============================================
+   Transparent Header - Nebula Background
+   ============================================
+   Makes the AppBar blend seamlessly with the Nebula background
+*/
+.transparent-header .nv-app-bar-root {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-bottom: none !important;
+}
+
+/* Force Nebula to take full height */
+[data-testid="nv-nebula"] {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+[data-testid="nv-nebula"] canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Glass Footer Note */
+.glass-footer-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.35;
+  padding: 10px 12px;
+  border-radius: var(--glass-radius-sm);
+  border: 1px solid var(--glass-border-subtle);
+  background: rgba(255, 255, 255, 0.03);
 }

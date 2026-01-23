@@ -19,12 +19,19 @@ describe("BusinessPanel", () => {
     expect(screen.getByRole("region", { name: "Merchant Panel" })).toBeInTheDocument();
   });
 
-  it("renders placeholder text when no checkout is active", () => {
+  it("renders empty state message when no checkout is active", () => {
     renderWithProviders(<BusinessPanel />);
+    // New simplified empty state with waiting message
+    expect(screen.getByText("No active session")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Select a product from the Agent panel to view merchant settings and start the ACP flow."
+        "Select a product from the Client Agent panel to start an ACP checkout session."
       )
     ).toBeInTheDocument();
+  });
+
+  it("renders Simulate API button in header", () => {
+    renderWithProviders(<BusinessPanel />);
+    expect(screen.getByRole("button", { name: "Simulate API" })).toBeInTheDocument();
   });
 });

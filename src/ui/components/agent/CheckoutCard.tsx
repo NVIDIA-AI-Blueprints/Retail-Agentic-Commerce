@@ -85,11 +85,15 @@ export function CheckoutCard({
     (opt) => opt.id === checkout.selectedFulfillmentOptionId
   );
 
-  // Calculate totals based on quantity
-  const itemPrice = product?.basePrice ?? lineItem?.baseAmount ?? 0;
-  const subtotal = itemPrice * quantity;
-  const shippingPrice = selectedOption?.price ?? checkout.shipping;
-  const total = subtotal + shippingPrice;
+  // Use authoritative totals from backend API response
+  // The checkout object contains totals from the server (including tax, discounts, etc.)
+  const itemBaseAmount = lineItem?.baseAmount ?? product?.basePrice ?? 0;
+  const itemsTotal = itemBaseAmount * quantity;
+  const discount = checkout.discount > 0 ? checkout.discount : (lineItem?.discount ?? 0) * quantity;
+  const subtotal = checkout.subtotal;
+  const shippingPrice = checkout.shipping;
+  const tax = checkout.tax;
+  const total = checkout.total;
 
   // Determine button state
   const isButtonDisabled = isProcessing || !isReadyForPayment;
@@ -168,7 +172,7 @@ export function CheckoutCard({
                 {product?.variant ?? "Black"} - {product?.size ?? "Large"}
               </Text>
               <Text kind="label/semibold/md" className="text-primary">
-                {formatCurrency(itemPrice)}
+                {formatCurrency(itemBaseAmount)}
               </Text>
             </Stack>
             <Flex align="center" gap="2">
@@ -246,6 +250,31 @@ export function CheckoutCard({
               {formatCurrency(total)}
             </Text>
           </Flex>
+          {/* Items base amount */}
+          <Flex justify="between">
+            <Text kind="body/regular/sm" className="text-secondary">
+              Items ({quantity}x)
+            </Text>
+            <Text kind="body/regular/sm" className="text-secondary">
+              {formatCurrency(itemsTotal)}
+            </Text>
+          </Flex>
+          {/* Discount (only show if non-zero) - highlighted with NVIDIA brand green */}
+          {discount > 0 && (
+            <Flex
+              justify="between"
+              align="center"
+              className="bg-[#76b900]/15 rounded-md px-2 py-1.5 -mx-2 border border-[#76b900]/30"
+            >
+              <Flex align="center" gap="1">
+                <span className="text-brand text-xs font-semibold">SAVINGS</span>
+              </Flex>
+              <Text kind="label/semibold/sm" className="text-brand">
+                -{formatCurrency(discount)}
+              </Text>
+            </Flex>
+          )}
+          {/* Subtotal (after discount) */}
           <Flex justify="between">
             <Text kind="body/regular/sm" className="text-secondary">
               Subtotal
@@ -254,6 +283,7 @@ export function CheckoutCard({
               {formatCurrency(subtotal)}
             </Text>
           </Flex>
+          {/* Shipping */}
           <Flex justify="between">
             <Text kind="body/regular/sm" className="text-secondary">
               Shipping
@@ -262,6 +292,17 @@ export function CheckoutCard({
               {formatCurrency(shippingPrice)}
             </Text>
           </Flex>
+          {/* Tax (only show if non-zero) */}
+          {tax > 0 && (
+            <Flex justify="between">
+              <Text kind="body/regular/sm" className="text-secondary">
+                Tax
+              </Text>
+              <Text kind="body/regular/sm" className="text-secondary">
+                {formatCurrency(tax)}
+              </Text>
+            </Flex>
+          )}
         </Stack>
 
         {/* Pay button */}

@@ -229,6 +229,18 @@ class PaymentProvider(BaseModel):
     )
 
 
+class PromotionMetadata(BaseModel):
+    """Promotion agent decision metadata."""
+
+    action: str = Field(
+        ..., description="Promotion action (e.g., DISCOUNT_10_PCT, NO_PROMO)"
+    )
+    reason_codes: list[str] = Field(
+        default_factory=list, description="Reason codes for the decision"
+    )
+    reasoning: str = Field(default="", description="LLM reasoning for the decision")
+
+
 class LineItem(BaseModel):
     """Line item in checkout session."""
 
@@ -241,6 +253,9 @@ class LineItem(BaseModel):
     subtotal: Annotated[int, Field(ge=0, description="Amount after adjustments")]
     tax: Annotated[int, Field(ge=0, description="Tax amount")]
     total: Annotated[int, Field(ge=0, description="Final amount")]
+    promotion: PromotionMetadata | None = Field(
+        default=None, description="Promotion agent decision metadata"
+    )
 
 
 class FulfillmentOptionBase(BaseModel):
