@@ -32,45 +32,56 @@ describe("AgentActivityItem", () => {
     expect(screen.getByText("Classic T-Shirt")).toBeInTheDocument();
   });
 
-  it("renders the PROMOTION badge", () => {
+  it("renders the Promotion Decision kicker", () => {
     render(<AgentActivityItem event={baseEvent} isLast={false} />);
-    expect(screen.getByText("PROMOTION")).toBeInTheDocument();
+    expect(screen.getByText("Promotion Decision")).toBeInTheDocument();
   });
 
-  it("renders the discount action badge", () => {
+  it("renders Applied status pill for positive outcomes", () => {
     render(<AgentActivityItem event={baseEvent} isLast={false} />);
-    expect(screen.getByText("10% OFF")).toBeInTheDocument();
+    expect(screen.getByText("Applied")).toBeInTheDocument();
   });
 
-  it("renders discount amount", () => {
+  it("renders the discount value", () => {
     render(<AgentActivityItem event={baseEvent} isLast={false} />);
-    expect(screen.getByText("-$2.50")).toBeInTheDocument();
+    expect(screen.getByText("−$2.50")).toBeInTheDocument();
   });
 
-  it("renders reason codes as pills", () => {
+  it("renders 'Why this happened' with LLM reasoning", () => {
     render(<AgentActivityItem event={baseEvent} isLast={false} />);
-    expect(screen.getByText("HIGH INVENTORY")).toBeInTheDocument();
-    expect(screen.getByText("BELOW MARKET")).toBeInTheDocument();
+    expect(screen.getByText("Why this happened")).toBeInTheDocument();
+    // Should show the actual LLM reasoning from the decision
+    expect(
+      screen.getByText("High inventory and below market price suggest a discount is appropriate.")
+    ).toBeInTheDocument();
   });
 
-  it("expands to show details when clicked", () => {
+  it("expands to show technical details when clicked", () => {
     render(<AgentActivityItem event={baseEvent} isLast={false} />);
 
-    // Initially details are hidden
-    expect(screen.queryByText("Input Signals")).not.toBeInTheDocument();
+    // Click to expand using the Details button
+    fireEvent.click(screen.getByText("Details"));
 
-    // Click to expand
-    fireEvent.click(screen.getByText("Show details"));
-
-    // Now details should be visible
-    expect(screen.getByText("Input Signals")).toBeInTheDocument();
-    expect(screen.getByText("Agent Reasoning")).toBeInTheDocument();
+    // Now technical details should be visible (using glass-kv format)
+    expect(screen.getByText("Stock level")).toBeInTheDocument();
     expect(screen.getByText("100 units")).toBeInTheDocument();
+    expect(screen.getByText("Base price")).toBeInTheDocument();
     expect(screen.getByText("$25.00")).toBeInTheDocument();
+    expect(screen.getByText("Market reference")).toBeInTheDocument();
     expect(screen.getByText("$28.00")).toBeInTheDocument();
+    expect(screen.getByText("Time to decide")).toBeInTheDocument();
+    expect(screen.getByText("150 ms")).toBeInTheDocument();
   });
 
-  it("renders NO_PROMO action correctly", () => {
+  it("shows reason codes in expanded view", () => {
+    render(<AgentActivityItem event={baseEvent} isLast={false} />);
+    fireEvent.click(screen.getByText("Details"));
+    // Details panel now shows reason codes instead of quoted reasoning
+    expect(screen.getByText("Reason codes:")).toBeInTheDocument();
+    expect(screen.getByText("HIGH_INVENTORY, BELOW_MARKET")).toBeInTheDocument();
+  });
+
+  it("renders NO_PROMO outcome correctly", () => {
     const noPromoEvent: AgentActivityEvent = {
       ...baseEvent,
       decision: {
@@ -81,10 +92,15 @@ describe("AgentActivityItem", () => {
       },
     };
     render(<AgentActivityItem event={noPromoEvent} isLast={false} />);
-    expect(screen.getByText("NO PROMO")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "No promotion was applied — the agent determined pricing was already optimal."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("No change")).toBeInTheDocument();
   });
 
-  it("renders pending status with animation", () => {
+  it("renders pending status with evaluating message", () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { decision: _unused, ...baseEventWithoutDecision } = baseEvent;
     const pendingEvent: AgentActivityEvent = {
@@ -92,11 +108,14 @@ describe("AgentActivityItem", () => {
       status: "pending",
     };
     render(<AgentActivityItem event={pendingEvent} isLast={false} />);
-    // The component should still render without errors
+    expect(screen.getByText("Evaluating")).toBeInTheDocument();
     expect(screen.getByText("Classic T-Shirt")).toBeInTheDocument();
+    expect(
+      screen.getByText("Gathering context from the cart, inventory, and market signals…")
+    ).toBeInTheDocument();
   });
 
-  it("renders error status correctly", () => {
+  it("renders error status with error styling", () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { decision: _unused, ...baseEventWithoutDecision } = baseEvent;
     const errorEvent: AgentActivityEvent = {
@@ -106,14 +125,35 @@ describe("AgentActivityItem", () => {
     };
     render(<AgentActivityItem event={errorEvent} isLast={false} />);
 
-    // Expand to see error
-    fireEvent.click(screen.getByText("Show details"));
     expect(screen.getByText("Error")).toBeInTheDocument();
+    // Error message should be visible directly (not hidden)
     expect(screen.getByText("Agent timeout")).toBeInTheDocument();
   });
 
-  it("renders duration when available", () => {
-    render(<AgentActivityItem event={baseEvent} isLast={false} />);
-    expect(screen.getByText("150ms")).toBeInTheDocument();
+  it("displays 'Above market' position in expanded details", () => {
+    const aboveMarketEvent: AgentActivityEvent = {
+      ...baseEvent,
+      inputSignals: {
+        ...baseEvent.inputSignals,
+        competitionPosition: "above_market",
+      },
+    };
+    render(<AgentActivityItem event={aboveMarketEvent} isLast={false} />);
+    // Click to expand details
+    fireEvent.click(screen.getByText("Details"));
+    // Check that the price position shows "Above market" in the details
+    expect(screen.getByText("Price position")).toBeInTheDocument();
+    expect(screen.getByText("Above market")).toBeInTheDocument();
+  });
+
+  it("does not show Details button when pending", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { decision: _unused, ...baseEventWithoutDecision } = baseEvent;
+    const pendingEvent: AgentActivityEvent = {
+      ...baseEventWithoutDecision,
+      status: "pending",
+    };
+    render(<AgentActivityItem event={pendingEvent} isLast={false} />);
+    expect(screen.queryByText("Details")).not.toBeInTheDocument();
   });
 });
