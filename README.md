@@ -38,6 +38,12 @@ uvicorn src.merchant.main:app --reload
 # PSP Service (port 8001)
 uvicorn src.payment.main:app --reload --port 8001
 
+# NAT Agents (from src/agents/)
+cd src/agents
+uv pip install -e ".[dev]" --prerelease=allow
+nat serve --config_file configs/promotion.yml --port 8002      # Promotion Agent
+nat serve --config_file configs/post-purchase.yml --port 8003  # Post-Purchase Agent
+
 # Frontend UI (port 3000)
 cd src/ui
 cp env.example .env.local  # Configure API endpoints
@@ -47,8 +53,10 @@ pnpm install && pnpm run dev
 ### Verify
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8001/health
+curl http://localhost:8000/health  # Merchant API
+curl http://localhost:8001/health  # PSP Service
+curl http://localhost:8002/health  # Promotion Agent
+curl http://localhost:8003/health  # Post-Purchase Agent
 # Visit http://localhost:3000 for the UI
 ```
 
@@ -87,5 +95,6 @@ NEXT_PUBLIC_API_VERSION=2026-01-16
 | `docs/architecture.md` | System architecture |
 | `docs/acp-spec.md` | ACP protocol specification |
 | `docs/features.md` | Feature breakdown and status |
+| `src/agents/README.md` | NAT Agents documentation |
 | `CLAUDE.md` | Development guide for AI assistants |
 | `AGENTS.md` | Quick reference for contributors |
