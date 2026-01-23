@@ -674,10 +674,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
    * without waiting for context state to update
    */
   const submitPayment = useCallback(
-    async (
-      paymentInfoParam?: PaymentFormData,
-      billingAddressParam?: BillingAddressFormData
-    ) => {
+    async (paymentInfoParam?: PaymentFormData, billingAddressParam?: BillingAddressFormData) => {
       // Use provided params or fall back to context
       const paymentInfo = paymentInfoParam ?? context.paymentInfo;
       const billingAddress = billingAddressParam ?? context.billingAddress;
@@ -712,170 +709,178 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         postal_code: addressParts[2]?.split(" ")[1] || "94102",
       };
 
-    const delegateEventId = loggerRef.current?.logEvent(
-      "delegate_payment",
-      "POST",
-      "/agentic_commerce/delegate_payment",
-      `Delegate $${(totalAmount / 100).toFixed(2)}`
-    );
-
-    try {
-      const delegateResponse = await delegatePayment({
-        payment_method: {
-          type: "card",
-          card_number_type: "fpan",
-          virtual: false,
-          number: cardNumber,
-          exp_month: expMonth,
-          exp_year: fullExpYear,
-          display_card_funding_type: "credit",
-          display_last4: last4,
-        },
-        allowance: {
-          reason: "one_time",
-          max_amount: totalAmount,
-          currency: context.session.currency,
-          checkout_session_id: context.sessionId,
-          merchant_id: "merchant_nvshop",
-          expires_at: expiresAt,
-        },
-        risk_signals: [
-          {
-            type: "card_testing",
-            action: "authorized",
-          },
-        ],
-        billing_address: billingAddressData,
-      });
-
-      if (delegateEventId) {
-        loggerRef.current?.completeEvent(
-          delegateEventId,
-          "success",
-          `Vault token: ${delegateResponse.id.slice(0, 10)}...`,
-          201
-        );
-      }
-
-      dispatch({ type: "PAYMENT_DELEGATED", vaultToken: delegateResponse.id });
-
-      // Step 2: Complete checkout with vault token
-      const completeEventId = loggerRef.current?.logEvent(
-        "session_complete",
+      const delegateEventId = loggerRef.current?.logEvent(
+        "delegate_payment",
         "POST",
-        `/checkout_sessions/${truncateId(context.sessionId)}/complete`,
-        "Process payment"
+        "/agentic_commerce/delegate_payment",
+        `Delegate $${(totalAmount / 100).toFixed(2)}`
       );
 
-      const completedSession = await completeCheckout(context.sessionId, {
-        payment_data: {
-          token: delegateResponse.id,
-          provider: "stripe",
+      try {
+        const delegateResponse = await delegatePayment({
+          payment_method: {
+            type: "card",
+            card_number_type: "fpan",
+            virtual: false,
+            number: cardNumber,
+            exp_month: expMonth,
+            exp_year: fullExpYear,
+            display_card_funding_type: "credit",
+            display_last4: last4,
+          },
+          allowance: {
+            reason: "one_time",
+            max_amount: totalAmount,
+            currency: context.session.currency,
+            checkout_session_id: context.sessionId,
+            merchant_id: "merchant_nvshop",
+            expires_at: expiresAt,
+          },
+          risk_signals: [
+            {
+              type: "card_testing",
+              action: "authorized",
+            },
+          ],
           billing_address: billingAddressData,
-        },
-      });
+        });
 
-      // Check if 3DS is required
-      if (completedSession.status === "authentication_required") {
-        if (completeEventId) {
-          loggerRef.current?.completeEvent(completeEventId, "success", "3DS required", 200);
-        }
-        dispatch({ type: "AUTHENTICATION_REQUIRED", session: completedSession });
-        // For now, we'll simulate 3DS completion after a delay
-        // In production, this would redirect to the 3DS URL
-        setTimeout(async () => {
-          const authEventId = loggerRef.current?.logEvent(
-            "session_complete",
-            "POST",
-            `/checkout_sessions/${truncateId(context.sessionId!)}/complete`,
-            "3DS authentication"
+        if (delegateEventId) {
+          loggerRef.current?.completeEvent(
+            delegateEventId,
+            "success",
+            `Vault token: ${delegateResponse.id.slice(0, 10)}...`,
+            201
           );
-          try {
-            const finalSession = await completeCheckout(context.sessionId!, {
-              payment_data: {
-                token: delegateResponse.id,
-                provider: "stripe",
-              },
-              authentication_result: {
-                outcome: "authenticated",
-                outcome_details: {
-                  three_ds_cryptogram: "AAIBBYNoEQAAAAAAg4PyBhdAEQs=",
-                  electronic_commerce_indicator: "05",
-                  transaction_id: crypto.randomUUID(),
-                  version: "2.2.0",
-                },
-              },
-            });
-            if (authEventId) {
-              loggerRef.current?.completeEvent(
-                authEventId,
-                "success",
-                `Order: ${finalSession.order?.id.slice(0, 10)}...`,
-                200
-              );
-            }
-            dispatch({ type: "PAYMENT_COMPLETE", session: finalSession });
+        }
 
-            // Trigger Post-Purchase Agent after successful payment
-            // Extract first name from billing address (use full name if no space)
-            const customerFirstName = billingAddress?.fullName?.split(" ")[0] ?? DEFAULT_BUYER.first_name;
-            if (finalSession.order?.id && context.selectedProduct && context.sessionId) {
-              triggerPostPurchaseAgent(
-                finalSession.order.id,
-                context.selectedProduct.name,
-                context.sessionId,
-                customerFirstName
-              );
-            }
-          } catch (error) {
-            if (authEventId) {
-              loggerRef.current?.completeEvent(authEventId, "error", "Payment failed", 400);
-            }
-            dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+        dispatch({ type: "PAYMENT_DELEGATED", vaultToken: delegateResponse.id });
+
+        // Step 2: Complete checkout with vault token
+        const completeEventId = loggerRef.current?.logEvent(
+          "session_complete",
+          "POST",
+          `/checkout_sessions/${truncateId(context.sessionId)}/complete`,
+          "Process payment"
+        );
+
+        const completedSession = await completeCheckout(context.sessionId, {
+          payment_data: {
+            token: delegateResponse.id,
+            provider: "stripe",
+            billing_address: billingAddressData,
+          },
+        });
+
+        // Check if 3DS is required
+        if (completedSession.status === "authentication_required") {
+          if (completeEventId) {
+            loggerRef.current?.completeEvent(completeEventId, "success", "3DS required", 200);
           }
-        }, 2000);
-      } else if (completedSession.status === "completed") {
-        if (completeEventId) {
-          loggerRef.current?.completeEvent(
-            completeEventId,
-            "success",
-            `Order: ${completedSession.order?.id.slice(0, 10)}...`,
-            200
-          );
-        }
-        dispatch({ type: "PAYMENT_COMPLETE", session: completedSession });
+          dispatch({ type: "AUTHENTICATION_REQUIRED", session: completedSession });
+          // For now, we'll simulate 3DS completion after a delay
+          // In production, this would redirect to the 3DS URL
+          setTimeout(async () => {
+            const authEventId = loggerRef.current?.logEvent(
+              "session_complete",
+              "POST",
+              `/checkout_sessions/${truncateId(context.sessionId!)}/complete`,
+              "3DS authentication"
+            );
+            try {
+              const finalSession = await completeCheckout(context.sessionId!, {
+                payment_data: {
+                  token: delegateResponse.id,
+                  provider: "stripe",
+                },
+                authentication_result: {
+                  outcome: "authenticated",
+                  outcome_details: {
+                    three_ds_cryptogram: "AAIBBYNoEQAAAAAAg4PyBhdAEQs=",
+                    electronic_commerce_indicator: "05",
+                    transaction_id: crypto.randomUUID(),
+                    version: "2.2.0",
+                  },
+                },
+              });
+              if (authEventId) {
+                loggerRef.current?.completeEvent(
+                  authEventId,
+                  "success",
+                  `Order: ${finalSession.order?.id.slice(0, 10)}...`,
+                  200
+                );
+              }
+              dispatch({ type: "PAYMENT_COMPLETE", session: finalSession });
 
-        // Trigger Post-Purchase Agent after successful payment
-        // Extract first name from billing address (use full name if no space)
-        const customerName = billingAddress?.fullName?.split(" ")[0] ?? DEFAULT_BUYER.first_name;
-        if (completedSession.order?.id && context.selectedProduct && context.sessionId) {
-          triggerPostPurchaseAgent(
-            completedSession.order.id,
-            context.selectedProduct.name,
-            context.sessionId,
-            customerName
-          );
+              // Trigger Post-Purchase Agent after successful payment
+              // Extract first name from billing address (use full name if no space)
+              const customerFirstName =
+                billingAddress?.fullName?.split(" ")[0] ?? DEFAULT_BUYER.first_name;
+              if (finalSession.order?.id && context.selectedProduct && context.sessionId) {
+                triggerPostPurchaseAgent(
+                  finalSession.order.id,
+                  context.selectedProduct.name,
+                  context.sessionId,
+                  customerFirstName
+                );
+              }
+            } catch (error) {
+              if (authEventId) {
+                loggerRef.current?.completeEvent(authEventId, "error", "Payment failed", 400);
+              }
+              dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+            }
+          }, 2000);
+        } else if (completedSession.status === "completed") {
+          if (completeEventId) {
+            loggerRef.current?.completeEvent(
+              completeEventId,
+              "success",
+              `Order: ${completedSession.order?.id.slice(0, 10)}...`,
+              200
+            );
+          }
+          dispatch({ type: "PAYMENT_COMPLETE", session: completedSession });
+
+          // Trigger Post-Purchase Agent after successful payment
+          // Extract first name from billing address (use full name if no space)
+          const customerName = billingAddress?.fullName?.split(" ")[0] ?? DEFAULT_BUYER.first_name;
+          if (completedSession.order?.id && context.selectedProduct && context.sessionId) {
+            triggerPostPurchaseAgent(
+              completedSession.order.id,
+              context.selectedProduct.name,
+              context.sessionId,
+              customerName
+            );
+          }
+        } else {
+          if (completeEventId) {
+            loggerRef.current?.completeEvent(
+              completeEventId,
+              "success",
+              `Status: ${completedSession.status}`,
+              200
+            );
+          }
+          // Handle other statuses
+          dispatch({ type: "SESSION_UPDATED", session: completedSession });
         }
-      } else {
-        if (completeEventId) {
-          loggerRef.current?.completeEvent(
-            completeEventId,
-            "success",
-            `Status: ${completedSession.status}`,
-            200
-          );
+      } catch (error) {
+        if (delegateEventId) {
+          loggerRef.current?.completeEvent(delegateEventId, "error", "Payment failed", 400);
         }
-        // Handle other statuses
-        dispatch({ type: "SESSION_UPDATED", session: completedSession });
+        dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
-    } catch (error) {
-      if (delegateEventId) {
-        loggerRef.current?.completeEvent(delegateEventId, "error", "Payment failed", 400);
-      }
-      dispatch({ type: "SET_ERROR", error: createAPIError(error) });
-    }
     },
-    [context.sessionId, context.session, context.selectedProduct, context.paymentInfo, context.billingAddress, triggerPostPurchaseAgent]
+    [
+      context.sessionId,
+      context.session,
+      context.selectedProduct,
+      context.paymentInfo,
+      context.billingAddress,
+      triggerPostPurchaseAgent,
+    ]
   );
 
   /**

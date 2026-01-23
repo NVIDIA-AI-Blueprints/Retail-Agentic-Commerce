@@ -384,8 +384,7 @@ export function AgentPanel() {
     showCheckoutModal && context.checkoutStep === "summary" && context.state === "checkout";
 
   // Show payment form step (second step - with Pay Now button)
-  const showPaymentFormStep =
-    showCheckoutModal && context.checkoutStep === "payment";
+  const showPaymentFormStep = showCheckoutModal && context.checkoutStep === "payment";
 
   // Show confirmation in modal
   const showConfirmationModal =

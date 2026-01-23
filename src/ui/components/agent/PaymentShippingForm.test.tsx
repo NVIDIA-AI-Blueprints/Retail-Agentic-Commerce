@@ -32,7 +32,6 @@ describe("PaymentShippingForm", () => {
       expect(screen.getByRole("button", { name: /pay now/i })).toBeInTheDocument();
     });
 
-
     it("renders back button when onBack is provided", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} onBack={mockOnBack} />);
       expect(screen.getByRole("button", { name: /go back/i })).toBeInTheDocument();
@@ -90,10 +89,7 @@ describe("PaymentShippingForm", () => {
 
     it("uses initial payment info when provided", () => {
       render(
-        <PaymentShippingForm
-          onSubmit={mockOnSubmit}
-          initialPaymentInfo={initialPaymentInfo}
-        />
+        <PaymentShippingForm onSubmit={mockOnSubmit} initialPaymentInfo={initialPaymentInfo} />
       );
       const cardInput = screen.getByLabelText(/card number/i);
       expect(cardInput).toHaveValue("5555 5555 5555 4444");
@@ -115,7 +111,7 @@ describe("PaymentShippingForm", () => {
     it("formats card number with spaces every 4 digits", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
-      
+
       fireEvent.change(cardInput, { target: { value: "1234567890123456" } });
       expect(cardInput).toHaveValue("1234 5678 9012 3456");
     });
@@ -123,7 +119,7 @@ describe("PaymentShippingForm", () => {
     it("limits card number to 16 digits", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
-      
+
       fireEvent.change(cardInput, { target: { value: "12345678901234567890" } });
       expect(cardInput).toHaveValue("1234 5678 9012 3456");
     });
@@ -131,7 +127,7 @@ describe("PaymentShippingForm", () => {
     it("removes non-numeric characters from card number", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
-      
+
       fireEvent.change(cardInput, { target: { value: "1234-5678-9012-3456" } });
       expect(cardInput).toHaveValue("1234 5678 9012 3456");
     });
@@ -141,7 +137,7 @@ describe("PaymentShippingForm", () => {
     it("formats expiration date as MM/YY", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const expirationInput = screen.getByLabelText(/expiration date/i);
-      
+
       fireEvent.change(expirationInput, { target: { value: "1230" } });
       expect(expirationInput).toHaveValue("12/30");
     });
@@ -149,7 +145,7 @@ describe("PaymentShippingForm", () => {
     it("limits expiration date to 4 digits", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const expirationInput = screen.getByLabelText(/expiration date/i);
-      
+
       fireEvent.change(expirationInput, { target: { value: "123456" } });
       expect(expirationInput).toHaveValue("12/34");
     });
@@ -159,7 +155,7 @@ describe("PaymentShippingForm", () => {
     it("limits security code to 4 digits", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const securityInput = screen.getByLabelText(/security code/i);
-      
+
       fireEvent.change(securityInput, { target: { value: "12345" } });
       expect(securityInput).toHaveValue("1234");
     });
@@ -167,7 +163,7 @@ describe("PaymentShippingForm", () => {
     it("removes non-numeric characters from security code", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const securityInput = screen.getByLabelText(/security code/i);
-      
+
       fireEvent.change(securityInput, { target: { value: "abc123" } });
       expect(securityInput).toHaveValue("123");
     });
@@ -184,7 +180,7 @@ describe("PaymentShippingForm", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
       const payButton = screen.getByRole("button", { name: /pay now/i });
-      
+
       fireEvent.change(cardInput, { target: { value: "1234" } });
       expect(payButton).toBeDisabled();
     });
@@ -193,7 +189,7 @@ describe("PaymentShippingForm", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const expirationInput = screen.getByLabelText(/expiration date/i);
       const payButton = screen.getByRole("button", { name: /pay now/i });
-      
+
       fireEvent.change(expirationInput, { target: { value: "12" } });
       expect(payButton).toBeDisabled();
     });
@@ -202,7 +198,7 @@ describe("PaymentShippingForm", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const securityInput = screen.getByLabelText(/security code/i);
       const payButton = screen.getByRole("button", { name: /pay now/i });
-      
+
       fireEvent.change(securityInput, { target: { value: "12" } });
       expect(payButton).toBeDisabled();
     });
@@ -211,7 +207,7 @@ describe("PaymentShippingForm", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const nameInput = screen.getByLabelText(/full name/i);
       const payButton = screen.getByRole("button", { name: /pay now/i });
-      
+
       fireEvent.change(nameInput, { target: { value: "" } });
       expect(payButton).toBeDisabled();
     });
@@ -220,7 +216,7 @@ describe("PaymentShippingForm", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const addressInput = screen.getByLabelText(/^address$/i);
       const payButton = screen.getByRole("button", { name: /pay now/i });
-      
+
       fireEvent.change(addressInput, { target: { value: "" } });
       expect(payButton).toBeDisabled();
     });
@@ -230,9 +226,9 @@ describe("PaymentShippingForm", () => {
     it("calls onSubmit with payment info and billing address when clicking pay now", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const payButton = screen.getByRole("button", { name: /pay now/i });
-      
+
       fireEvent.click(payButton);
-      
+
       expect(mockOnSubmit).toHaveBeenCalledWith(
         {
           cardNumber: "4242424242424242",
@@ -250,19 +246,19 @@ describe("PaymentShippingForm", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
       const payButton = screen.getByRole("button", { name: /pay now/i });
-      
+
       fireEvent.change(cardInput, { target: { value: "1234" } });
       fireEvent.click(payButton);
-      
+
       expect(mockOnSubmit).not.toHaveBeenCalled();
     });
 
     it("calls onBack when back button is clicked", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} onBack={mockOnBack} />);
       const backButton = screen.getByRole("button", { name: /go back/i });
-      
+
       fireEvent.click(backButton);
-      
+
       expect(mockOnBack).toHaveBeenCalled();
     });
   });
@@ -281,7 +277,7 @@ describe("PaymentShippingForm", () => {
 
     it("disables all inputs when processing", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} isProcessing={true} />);
-      
+
       expect(screen.getByLabelText(/card number/i)).toBeDisabled();
       expect(screen.getByLabelText(/expiration date/i)).toBeDisabled();
       expect(screen.getByLabelText(/security code/i)).toBeDisabled();
@@ -294,7 +290,7 @@ describe("PaymentShippingForm", () => {
     it("accepts Visa card numbers", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
-      
+
       // Default is Visa (4242...)
       expect(cardInput).toHaveValue("4242 4242 4242 4242");
     });
@@ -302,7 +298,7 @@ describe("PaymentShippingForm", () => {
     it("accepts Mastercard numbers", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
-      
+
       fireEvent.change(cardInput, { target: { value: "5555555555554444" } });
       expect(cardInput).toHaveValue("5555 5555 5555 4444");
     });
@@ -310,7 +306,7 @@ describe("PaymentShippingForm", () => {
     it("accepts Amex numbers", () => {
       render(<PaymentShippingForm onSubmit={mockOnSubmit} />);
       const cardInput = screen.getByLabelText(/card number/i);
-      
+
       fireEvent.change(cardInput, { target: { value: "3782822463100005" } });
       expect(cardInput).toHaveValue("3782 8224 6310 0005");
     });

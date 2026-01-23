@@ -4,10 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Card, Text, Button, Stack, Flex, Divider } from "@kui/foundations-react-external";
 import { CreditCard, ChevronLeft } from "@/components/icons";
 import type { PaymentFormData, BillingAddressFormData } from "@/types";
-import {
-  DEFAULT_PAYMENT_FORM,
-  DEFAULT_BILLING_ADDRESS,
-} from "@/types";
+import { DEFAULT_PAYMENT_FORM, DEFAULT_BILLING_ADDRESS } from "@/types";
 
 /**
  * Styled input component using NVIDIA KUI native classes
@@ -17,16 +14,8 @@ type StyledInputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 function StyledInput({ style, ...props }: StyledInputProps) {
   return (
-    <div 
-      data-testid="nv-text-input-root" 
-      className="nv-input nv-text-input-root"
-      style={style}
-    >
-      <input
-        {...props}
-        data-testid="nv-text-input-element"
-        className="nv-text-input-element"
-      />
+    <div data-testid="nv-text-input-root" className="nv-input nv-text-input-root" style={style}>
+      <input {...props} data-testid="nv-text-input-element" className="nv-text-input-element" />
     </div>
   );
 }
@@ -145,18 +134,14 @@ export function PaymentShippingForm({
               <ChevronLeft className="w-5 h-5 text-secondary" />
             </button>
           )}
-          <Text kind="label/bold/md">
-            Add payment method
-          </Text>
+          <Text kind="label/bold/md">Add payment method</Text>
         </Flex>
 
         {/* Card Section */}
         <Stack gap="2">
           <Flex align="center" gap="2">
             <CreditCard className="w-4 h-4 text-secondary" />
-            <Text kind="label/semibold/sm">
-              Card
-            </Text>
+            <Text kind="label/semibold/sm">Card</Text>
           </Flex>
 
           {/* Card Number */}
@@ -209,9 +194,7 @@ export function PaymentShippingForm({
 
         {/* Billing Address Section */}
         <Stack gap="2">
-          <Text kind="label/semibold/sm">
-            Billing address
-          </Text>
+          <Text kind="label/semibold/sm">Billing address</Text>
           {/* Full Name */}
           <StyledInput
             type="text"
@@ -231,8 +214,6 @@ export function PaymentShippingForm({
             aria-label="Address"
           />
         </Stack>
-
-
 
         <Divider />
 
