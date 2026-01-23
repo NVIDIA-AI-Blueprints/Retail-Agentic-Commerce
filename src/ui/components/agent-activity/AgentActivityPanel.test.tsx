@@ -23,7 +23,9 @@ describe("AgentActivityPanel", () => {
     renderWithProviders(<AgentActivityPanel />);
     expect(screen.getByText("Waiting to observe")).toBeInTheDocument();
     expect(
-      screen.getByText("When you start a checkout, the AI agent will evaluate the context and make real-time decisions here.")
+      screen.getByText(
+        "When you start a checkout, the AI agent will evaluate the context and make real-time decisions here."
+      )
     ).toBeInTheDocument();
   });
 });

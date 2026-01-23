@@ -47,7 +47,10 @@ function getActionInfo(action: string): {
 /**
  * Get human-readable outcome for promotion actions
  */
-function getOutcomeInfo(action: string, amount: number): {
+function getOutcomeInfo(
+  action: string,
+  amount: number
+): {
   label: string;
   valueText: string;
   isPositive: boolean;
@@ -55,16 +58,26 @@ function getOutcomeInfo(action: string, amount: number): {
 } {
   const formattedAmount = `$${(amount / 100).toFixed(2)}`;
   const actionInfo = getActionInfo(action);
-  
+
   switch (action) {
     case "DISCOUNT_5_PCT":
     case "DISCOUNT_10_PCT":
     case "DISCOUNT_15_PCT":
-      return { label: `${actionInfo.label} based on current checkout context.`, valueText: `−${formattedAmount}`, isPositive: true, actionInfo };
+      return {
+        label: `${actionInfo.label} based on current checkout context.`,
+        valueText: `−${formattedAmount}`,
+        isPositive: true,
+        actionInfo,
+      };
     case "FREE_SHIPPING":
       return { label: "Free shipping applied", valueText: "Free", isPositive: true, actionInfo };
     case "NO_PROMO":
-      return { label: "No promotion was applied — the agent determined pricing was already optimal.", valueText: "$0.00", isPositive: false, actionInfo };
+      return {
+        label: "No promotion was applied — the agent determined pricing was already optimal.",
+        valueText: "$0.00",
+        isPositive: false,
+        actionInfo,
+      };
     default:
       return { label: action, valueText: "$0.00", isPositive: false, actionInfo };
   }
@@ -117,38 +130,70 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
       {/* Decision Card */}
       <div className={`glass-decision ${isHighlight ? "highlight" : ""}`}>
         {/* Header row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "12px",
+          }}
+        >
           <div className="glass-kicker">
-            <span style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: isPending
-                ? "rgba(255, 255, 255, 0.4)"
-                : isError
-                  ? "#FF6B6B"
-                  : "rgba(118, 185, 0, 0.9)",
-              boxShadow: isPending
-                ? "none"
-                : isError
-                  ? "0 0 0 4px rgba(255, 107, 107, 0.12)"
-                  : "0 0 0 4px rgba(118, 185, 0, 0.12)",
-              display: "inline-block"
-            }}></span>
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: isPending
+                  ? "rgba(255, 255, 255, 0.4)"
+                  : isError
+                    ? "#FF6B6B"
+                    : "rgba(118, 185, 0, 0.9)",
+                boxShadow: isPending
+                  ? "none"
+                  : isError
+                    ? "0 0 0 4px rgba(255, 107, 107, 0.12)"
+                    : "0 0 0 4px rgba(118, 185, 0, 0.12)",
+                display: "inline-block",
+              }}
+            ></span>
             {typeInfo.label} Decision
           </div>
-          <div className={`glass-pill ${isPending ? "yellow" : isError ? "" : outcomeInfo?.isPositive ? "green" : ""}`}>
-            {isPending ? "Evaluating" : isError ? "Error" : outcomeInfo?.isPositive ? "Applied" : "No change"}
+          <div
+            className={`glass-pill ${isPending ? "yellow" : isError ? "" : outcomeInfo?.isPositive ? "green" : ""}`}
+          >
+            {isPending
+              ? "Evaluating"
+              : isError
+                ? "Error"
+                : outcomeInfo?.isPositive
+                  ? "Applied"
+                  : "No change"}
           </div>
         </div>
 
         {/* Product Name */}
-        <div style={{ marginTop: "8px", fontSize: "13px", color: "var(--text-secondary)", fontWeight: "650" }}>
+        <div
+          style={{
+            marginTop: "8px",
+            fontSize: "13px",
+            color: "var(--text-secondary)",
+            fontWeight: "650",
+          }}
+        >
           {event.inputSignals.productName}
         </div>
 
         {/* Summary and Value */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "10px", gap: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            marginTop: "10px",
+            gap: "12px",
+          }}
+        >
           <div style={{ color: "var(--text-muted)", fontSize: "12px", lineHeight: "1.35" }}>
             {isPending
               ? "Gathering context from the cart, inventory, and market signals…"
@@ -163,7 +208,14 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
         {llmReasoning && !isPending && !isError && (
           <div className="glass-section">
             <h3>Why this happened</h3>
-            <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "12px", lineHeight: "1.45" }}>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--text-secondary)",
+                fontSize: "12px",
+                lineHeight: "1.45",
+              }}
+            >
               {llmReasoning}
             </p>
           </div>
@@ -171,22 +223,31 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
 
         {/* Error message */}
         {isError && event.error && (
-          <div style={{
-            marginTop: "12px",
-            padding: "10px 12px",
-            borderRadius: "14px",
-            border: "1px solid rgba(255, 107, 107, 0.25)",
-            background: "rgba(255, 107, 107, 0.08)",
-            fontSize: "12px",
-            color: "#FF6B6B"
-          }}>
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "10px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255, 107, 107, 0.25)",
+              background: "rgba(255, 107, 107, 0.08)",
+              fontSize: "12px",
+              color: "#FF6B6B",
+            }}
+          >
             {event.error}
           </div>
         )}
 
         {/* Details toggle */}
         {!isPending && (
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: "12px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              marginTop: "12px",
+            }}
+          >
             <button
               className="glass-details-toggle"
               onClick={toggleExpanded}
@@ -214,7 +275,9 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
                 </>
               )}
               <div className="k">Inventory state</div>
-              <div className="v">{event.inputSignals.inventoryPressure === "high" ? "High" : "Normal"}</div>
+              <div className="v">
+                {event.inputSignals.inventoryPressure === "high" ? "High" : "Normal"}
+              </div>
               <div className="k">Price position</div>
               <div className="v">
                 {event.inputSignals.competitionPosition === "above_market"

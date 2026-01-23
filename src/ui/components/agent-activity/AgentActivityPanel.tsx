@@ -29,28 +29,67 @@ function getHumanReadableAction(action: string): string {
  */
 function EmptyState() {
   return (
-    <div className="glass-content" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, padding: "48px 24px", textAlign: "center" }}>
-      {/* Icon */}
-      <div style={{
-        width: "48px",
-        height: "48px",
-        borderRadius: "14px",
-        background: "var(--block-bg)",
-        border: "1px solid var(--glass-border)",
+    <div
+      className="glass-content"
+      style={{
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: "16px"
-      }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-muted)" }}>
+        flex: 1,
+        padding: "48px 24px",
+        textAlign: "center",
+      }}
+    >
+      {/* Icon */}
+      <div
+        style={{
+          width: "48px",
+          height: "48px",
+          borderRadius: "14px",
+          background: "var(--block-bg)",
+          border: "1px solid var(--glass-border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "16px",
+        }}
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ color: "var(--text-muted)" }}
+        >
           <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
       </div>
-      <h3 style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>
+      <h3
+        style={{
+          margin: "0 0 8px",
+          fontSize: "14px",
+          fontWeight: "600",
+          color: "var(--text-secondary)",
+        }}
+      >
         Waiting to observe
       </h3>
-      <p style={{ margin: 0, fontSize: "12px", color: "var(--text-muted)", lineHeight: "1.45", maxWidth: "260px" }}>
-        When you start a checkout, the AI agent will evaluate the context and make real-time decisions here.
+      <p
+        style={{
+          margin: 0,
+          fontSize: "12px",
+          color: "var(--text-muted)",
+          lineHeight: "1.45",
+          maxWidth: "260px",
+        }}
+      >
+        When you start a checkout, the AI agent will evaluate the context and make real-time
+        decisions here.
       </p>
     </div>
   );
@@ -89,9 +128,24 @@ function ActiveAgentActivity() {
   return (
     <div className="glass-content">
       {/* Title Section */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "12px",
+          marginBottom: "12px",
+        }}
+      >
         <div>
-          <h2 style={{ margin: 0, fontSize: "16px", letterSpacing: "0.2px", color: "var(--text-primary)" }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "16px",
+              letterSpacing: "0.2px",
+              color: "var(--text-primary)",
+            }}
+          >
             Autonomous Decisions
           </h2>
         </div>
@@ -130,8 +184,16 @@ function ActiveAgentActivity() {
                     ? `${getHumanReadableAction(event.decision.action)} for ${event.inputSignals.productName}`
                     : `Processed ${event.inputSignals.productName}`}
               </div>
-              <div className={`glass-tag ${event.status === "success" ? "green" : event.status === "error" ? "" : "yellow"}`}>
-                {event.status === "pending" ? "EVALUATING" : event.status === "success" ? "DECIDED" : event.status === "error" ? "ERROR" : "SKIPPED"}
+              <div
+                className={`glass-tag ${event.status === "success" ? "green" : event.status === "error" ? "" : "yellow"}`}
+              >
+                {event.status === "pending"
+                  ? "EVALUATING"
+                  : event.status === "success"
+                    ? "DECIDED"
+                    : event.status === "error"
+                      ? "ERROR"
+                      : "SKIPPED"}
               </div>
             </div>
           ))}
@@ -151,7 +213,10 @@ export function AgentActivityPanel() {
   const hasEvents = state.events.length > 0;
 
   return (
-    <section className="glass-panel flex-1 flex flex-col h-full overflow-hidden" aria-label="Agent Activity Panel">
+    <section
+      className="glass-panel flex-1 flex flex-col h-full overflow-hidden"
+      aria-label="Agent Activity Panel"
+    >
       {/* Glass Panel Header */}
       <div className="glass-panel-header">
         <div className={`glass-badge ${hasEvents ? "green" : "gray"}`}>
