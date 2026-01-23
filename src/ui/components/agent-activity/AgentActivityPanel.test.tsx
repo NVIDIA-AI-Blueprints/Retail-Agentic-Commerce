@@ -19,11 +19,11 @@ describe("AgentActivityPanel", () => {
     expect(screen.getByRole("region", { name: "Agent Activity Panel" })).toBeInTheDocument();
   });
 
-  it("renders empty state when no agent activity", () => {
+  it("renders empty state with waiting message", () => {
     renderWithProviders(<AgentActivityPanel />);
-    expect(screen.getByText("No agent activity")).toBeInTheDocument();
+    expect(screen.getByText("Waiting to observe")).toBeInTheDocument();
     expect(
-      screen.getByText("Agent decisions will appear here when products are added to checkout.")
+      screen.getByText("When you start a checkout, the AI agent will evaluate the context and make real-time decisions here.")
     ).toBeInTheDocument();
   });
 });
