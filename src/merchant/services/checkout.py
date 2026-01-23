@@ -127,6 +127,7 @@ def _calculate_line_item(
     quantity: int,
     discount_per_unit: int = 0,
     promotion_info: dict[str, Any] | None = None,
+    line_item_id: str | None = None,
 ) -> dict[str, Any]:
     """Calculate line item totals for a product.
 
@@ -135,6 +136,7 @@ def _calculate_line_item(
         quantity: Quantity ordered.
         discount_per_unit: Discount amount per unit in cents (default 0).
         promotion_info: Optional promotion metadata (action, reason_codes, reasoning).
+        line_item_id: Optional existing line item ID to preserve (for updates).
 
     Returns:
         Dictionary with line item data for JSON storage.
@@ -146,7 +148,7 @@ def _calculate_line_item(
     total = subtotal + tax
 
     line_item: dict[str, Any] = {
-        "id": _generate_line_item_id(),
+        "id": line_item_id or _generate_line_item_id(),
         "item": {
             "id": product.id,
             "quantity": quantity,
@@ -194,6 +196,48 @@ async def _calculate_line_item_with_promotion(
         quantity=quantity,
         discount_per_unit=promotion_result["discount"],
         promotion_info=promotion_result,
+    )
+
+
+def _recalculate_line_item_from_existing(
+    product: Product,
+    quantity: int,
+    existing_line_item: dict[str, Any],
+) -> dict[str, Any]:
+    """Recalculate line item totals using existing promotion data.
+
+    This function is used during session updates to avoid re-calling the
+    promotion agent. It preserves the per-unit discount from the original
+    promotion decision and recalculates totals for the new quantity.
+
+    Args:
+        product: Product database model.
+        quantity: New quantity ordered.
+        existing_line_item: Existing line item data with promotion info.
+
+    Returns:
+        Dictionary with recalculated line item data.
+    """
+    # Extract per-unit discount from existing line item
+    existing_quantity = existing_line_item["item"]["quantity"]
+    existing_discount = existing_line_item.get("discount", 0)
+
+    # Calculate per-unit discount (avoid division by zero)
+    if existing_quantity > 0:
+        discount_per_unit = existing_discount // existing_quantity
+    else:
+        discount_per_unit = 0
+
+    # Preserve existing promotion metadata
+    promotion_info = existing_line_item.get("promotion")
+
+    # Recalculate with new quantity, preserving the line item ID
+    return _calculate_line_item(
+        product=product,
+        quantity=quantity,
+        discount_per_unit=discount_per_unit,
+        promotion_info=promotion_info,
+        line_item_id=existing_line_item["id"],
     )
 
 
@@ -664,7 +708,9 @@ async def update_checkout_session(
 ) -> CheckoutSessionResponse:
     """Update a checkout session.
 
-    Recalculates promotions when items are updated, using fail-open behavior.
+    Reuses existing promotion data when items are updated to avoid
+    re-calling the promotion agent. Only session creation triggers
+    the promotion agent.
 
     Args:
         db: Database session.
@@ -690,17 +736,32 @@ async def update_checkout_session(
     if session.status in (CheckoutStatus.COMPLETED, CheckoutStatus.CANCELED):
         raise InvalidStateTransitionError(session.status.value, "update")
 
-    # Update items if provided (recalculate promotions)
+    # Update items if provided (reuse existing promotion data, no agent call)
     if request.items is not None:
+        # Build lookup of existing line items by product ID
+        existing_line_items: list[dict[str, Any]] = json.loads(session.line_items_json)
+        existing_by_product_id: dict[str, dict[str, Any]] = {
+            li["item"]["id"]: li for li in existing_line_items
+        }
+
         new_line_items: list[dict[str, Any]] = []
         for item in request.items:
             product = db.exec(select(Product).where(Product.id == item.id)).first()
             if product is None:
                 raise ProductNotFoundError(item.id)
-            # Recalculate with promotion discount
-            line_item = await _calculate_line_item_with_promotion(
-                db, product, item.quantity
-            )
+
+            # Check if this product has existing promotion data
+            existing_li = existing_by_product_id.get(item.id)
+            if existing_li is not None:
+                # Reuse existing promotion, just recalculate totals for new quantity
+                line_item = _recalculate_line_item_from_existing(
+                    product, item.quantity, existing_li
+                )
+            else:
+                # New product added to cart - call promotion agent
+                line_item = await _calculate_line_item_with_promotion(
+                    db, product, item.quantity
+                )
             new_line_items.append(line_item)
         session.line_items_json = json.dumps(new_line_items)
 
