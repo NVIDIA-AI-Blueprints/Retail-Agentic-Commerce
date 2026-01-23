@@ -111,3 +111,13 @@ declare module "@kui/foundations-design-tokens" {
   export const designTokens: Record<string, unknown>;
   export function getColor(color: string): string;
 }
+
+declare module "@/kui-foundations-react-external/nebula" {
+  import type { FC } from "react";
+
+  export interface NebulaProps {
+    variant?: "ambient" | "interactive" | "static";
+    className?: string;
+  }
+  export const Nebula: FC<NebulaProps>;
+}

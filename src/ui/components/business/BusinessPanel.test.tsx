@@ -21,7 +21,7 @@ describe("BusinessPanel", () => {
 
   it("renders empty state message when no checkout is active", () => {
     renderWithProviders(<BusinessPanel />);
-    // New simplified empty state with waiting message
+    // Glassmorphic empty state with waiting message
     expect(screen.getByText("No active session")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -30,8 +30,12 @@ describe("BusinessPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders Simulate API button in header", () => {
-    renderWithProviders(<BusinessPanel />);
-    expect(screen.getByRole("button", { name: "Simulate API" })).toBeInTheDocument();
+  it("renders glass panel header with badge", () => {
+    const { container } = renderWithProviders(<BusinessPanel />);
+    // Check for glassmorphic styling classes
+    const header = container.querySelector(".glass-panel-header");
+    expect(header).toBeInTheDocument();
+    const badge = container.querySelector(".glass-badge");
+    expect(badge).toBeInTheDocument();
   });
 });

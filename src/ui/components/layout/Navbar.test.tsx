@@ -23,9 +23,9 @@ describe("Navbar", () => {
     expect(title).toBeInTheDocument();
   });
 
-  it("has proper styling with border", () => {
+  it("has transparent header styling", () => {
     const { container } = render(<Navbar />);
     const wrapper = container.firstChild;
-    expect(wrapper).toHaveClass("border-b");
+    expect(wrapper).toHaveClass("transparent-header");
   });
 });
