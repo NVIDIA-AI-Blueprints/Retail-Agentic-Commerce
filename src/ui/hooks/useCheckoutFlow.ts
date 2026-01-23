@@ -8,6 +8,8 @@ import type {
   Product,
   CheckoutSessionResponse,
   UpdateCheckoutRequest,
+  PaymentFormData,
+  BillingAddressFormData,
 } from "@/types";
 import {
   createCheckoutSession,
@@ -170,6 +172,9 @@ const initialContext: CheckoutFlowContext = {
   vaultToken: null,
   isLoading: false,
   error: null,
+  checkoutStep: "summary",
+  paymentInfo: null,
+  billingAddress: null,
 };
 
 /**
@@ -335,6 +340,40 @@ function checkoutFlowReducer(
 
     case "RESET": {
       return initialContext;
+    }
+
+    case "SET_PAYMENT_INFO": {
+      return {
+        ...context,
+        paymentInfo: action.paymentInfo,
+      };
+    }
+
+    case "SET_BILLING_ADDRESS": {
+      return {
+        ...context,
+        billingAddress: action.billingAddress,
+      };
+    }
+
+    case "PROCEED_TO_PAYMENT": {
+      if (context.state !== "checkout") {
+        return context;
+      }
+      return {
+        ...context,
+        checkoutStep: "payment",
+      };
+    }
+
+    case "BACK_TO_SUMMARY": {
+      if (context.state !== "checkout") {
+        return context;
+      }
+      return {
+        ...context,
+        checkoutStep: "summary",
+      };
     }
 
     default:
@@ -631,17 +670,47 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
 
   /**
    * Submit payment - delegates to PSP and completes checkout
+   * Accepts optional payment info and billing address to support immediate submission
+   * without waiting for context state to update
    */
-  const submitPayment = useCallback(async () => {
-    if (!context.sessionId || !context.session) {
-      return;
-    }
+  const submitPayment = useCallback(
+    async (
+      paymentInfoParam?: PaymentFormData,
+      billingAddressParam?: BillingAddressFormData
+    ) => {
+      // Use provided params or fall back to context
+      const paymentInfo = paymentInfoParam ?? context.paymentInfo;
+      const billingAddress = billingAddressParam ?? context.billingAddress;
 
-    dispatch({ type: "SUBMIT_PAYMENT" });
+      if (!context.sessionId || !context.session || !paymentInfo || !billingAddress) {
+        return;
+      }
 
-    // Step 1: Get vault token from PSP
-    const totalAmount = getTotalFromSession(context.session);
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      dispatch({ type: "SUBMIT_PAYMENT" });
+
+      // Step 1: Get vault token from PSP
+      const totalAmount = getTotalFromSession(context.session);
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+      // Parse payment info from form
+      const cardNumber = paymentInfo.cardNumber;
+      const expirationParts = paymentInfo.expirationDate.split("/");
+      const expMonth = expirationParts[0] ?? "12";
+      const expYear = expirationParts[1] ?? "28";
+      const fullExpYear = expYear.length === 2 ? `20${expYear}` : expYear;
+      const last4 = cardNumber.slice(-4);
+
+      // Build billing address from form
+      // Parse the address string to extract components
+      const addressParts = billingAddress.address.split(",").map((s) => s.trim());
+      const billingAddressData = {
+        name: billingAddress.fullName,
+        line_one: addressParts[0] || "123 Main St",
+        city: addressParts[1] || "San Francisco",
+        state: addressParts[2]?.split(" ")[0] || "CA",
+        country: "US",
+        postal_code: addressParts[2]?.split(" ")[1] || "94102",
+      };
 
     const delegateEventId = loggerRef.current?.logEvent(
       "delegate_payment",
@@ -656,11 +725,11 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
           type: "card",
           card_number_type: "fpan",
           virtual: false,
-          number: "4242424242424242",
-          exp_month: "12",
-          exp_year: "2027",
+          number: cardNumber,
+          exp_month: expMonth,
+          exp_year: fullExpYear,
           display_card_funding_type: "credit",
-          display_last4: "4242",
+          display_last4: last4,
         },
         allowance: {
           reason: "one_time",
@@ -676,7 +745,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
             action: "authorized",
           },
         ],
-        billing_address: DEFAULT_FULFILLMENT_ADDRESS,
+        billing_address: billingAddressData,
       });
 
       if (delegateEventId) {
@@ -702,7 +771,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         payment_data: {
           token: delegateResponse.id,
           provider: "stripe",
-          billing_address: DEFAULT_FULFILLMENT_ADDRESS,
+          billing_address: billingAddressData,
         },
       });
 
@@ -748,12 +817,14 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
             dispatch({ type: "PAYMENT_COMPLETE", session: finalSession });
 
             // Trigger Post-Purchase Agent after successful payment
+            // Extract first name from billing address (use full name if no space)
+            const customerFirstName = billingAddress?.fullName?.split(" ")[0] ?? DEFAULT_BUYER.first_name;
             if (finalSession.order?.id && context.selectedProduct && context.sessionId) {
               triggerPostPurchaseAgent(
                 finalSession.order.id,
                 context.selectedProduct.name,
                 context.sessionId,
-                DEFAULT_BUYER.first_name
+                customerFirstName
               );
             }
           } catch (error) {
@@ -775,12 +846,14 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         dispatch({ type: "PAYMENT_COMPLETE", session: completedSession });
 
         // Trigger Post-Purchase Agent after successful payment
+        // Extract first name from billing address (use full name if no space)
+        const customerName = billingAddress?.fullName?.split(" ")[0] ?? DEFAULT_BUYER.first_name;
         if (completedSession.order?.id && context.selectedProduct && context.sessionId) {
           triggerPostPurchaseAgent(
             completedSession.order.id,
             context.selectedProduct.name,
             context.sessionId,
-            DEFAULT_BUYER.first_name
+            customerName
           );
         }
       } else {
@@ -801,7 +874,9 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
       }
       dispatch({ type: "SET_ERROR", error: createAPIError(error) });
     }
-  }, [context.sessionId, context.session, context.selectedProduct, triggerPostPurchaseAgent]);
+    },
+    [context.sessionId, context.session, context.selectedProduct, context.paymentInfo, context.billingAddress, triggerPostPurchaseAgent]
+  );
 
   /**
    * Reset to initial state
@@ -819,6 +894,34 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
     dispatch({ type: "CLEAR_ERROR" });
   }, []);
 
+  /**
+   * Set payment info from form
+   */
+  const setPaymentInfo = useCallback((paymentInfo: PaymentFormData) => {
+    dispatch({ type: "SET_PAYMENT_INFO", paymentInfo });
+  }, []);
+
+  /**
+   * Set billing address from form
+   */
+  const setBillingAddress = useCallback((billingAddress: BillingAddressFormData) => {
+    dispatch({ type: "SET_BILLING_ADDRESS", billingAddress });
+  }, []);
+
+  /**
+   * Proceed from summary to payment form
+   */
+  const proceedToPayment = useCallback(() => {
+    dispatch({ type: "PROCEED_TO_PAYMENT" });
+  }, []);
+
+  /**
+   * Go back from payment form to summary
+   */
+  const backToSummary = useCallback(() => {
+    dispatch({ type: "BACK_TO_SUMMARY" });
+  }, []);
+
   return {
     context,
     dispatch,
@@ -828,5 +931,9 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
     submitPayment,
     reset,
     clearError,
+    setPaymentInfo,
+    setBillingAddress,
+    proceedToPayment,
+    backToSummary,
   };
 }

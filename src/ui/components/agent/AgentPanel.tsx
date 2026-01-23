@@ -7,13 +7,20 @@ import { ProductGrid } from "./ProductGrid";
 import { CheckoutCard } from "./CheckoutCard";
 import { ConfirmationCard } from "./ConfirmationCard";
 import { StreamingText } from "./StreamingText";
+import { PaymentShippingForm } from "./PaymentShippingForm";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
 import { useACPLog } from "@/hooks/useACPLog";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
 import { mockProducts, mockChatMessages } from "@/data/mock-data";
 import { getErrorMessage, getSuggestedAction } from "@/lib/errors";
 import { Close } from "@/components/icons";
-import type { ChatMessage as ChatMessageType, FulfillmentOption, Product } from "@/types";
+import type {
+  ChatMessage as ChatMessageType,
+  FulfillmentOption,
+  Product,
+  PaymentFormData,
+  BillingAddressFormData,
+} from "@/types";
 
 /**
  * Payment Modal Component
@@ -232,6 +239,10 @@ export function AgentPanel() {
     submitPayment,
     reset,
     clearError,
+    setPaymentInfo,
+    setBillingAddress,
+    proceedToPayment,
+    backToSummary,
   } = useCheckoutFlow(acpLog, agentActivityLog);
 
   // Handle product selection - opens modal
@@ -249,11 +260,6 @@ export function AgentPanel() {
     // Reset checkout flow when closing modal
     reset();
   }, [reset]);
-
-  // Handle pay button click
-  const handlePay = useCallback(() => {
-    submitPayment();
-  }, [submitPayment]);
 
   // Handle shipping change
   const handleShippingChange = useCallback(
@@ -286,6 +292,27 @@ export function AgentPanel() {
   const handleTextComplete = useCallback(() => {
     setShowProducts(true);
   }, []);
+
+  // Handle continue from summary to payment form
+  const handleContinueToPayment = useCallback(() => {
+    proceedToPayment();
+  }, [proceedToPayment]);
+
+  // Handle back to summary from payment form
+  const handleBackToSummary = useCallback(() => {
+    backToSummary();
+  }, [backToSummary]);
+
+  // Handle payment form submission - actually process payment
+  // Pass payment info directly to submitPayment to avoid async state update issues
+  const handlePaymentFormSubmit = useCallback(
+    (paymentInfo: PaymentFormData, billingAddress: BillingAddressFormData) => {
+      setPaymentInfo(paymentInfo);
+      setBillingAddress(billingAddress);
+      submitPayment(paymentInfo, billingAddress);
+    },
+    [setPaymentInfo, setBillingAddress, submitPayment]
+  );
 
   // Get fulfillment options from session
   const fulfillmentOptions = context.session
@@ -351,6 +378,14 @@ export function AgentPanel() {
     !context.error &&
     checkoutData !== null &&
     context.selectedProduct !== null;
+
+  // Show checkout summary step (first step - with Continue button)
+  const showCheckoutSummaryStep =
+    showCheckoutModal && context.checkoutStep === "summary" && context.state === "checkout";
+
+  // Show payment form step (second step - with Pay Now button)
+  const showPaymentFormStep =
+    showCheckoutModal && context.checkoutStep === "payment";
 
   // Show confirmation in modal
   const showConfirmationModal =
@@ -424,17 +459,28 @@ export function AgentPanel() {
         {/* Loading state */}
         {context.isLoading && !checkoutData && <CheckoutSkeleton />}
 
-        {/* Checkout state */}
-        {showCheckoutModal && checkoutData && context.selectedProduct && (
+        {/* Checkout Summary step (first step - with Continue button) */}
+        {showCheckoutSummaryStep && checkoutData && context.selectedProduct && (
           <CheckoutCard
             checkout={checkoutData}
             product={context.selectedProduct}
             quantity={context.quantity}
-            isProcessing={context.state === "processing" || context.isLoading}
+            isProcessing={context.isLoading}
             isReadyForPayment={isReadyForPayment}
-            onPay={handlePay}
+            onContinue={handleContinueToPayment}
             onQuantityChange={handleQuantityChange}
             onShippingChange={handleShippingChange}
+          />
+        )}
+
+        {/* Payment Form step (second step - with Pay Now button) */}
+        {showPaymentFormStep && (
+          <PaymentShippingForm
+            onSubmit={handlePaymentFormSubmit}
+            onBack={handleBackToSummary}
+            isProcessing={context.state === "processing" || context.isLoading}
+            initialPaymentInfo={context.paymentInfo}
+            initialBillingAddress={context.billingAddress}
           />
         )}
 

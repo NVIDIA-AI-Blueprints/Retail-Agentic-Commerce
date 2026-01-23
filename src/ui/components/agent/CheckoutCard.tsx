@@ -61,7 +61,7 @@ interface CheckoutCardProps {
   quantity?: number;
   isProcessing?: boolean;
   isReadyForPayment?: boolean;
-  onPay?: () => void;
+  onContinue?: () => void;
   onQuantityChange?: (quantity: number) => void;
   onShippingChange?: (optionId: string) => void;
 }
@@ -75,7 +75,7 @@ export function CheckoutCard({
   quantity = 1,
   isProcessing = false,
   isReadyForPayment = true,
-  onPay,
+  onContinue,
   onQuantityChange,
   onShippingChange,
 }: CheckoutCardProps) {
@@ -103,8 +103,8 @@ export function CheckoutCard({
   const buttonText = isProcessing
     ? "Processing..."
     : !isReadyForPayment
-      ? "Complete details to pay"
-      : "Pay Now";
+      ? "Complete details to continue"
+      : "Continue";
 
   const handleDecrement = () => {
     if (quantity > 1 && onQuantityChange) {
@@ -308,36 +308,23 @@ export function CheckoutCard({
           )}
         </Stack>
 
-        {/* Pay button */}
+        {/* Continue button */}
         <Button
           kind="primary"
           color="neutral"
           className="w-full"
-          onClick={onPay}
+          onClick={onContinue}
           disabled={isButtonDisabled}
-          aria-label={isProcessing ? "Processing payment" : "Pay with saved card"}
+          aria-label={isProcessing ? "Processing" : "Continue to payment"}
         >
-          <Flex align="center" justify="center" gap="3" className="w-full">
-            {isProcessing ? (
-              <Flex align="center" gap="2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Processing...</span>
-              </Flex>
-            ) : (
-              <>
-                <span>{buttonText}</span>
-                {isReadyForPayment && (
-                  <>
-                    <span className="opacity-30">|</span>
-                    <Flex align="center" gap="1">
-                      <CreditCard className="w-4 h-4" />
-                      <span>4242</span>
-                    </Flex>
-                  </>
-                )}
-              </>
-            )}
-          </Flex>
+          {isProcessing ? (
+            <Flex align="center" justify="center" gap="2">
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Processing...</span>
+            </Flex>
+          ) : (
+            buttonText
+          )}
         </Button>
       </Stack>
     </Card>

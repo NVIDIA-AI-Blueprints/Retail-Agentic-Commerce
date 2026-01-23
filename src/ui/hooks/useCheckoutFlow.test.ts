@@ -10,6 +10,8 @@ vi.mock("@/lib/api-client", () => ({
   updateCheckoutSession: vi.fn(),
   completeCheckout: vi.fn(),
   delegatePayment: vi.fn(),
+  generatePostPurchaseMessage: vi.fn(),
+  postWebhookShippingUpdate: vi.fn(),
 }));
 
 describe("useCheckoutFlow", () => {
@@ -334,6 +336,18 @@ describe("useCheckoutFlow", () => {
     });
   });
 
+  // Mock payment and billing data for tests
+  const mockPaymentInfo = {
+    cardNumber: "4242424242424242",
+    expirationDate: "12/28",
+    securityCode: "123",
+  };
+
+  const mockBillingAddress = {
+    fullName: "John Doe",
+    address: "123 Main St, San Francisco, CA 94102",
+  };
+
   describe("submitPayment - happy path", () => {
     it("transitions to processing state", async () => {
       vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
@@ -349,6 +363,12 @@ describe("useCheckoutFlow", () => {
 
       await waitFor(() => {
         expect(result.current.context.state).toBe("checkout");
+      });
+
+      // Set payment info and billing address (required for submitPayment)
+      act(() => {
+        result.current.setPaymentInfo(mockPaymentInfo);
+        result.current.setBillingAddress(mockBillingAddress);
       });
 
       act(() => {
@@ -372,6 +392,12 @@ describe("useCheckoutFlow", () => {
 
       await waitFor(() => {
         expect(result.current.context.state).toBe("checkout");
+      });
+
+      // Set payment info and billing address (required for submitPayment)
+      act(() => {
+        result.current.setPaymentInfo(mockPaymentInfo);
+        result.current.setBillingAddress(mockBillingAddress);
       });
 
       await act(async () => {
@@ -404,6 +430,12 @@ describe("useCheckoutFlow", () => {
         expect(result.current.context.state).toBe("checkout");
       });
 
+      // Set payment info and billing address (required for submitPayment)
+      act(() => {
+        result.current.setPaymentInfo(mockPaymentInfo);
+        result.current.setBillingAddress(mockBillingAddress);
+      });
+
       await act(async () => {
         await result.current.submitPayment();
       });
@@ -434,6 +466,12 @@ describe("useCheckoutFlow", () => {
         expect(result.current.context.state).toBe("checkout");
       });
 
+      // Set payment info and billing address (required for submitPayment)
+      act(() => {
+        result.current.setPaymentInfo(mockPaymentInfo);
+        result.current.setBillingAddress(mockBillingAddress);
+      });
+
       await act(async () => {
         await result.current.submitPayment();
       });
@@ -461,6 +499,12 @@ describe("useCheckoutFlow", () => {
 
       await waitFor(() => {
         expect(result.current.context.state).toBe("checkout");
+      });
+
+      // Set payment info and billing address (required for submitPayment)
+      act(() => {
+        result.current.setPaymentInfo(mockPaymentInfo);
+        result.current.setBillingAddress(mockBillingAddress);
       });
 
       await act(async () => {

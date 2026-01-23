@@ -102,18 +102,18 @@ describe("CheckoutCard", () => {
     expect(screen.getByText("$5.00")).toBeInTheDocument();
   });
 
-  it("renders pay button with card info", () => {
+  it("renders continue button", () => {
     render(<CheckoutCard checkout={mockCheckout} />);
-    expect(screen.getByRole("button", { name: /pay with saved card/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /continue to payment/i })).toBeInTheDocument();
   });
 
-  it("calls onPay when pay button is clicked", () => {
-    const onPay = vi.fn();
-    render(<CheckoutCard checkout={mockCheckout} onPay={onPay} />);
+  it("calls onContinue when continue button is clicked", () => {
+    const onContinue = vi.fn();
+    render(<CheckoutCard checkout={mockCheckout} onContinue={onContinue} />);
 
-    screen.getByRole("button", { name: /pay with saved card/i }).click();
+    screen.getByRole("button", { name: /continue to payment/i }).click();
 
-    expect(onPay).toHaveBeenCalled();
+    expect(onContinue).toHaveBeenCalled();
   });
 
   describe("quantity controls", () => {
@@ -167,10 +167,10 @@ describe("CheckoutCard", () => {
       expect(screen.getByText("Processing...")).toBeInTheDocument();
     });
 
-    it("disables pay button when processing", () => {
+    it("disables continue button when processing", () => {
       render(<CheckoutCard checkout={mockCheckout} isProcessing={true} />);
 
-      expect(screen.getByRole("button", { name: /processing payment/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /processing/i })).toBeDisabled();
     });
 
     it("disables quantity controls when processing", () => {
@@ -237,21 +237,21 @@ describe("CheckoutCard", () => {
     it("shows correct button text when not ready for payment", () => {
       render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={false} />);
 
-      expect(screen.getByText("Complete details to pay")).toBeInTheDocument();
+      expect(screen.getByText("Complete details to continue")).toBeInTheDocument();
     });
 
-    it("disables pay button when not ready for payment", () => {
+    it("disables continue button when not ready for payment", () => {
       render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={false} />);
 
-      const payButton = screen.getByRole("button", { name: /pay with saved card/i });
-      expect(payButton).toBeDisabled();
+      const continueButton = screen.getByRole("button", { name: /continue to payment/i });
+      expect(continueButton).toBeDisabled();
     });
 
-    it("enables pay button when ready for payment", () => {
+    it("enables continue button when ready for payment", () => {
       render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={true} />);
 
-      const payButton = screen.getByRole("button", { name: /pay with saved card/i });
-      expect(payButton).not.toBeDisabled();
+      const continueButton = screen.getByRole("button", { name: /continue to payment/i });
+      expect(continueButton).not.toBeDisabled();
     });
 
     it("shows processing indicator when isProcessing is true", () => {
@@ -260,18 +260,12 @@ describe("CheckoutCard", () => {
       expect(screen.getByText("Processing")).toBeInTheDocument();
     });
 
-    it("does not show card info when not ready for payment", () => {
-      render(<CheckoutCard checkout={mockCheckout} isReadyForPayment={false} />);
-
-      expect(screen.queryByText("4242")).not.toBeInTheDocument();
-    });
-
-    it("shows card info when ready for payment and not processing", () => {
+    it("shows continue button text when ready", () => {
       render(
         <CheckoutCard checkout={mockCheckout} isReadyForPayment={true} isProcessing={false} />
       );
 
-      expect(screen.getByText("4242")).toBeInTheDocument();
+      expect(screen.getByText("Continue")).toBeInTheDocument();
     });
   });
 });

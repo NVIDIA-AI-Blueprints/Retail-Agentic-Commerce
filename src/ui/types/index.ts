@@ -743,6 +743,9 @@ export interface CheckoutFlowContext {
   vaultToken: string | null;
   isLoading: boolean;
   error: APIError | null;
+  checkoutStep: CheckoutStep;
+  paymentInfo: PaymentFormData | null;
+  billingAddress: BillingAddressFormData | null;
 }
 
 /**
@@ -761,4 +764,53 @@ export type CheckoutFlowAction =
   | { type: "SET_LOADING"; isLoading: boolean }
   | { type: "SET_ERROR"; error: APIError }
   | { type: "CLEAR_ERROR" }
-  | { type: "RESET" };
+  | { type: "RESET" }
+  | { type: "SET_PAYMENT_INFO"; paymentInfo: PaymentFormData }
+  | { type: "SET_BILLING_ADDRESS"; billingAddress: BillingAddressFormData }
+  | { type: "PROCEED_TO_PAYMENT" }
+  | { type: "BACK_TO_SUMMARY" };
+
+// =============================================================================
+// Payment Form Types (Feature 14)
+// =============================================================================
+
+/**
+ * Checkout step in the modal flow
+ * - "summary": Shows order summary with Continue button (first step)
+ * - "payment": Shows payment form with Pay Now button (second step)
+ */
+export type CheckoutStep = "summary" | "payment";
+
+/**
+ * Payment form data for card information
+ */
+export interface PaymentFormData {
+  cardNumber: string;
+  expirationDate: string;
+  securityCode: string;
+}
+
+/**
+ * Billing address form data
+ */
+export interface BillingAddressFormData {
+  fullName: string;
+  address: string;
+}
+
+/**
+ * Default payment form values for demo
+ */
+export const DEFAULT_PAYMENT_FORM: PaymentFormData = {
+  cardNumber: "4242424242424242",
+  expirationDate: "12/28",
+  securityCode: "123",
+};
+
+/**
+ * Default billing address values for demo
+ */
+export const DEFAULT_BILLING_ADDRESS: BillingAddressFormData = {
+  fullName: "John Doe",
+  address: "123 Main St, San Francisco, CA 94102",
+};
