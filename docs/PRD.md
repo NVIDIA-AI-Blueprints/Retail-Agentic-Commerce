@@ -184,10 +184,16 @@ All successful responses return the full checkout state:
 
 ### 2.2 Intelligent Merchant Agents (NVIDIA NeMo Agent Toolkit)
 
-Each agent is implemented as a NAT workflow:
+Each agent is implemented as a NAT workflow following the 3-layer hybrid architecture (deterministic → LLM → deterministic):
 
 * **FR-PROM (Promotion Agent)**: Uses tool-calling to query `products` and `competitor_prices` in SQLite. Logic: If `stock > threshold` and `price > competitor_price`, apply discount to `min_margin`.
-* **FR-RECO (Recommendation Agent)**: Suggests high-affinity, in-stock items by appending them to `metadata.suggestions` using SQL-based deterministic joins/rules over catalog + inventory, enforcing constraints (in-stock, margin rules).
+* **FR-RECO (Recommendation Agent)**: Implements an **ARAG (Agentic Retrieval Augmented Generation)** multi-agent architecture for personalized cross-sell recommendations. Based on [ARAG research](https://arxiv.org/pdf/2506.21931) (SIGIR 2025), the system uses 4 specialized agents:
+  1. **User Understanding Agent (UUA)**: Summarizes buyer preferences from cart and session context
+  2. **NLI Agent**: Scores semantic alignment between candidate products and inferred intent
+  3. **Context Summary Agent (CSA)**: Synthesizes NLI-filtered candidates with user understanding
+  4. **Item Ranker Agent (IRA)**: Produces final ranked recommendations with reasoning
+  
+  This approach achieves up to 42% improvement over vanilla RAG by integrating agentic reasoning into the retrieval pipeline.
 * **FR-POST (Post-Purchase Agent)**: Triggers human-like shipping pulses **to the global webhook endpoint** using the configured **Brand Persona**.
 
 ### 2.3 Brand Persona Configuration

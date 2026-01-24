@@ -12,9 +12,10 @@ Guidance for Claude Code when working with this repository.
 | PSP Service | Python 3.12+ / FastAPI / SQLModel | 8001 |
 | Promotion Agent | NVIDIA NeMo Agent Toolkit (NAT) | 8002 |
 | Post-Purchase Agent | NVIDIA NeMo Agent Toolkit (NAT) | 8003 |
+| Recommendation Agent (ARAG) | NAT + Milvus + NV-EmbedQA | 8004-8007 |
 | Frontend | Next.js 15+ / React 19 / Kaizen UI | 3000 |
 
-**Key Architecture**: Async Parallel Orchestrator where NAT agents perform real-time business logic via tool-calling SQL queries.
+**Key Architecture**: Async Parallel Orchestrator where NAT agents perform real-time business logic via tool-calling SQL queries. The Recommendation Agent uses an **ARAG (Agentic RAG)** multi-agent architecture based on [SIGIR 2025 research](https://arxiv.org/pdf/2506.21931).
 
 ## Critical Rules (Read First)
 
@@ -91,7 +92,8 @@ src/agents/                     # NAT Agents (shared dependencies)
 ├── README.md                   # Agent documentation
 └── configs/
     ├── promotion.yml           # Promotion strategy arbiter (port 8002)
-    └── post-purchase.yml       # Multilingual shipping messages (port 8003)
+    ├── post-purchase.yml       # Multilingual shipping messages (port 8003)
+    └── recommendation.yml      # ARAG multi-agent recommendations (port 8004, planned)
 
 src/merchant/                   # Merchant API (port 8000)
 ├── main.py                     # FastAPI entry + lifespan
@@ -146,6 +148,14 @@ Layer 3 (Deterministic): Apply result → validate constraints → fail closed i
 **Post-Purchase Agent** (`src/agents/configs/post-purchase.yml`):
 - Service: `src/merchant/services/post_purchase.py`
 - Fail-open: If unavailable, uses fallback templates in EN/ES/FR
+
+**Recommendation Agent (ARAG)** (`src/agents/configs/recommendation.yml`, planned - Feature 7):
+- Architecture: Single YAML with 4 specialized agents orchestrated by `react_agent`
+- Agents: User Understanding → NLI → Context Summary → Item Ranker (all as NAT functions)
+- RAG: Milvus retriever + NV-EmbedQA-E5-v5 embedder (defined in same YAML)
+- Service: `src/merchant/services/recommendation.py` (planned)
+- Fail-open: If unavailable, returns empty suggestions
+- Improvement: 42% better NDCG@5 vs vanilla RAG per [SIGIR 2025 research](https://arxiv.org/pdf/2506.21931)
 
 ### 2. Webhook Flow (Merchant → Client Agent)
 
@@ -288,7 +298,10 @@ DATABASE_URL=sqlite:///./agentic_commerce.db
 - Features 9-10, 12: UI, Protocol Inspector, Agent Panel
 
 **Planned:**
-- Feature 7: Recommendation Agent
+- Feature 7: Recommendation Agent (ARAG multi-agent architecture)
+  - Uses 4 specialized agents: UUA, NLI, CSA, IRA
+  - RAG with Milvus + NV-EmbedQA-E5-v5
+  - See `docs/features.md` Feature 7 for detailed plan
 - Feature 11: Webhook integration (post-purchase delivery)
 
 ## References
@@ -299,6 +312,13 @@ DATABASE_URL=sqlite:///./agentic_commerce.db
 | `docs/architecture.md` | Fullstack patterns |
 | `docs/acp-spec.md` | Protocol spec |
 | `docs/features.md` | Implementation roadmap |
+| `docs/NEMO_AGENT_TOOLKIT_DOCUMENTATION.md` | NAT framework reference |
 | `src/agents/README.md` | NAT agents documentation |
 | `.cursor/skills/features/SKILL.md` | Backend standards |
 | `.cursor/skills/ui/SKILL.md` | Frontend standards |
+
+### Research References
+
+| Paper | Purpose |
+|-------|---------|
+| [ARAG (SIGIR 2025)](https://arxiv.org/pdf/2506.21931) | Agentic RAG for personalized recommendations - basis for Feature 7 |

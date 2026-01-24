@@ -14,13 +14,32 @@
 | --- | --- | --- | --- | --- |
 | **Primary LLM** | **NVIDIA Nemotron-3-Nano-30B** | **v3 (Dec 2025)** | Agent Core Logic | Sparse MoE design for high inference throughput. |
 | **Language** | Python | **3.12+** | Backend logic & NAT | Native NAT and NeMo runtime support. |
-| **Agentic Framework** | NeMo Agent Toolkit | 1.3.1+ | Multi-agent workflows | Built-in support for tool-calling and reasoning trace. |
+| **Agentic Framework** | NeMo Agent Toolkit | 1.3.1+ | Multi-agent workflows | Built-in support for tool-calling, RAG, and reasoning trace. |
 | **Inference Engine** | **NVIDIA NIM / TensorRT-LLM** | 25.11+ | Optimized Execution | Configurable: local Docker or public NVIDIA API endpoint. |
+| **Embedding Model** | **NVIDIA NV-EmbedQA-E5-v5** | latest | RAG for Recommendations | Semantic product search for ARAG retrieval pipeline. |
+| **Vector Database** | **Milvus** | 2.3+ | Product Embeddings | Stores product catalog embeddings for RAG-based recommendation retrieval. |
 | **Client Agent Simulator** | Static Simulator | n/a | Client simulator | Simulates product search ("find t-shirts") → displays 4 products → user clicks to start ACP checkout. |
 | **Client UI Framework** | React | 18+ | Multi-panel Inspector UI | Component model for three-panel Protocol Inspector (Agent/Business/CoT views). |
 | **Client App Framework** | Next.js | 14+ | Client UI | App Router for the simulator UI + Multi-Panel Protocol Inspector. |
 | **Component Library** | shadcn/ui | latest | Client UI | Modern accessible primitives to build a polished demo UI fast. |
 | **Payments (PSP)** | PSP service + SQLite | demo | Delegated payments | Vault token minting (`vt_...`), idempotency, payment intents (`pi_...`) that consume tokens. |
+
+---
+
+### ARAG Recommendation Components
+
+The Recommendation Agent uses an **Agentic Retrieval Augmented Generation (ARAG)** architecture with the following components:
+
+| Component | Technology | Purpose |
+| --- | --- | --- |
+| **Embedder** | NV-EmbedQA-E5-v5 | Generates product embeddings for semantic search |
+| **Vector Store** | Milvus | Stores and retrieves product embeddings |
+| **User Understanding Agent** | Nemotron via NAT | Infers buyer preferences from session context |
+| **NLI Agent** | Nemotron via NAT | Scores semantic alignment between products and intent |
+| **Context Summary Agent** | Nemotron via NAT | Synthesizes filtered candidates into focused context |
+| **Item Ranker Agent** | Nemotron via NAT | Produces final ranked recommendations |
+
+This multi-agent approach achieves **42% improvement in NDCG@5** over vanilla RAG according to [ARAG research (SIGIR 2025)](https://arxiv.org/pdf/2506.21931).
 
 ---
 

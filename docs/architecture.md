@@ -82,6 +82,31 @@ graph TD
 
 * **Async Parallel Orchestrator**: The Promotion and Recommendation agents are triggered simultaneously via `asyncio.gather` during session creation.
 * **Tool-Calling SQL Bridge**: NAT agents do not access the DB directly; they use specific **Python Tools** that execute sanitized SQL queries to prevent injection.
+* **ARAG Multi-Agent Recommendation**: The Recommendation Agent implements an **Agentic Retrieval Augmented Generation (ARAG)** architecture based on [research from SIGIR 2025](https://arxiv.org/pdf/2506.21931). This approach uses 4 specialized LLM agents working in a coordinated pipeline:
+
+```mermaid
+graph TD
+    subgraph "ARAG Recommendation Pipeline"
+        R1[Initial RAG Retrieval]
+        R2[User Understanding Agent]
+        R3[NLI Agent]
+        R4[Context Summary Agent]
+        R5[Item Ranker Agent]
+    end
+
+    R1 -->|top-k candidates| R2
+    R1 -->|top-k candidates| R3
+    R2 -->|user preferences| R4
+    R3 -->|alignment scores| R4
+    R4 -->|synthesized context| R5
+    R5 -->|ranked recommendations| OUTPUT[metadata.suggestions]
+```
+
+  The ARAG pattern provides:
+  - **42% improvement** in recommendation quality over vanilla RAG (per research benchmarks)
+  - **Parallel execution** of User Understanding and NLI agents for reduced latency
+  - **Semantic alignment scoring** to filter irrelevant candidates before ranking
+  - **Reasoning trace** for each recommendation, displayed in Protocol Inspector
 * **Multi-Panel Glass-Box Observability**: The Protocol Inspector uses a three-panel synchronized view:
   * **Left Panel**: Agent/Client simulation showing the customer experience
   * **Middle Panel**: Business/Retailer view with JSON payloads and protocol state

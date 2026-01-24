@@ -141,8 +141,9 @@ src/
 │   ├── pyproject.toml  # Shared dependencies for all agents
 │   ├── README.md       # Agent documentation
 │   └── configs/        # Agent workflow configurations
-│       ├── promotion.yml      # Promotion strategy arbiter (port 8002)
-│       └── post-purchase.yml  # Multilingual shipping messages (port 8003)
+│       ├── promotion.yml        # Promotion strategy arbiter (port 8002)
+│       ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
+│       └── recommendation.yml   # ARAG multi-agent recommendations (port 8004, planned)
 │
 ├── merchant/           # Merchant API (FastAPI backend, port 8000)
 │   ├── main.py         # Application entry point
@@ -195,8 +196,13 @@ NAT Agents (from `src/agents/`):
 - Install: `uv pip install -e ".[dev]" --prerelease=allow`
 - Start Promotion Agent: `nat serve --config_file configs/promotion.yml --port 8002`
 - Start Post-Purchase Agent: `nat serve --config_file configs/post-purchase.yml --port 8003`
+- Start Recommendation Agent (ARAG): `nat serve --config_file configs/recommendation.yml --port 8004`
 - Test Promotion: `nat run --config_file configs/promotion.yml --input '{...}'`
 - Test Post-Purchase: `nat run --config_file configs/post-purchase.yml --input '{...}'`
+
+Note: Recommendation Agent uses ARAG (Agentic RAG) with 4 specialized agents
+(UUA, NLI, CSA, Ranker) orchestrated in a single YAML via NAT's multi-agent pattern.
+See `src/agents/README.md` for full configuration.
 
 Frontend (from `src/ui/`):
 - Start UI: `pnpm run dev`
