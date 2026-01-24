@@ -31,11 +31,22 @@ This "glass box" approach makes the invisible mechanics of agentic commerce visi
 
 The solution implements the 5 standard ACP endpoints and orchestrates three specialized NAT agents:
 
-| Agent | Core Task | Relational Intelligence (SQLite) |
+| Agent | Core Task | Intelligence Architecture |
 | --- | --- | --- |
-| **Promotion Agent** | Dynamic Discounting | Queries `products` vs `competitor_prices` to beat market rates while protecting `min_margin`. |
-| **Recommendation Agent** | Personalized Cross-sell | SQL joins/rules to suggest items while enforcing constraints (in-stock, margin policy). |
+| **Promotion Agent** | Dynamic Discounting | 3-layer hybrid: queries `products` vs `competitor_prices` to beat market rates while protecting `min_margin`. |
+| **Recommendation Agent** | Personalized Cross-sell | **ARAG multi-agent architecture**: 4 specialized agents (User Understanding, NLI, Context Summary, Item Ranker) with RAG retrieval for up to 42% improvement over vanilla RAG. Based on [SIGIR 2025 research](https://arxiv.org/pdf/2506.21931). |
 | **Post-Purchase Agent** | Lifecycle Loyalty | Sends multilingual (EN/ES/FR) shipping pulses to a **global webhook** using the **Brand Persona**. |
+
+### ARAG Recommendation Architecture
+
+The Recommendation Agent implements an **Agentic Retrieval Augmented Generation (ARAG)** framework with 4 specialized LLM agents:
+
+1. **User Understanding Agent (UUA)**: Infers buyer preferences from cart items and session context
+2. **NLI Agent**: Scores semantic alignment between candidate products and user intent
+3. **Context Summary Agent (CSA)**: Synthesizes filtered candidates into focused recommendation context
+4. **Item Ranker Agent (IRA)**: Produces final ranked cross-sell suggestions with reasoning
+
+This approach moves beyond simple embedding-based retrieval to incorporate agentic reasoning, achieving significantly higher recommendation quality while maintaining the deterministic constraints (in-stock, margin policy) required by ACP.
 
 ### Brand Persona Configuration
 
