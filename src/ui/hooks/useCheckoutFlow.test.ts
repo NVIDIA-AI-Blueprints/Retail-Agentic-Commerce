@@ -23,7 +23,7 @@ describe("useCheckoutFlow", () => {
     basePrice: 2500,
     stockCount: 100,
     minMargin: 0.15,
-    imageUrl: "/shirt.jpeg",
+    imageUrl: "/black.jpeg",
     variant: "Black",
     size: "Large",
   };

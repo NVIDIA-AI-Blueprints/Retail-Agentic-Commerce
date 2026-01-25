@@ -5,6 +5,24 @@ import { Text, Stack } from "@kui/foundations-react-external";
 import { formatCurrency } from "@/lib/utils";
 import type { Product } from "@/types";
 
+/**
+ * Map product variant to corresponding image
+ */
+function getProductImage(variant: string | undefined): string {
+  switch (variant?.toLowerCase()) {
+    case "black":
+      return "/black.jpeg";
+    case "natural":
+    case "white":
+      return "/white.jpeg";
+    case "grey":
+    case "gray":
+      return "/gray.jpeg";
+    default:
+      return "/black.jpeg";
+  }
+}
+
 interface ProductCardProps {
   product: Product;
   onBuy?: (product: Product) => void;
@@ -38,7 +56,7 @@ export function ProductCard({ product, onBuy }: ProductCardProps) {
       {/* Product Image */}
       <div className="aspect-square w-full bg-[#c8c8d0] overflow-hidden relative rounded-t-xl">
         <Image
-          src="/shirt.jpeg"
+          src={getProductImage(product.variant)}
           alt={product.name}
           fill
           sizes="220px"

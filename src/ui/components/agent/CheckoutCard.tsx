@@ -6,6 +6,24 @@ import { CreditCard } from "@/components/icons";
 import { formatCurrency } from "@/lib/utils";
 import type { Product } from "@/types";
 
+/**
+ * Map product variant to corresponding image
+ */
+function getProductImage(variant: string | undefined): string {
+  switch (variant?.toLowerCase()) {
+    case "black":
+      return "/black.jpeg";
+    case "natural":
+    case "white":
+      return "/white.jpeg";
+    case "grey":
+    case "gray":
+      return "/gray.jpeg";
+    default:
+      return "/black.jpeg";
+  }
+}
+
 interface LegacyFulfillmentOption {
   id: string;
   name: string;
@@ -160,7 +178,7 @@ export function CheckoutCard({
           <Flex gap="3" align="start">
             <div className="relative w-16 h-16 rounded overflow-hidden flex-shrink-0">
               <Image
-                src="/shirt.jpeg"
+                src={getProductImage(product?.variant)}
                 alt={product?.name ?? lineItem?.item.name ?? "Product"}
                 fill
                 sizes="64px"

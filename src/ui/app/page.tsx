@@ -18,7 +18,7 @@ export default function Home() {
   return (
     <ACPLogProvider>
       <AgentActivityLogProvider>
-        <div className="min-h-screen bg-surface-base relative">
+        <div className="min-h-screen h-screen bg-surface-base relative overflow-hidden">
           {/* Nebula Background */}
           <div
             className="pointer-events-none"
@@ -78,12 +78,12 @@ export default function Home() {
           />
 
           {/* Content Layer */}
-          <div className="relative flex flex-col min-h-screen" style={{ zIndex: 1 }}>
+          <div className="relative flex flex-col h-full" style={{ zIndex: 1 }}>
             <Navbar />
             {/* Outer container with generous gutters for premium feel */}
-            <div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "24px 40px" }}>
+            <div className="flex-1 flex flex-col min-h-0" style={{ padding: "24px 40px" }}>
               <main
-                className="flex-1 flex items-stretch overflow-hidden w-full h-full"
+                className="flex-1 flex items-stretch w-full h-full min-h-0"
                 style={{ gap: "32px" }}
               >
                 {/* Agent Panel Container */}
