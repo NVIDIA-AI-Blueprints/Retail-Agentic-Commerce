@@ -14,7 +14,8 @@ export function PanelDivider() {
         style={{
           top: "-100vh",
           bottom: "-100vh",
-          background: "linear-gradient(180deg, transparent 0%, rgba(118, 185, 0, 0.2) 35%, #76b900 45%, #76b900 55%, rgba(118, 185, 0, 0.2) 65%, transparent 100%)",
+          background:
+            "linear-gradient(180deg, transparent 0%, rgba(118, 185, 0, 0.2) 35%, #76b900 45%, #76b900 55%, rgba(118, 185, 0, 0.2) 65%, transparent 100%)",
           boxShadow: "0 0 12px 2px rgba(118, 185, 0, 0.4), 0 0 24px 4px rgba(118, 185, 0, 0.2)",
         }}
       />
@@ -25,7 +26,8 @@ export function PanelDivider() {
         style={{
           top: "-100vh",
           bottom: "-100vh",
-          background: "linear-gradient(180deg, transparent 0%, #76b900 40%, #76b900 60%, transparent 100%)",
+          background:
+            "linear-gradient(180deg, transparent 0%, #76b900 40%, #76b900 60%, transparent 100%)",
           filter: "blur(6px)",
         }}
       />
