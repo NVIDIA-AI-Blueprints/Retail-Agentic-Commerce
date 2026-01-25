@@ -1,3 +1,8 @@
+---
+description: 
+alwaysApply: false
+---
+
 # CLAUDE.md
 
 Guidance for Claude Code when working with this repository.
@@ -237,6 +242,10 @@ Performance: Context memoized with `useMemo`, loggers use `useRef`.
 **Product**: `id`, `sku`, `name`, `base_price` (cents), `stock_count`, `min_margin`, `image_url`
 
 **CompetitorPrice**: `product_id` (FK), `retailer_name`, `price` (cents), `updated_at`
+
+**Customer**: `id`, `email`, `name`, `created_at`
+
+**BrowseHistory**: `customer_id` (FK), `category`, `search_term`, `product_id` (FK), `price_viewed` (cents), `viewed_at`
 
 **CheckoutSession**: `id`, `status` (enum), `line_items_json`, `buyer_json`, `fulfillment_address_json`
 

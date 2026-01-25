@@ -1,3 +1,13 @@
+---
+description: 
+alwaysApply: false
+---
+
+---
+description: 
+alwaysApply: false
+---
+
 # AGENTS.md
 
 This document is the fast-start guide for GPT Codex and other coding agents.

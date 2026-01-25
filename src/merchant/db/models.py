@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from enum import Enum
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -19,6 +19,57 @@ class CheckoutStatus(str, Enum):
     READY_FOR_PAYMENT = "ready_for_payment"
     COMPLETED = "completed"
     CANCELED = "canceled"
+
+
+class Customer(SQLModel, table=True):
+    """Customer model representing shoppers in the system.
+
+    Attributes:
+        id: Unique customer identifier (e.g., "cust_1")
+        email: Customer email address
+        name: Customer display name
+        created_at: Account creation timestamp
+    """
+
+    id: str = Field(primary_key=True)
+    email: str = Field(unique=True, index=True)
+    name: str
+    created_at: datetime = Field(default_factory=_utc_now)
+
+    browse_history: list["BrowseHistory"] = Relationship(
+        back_populates="customer",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class BrowseHistory(SQLModel, table=True):
+    """Browse history model for tracking customer browsing behavior.
+
+    Used by the recommendation agent to understand user preferences.
+    Price range can be computed from min/max of prices in browse history.
+
+    Attributes:
+        id: Auto-generated primary key
+        customer_id: Foreign key to Customer
+        category: Product category viewed (e.g., "tops", "bottoms")
+        search_term: Optional search term used (e.g., "casual wear")
+        product_id: Optional product ID if specific product was viewed
+        price_viewed: Price of product viewed in cents (for price range computation)
+        viewed_at: Timestamp when item was viewed
+    """
+
+    __tablename__: ClassVar[str] = "browse_history"  # type: ignore[assignment]
+
+    id: int | None = Field(default=None, primary_key=True)
+    customer_id: str = Field(foreign_key="customer.id", index=True)
+    category: str = Field(index=True)
+    search_term: str | None = Field(default=None)
+    product_id: str | None = Field(default=None, foreign_key="product.id")
+    price_viewed: int = Field(default=0)  # Price in cents
+    viewed_at: datetime = Field(default_factory=_utc_now)
+
+    customer: Optional["Customer"] = Relationship(back_populates="browse_history")
+    product: Optional["Product"] = Relationship(back_populates="browse_views")
 
 
 class Product(SQLModel, table=True):
@@ -46,6 +97,7 @@ class Product(SQLModel, table=True):
         back_populates="product",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    browse_views: list["BrowseHistory"] = Relationship(back_populates="product")
 
 
 class CompetitorPrice(SQLModel, table=True):

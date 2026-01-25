@@ -17,7 +17,13 @@ from src.merchant.db.database import (
     reset_engine,
     seed_data,
 )
-from src.merchant.db.models import CheckoutSession, CompetitorPrice, Product
+from src.merchant.db.models import (
+    BrowseHistory,
+    CheckoutSession,
+    CompetitorPrice,
+    Customer,
+    Product,
+)
 
 
 @pytest.fixture
@@ -244,3 +250,119 @@ class TestCompetitorPriceRelationship:
                     assert cp.product_id == "prod_1"
                     assert cp.price > 0
                     assert cp.retailer_name != ""
+
+
+@pytest.mark.usefixtures("reset_db_engine")
+class TestCustomerAndBrowseHistorySeeding:
+    """Test suite for Customer and BrowseHistory seeding."""
+
+    def test_seed_data_creates_customer(self, temp_db_url: str) -> None:
+        """Happy path: seed_data creates a demo customer."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                customers = session.exec(select(Customer)).all()
+                assert len(customers) == 1
+
+                customer = customers[0]
+                assert customer.id == "cust_1"
+                assert customer.email == "demo@example.com"
+                assert customer.name == "Demo Shopper"
+
+    def test_seed_data_creates_browse_history(self, temp_db_url: str) -> None:
+        """Happy path: seed_data creates browse history entries."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                entries = session.exec(select(BrowseHistory)).all()
+                assert len(entries) == 10  # 10 browse history entries seeded
+
+    def test_browse_history_linked_to_customer(self, temp_db_url: str) -> None:
+        """Happy path: Browse history entries are linked to the demo customer."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                entries = session.exec(
+                    select(BrowseHistory).where(BrowseHistory.customer_id == "cust_1")
+                ).all()
+
+                assert len(entries) == 10
+                for entry in entries:
+                    assert entry.customer_id == "cust_1"
+
+    def test_browse_history_has_varied_categories(self, temp_db_url: str) -> None:
+        """Happy path: Browse history includes multiple categories."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                entries = session.exec(select(BrowseHistory)).all()
+
+                categories = {entry.category for entry in entries}
+                # Should have multiple categories
+                assert len(categories) >= 3
+                assert "tops" in categories
+                assert "bottoms" in categories
+
+    def test_browse_history_price_range_computable(self, temp_db_url: str) -> None:
+        """Happy path: Price range can be computed from browse history."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                entries = session.exec(
+                    select(BrowseHistory).where(BrowseHistory.customer_id == "cust_1")
+                ).all()
+
+                prices = [e.price_viewed for e in entries if e.price_viewed > 0]
+                assert len(prices) > 0
+
+                min_price = min(prices)
+                max_price = max(prices)
+
+                # Verify the range is reasonable (2000-5500 cents based on seed data)
+                assert min_price >= 2000
+                assert max_price <= 6000
+                # Price range is the tuple (min, max)
+                price_range = [min_price, max_price]
+                assert price_range[0] < price_range[1]
+
+    def test_browse_history_has_search_terms(self, temp_db_url: str) -> None:
+        """Happy path: Browse history includes search terms."""
+        with patch("src.merchant.db.database.get_settings") as mock_settings:
+            mock_settings.return_value.database_url = temp_db_url
+            mock_settings.return_value.debug = False
+
+            init_and_seed_db()
+
+            engine = get_engine()
+            with Session(engine) as session:
+                entries = session.exec(select(BrowseHistory)).all()
+
+                search_terms = [e.search_term for e in entries if e.search_term]
+                assert len(search_terms) > 0
+                assert "casual wear" in search_terms
+                assert "summer clothes" in search_terms

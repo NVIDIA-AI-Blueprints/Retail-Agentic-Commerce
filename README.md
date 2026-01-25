@@ -19,6 +19,7 @@ A **reference implementation** of the **Agentic Commerce Protocol (ACP)**: a ret
 - Python 3.12+
 - Node.js 18+ (for UI)
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- Docker (for Milvus vector database)
 
 ### Installation
 
@@ -60,12 +61,31 @@ cd src/agents
 uv pip install -e ".[dev]" --prerelease=allow
 nat serve --config_file configs/promotion.yml --port 8002      # Promotion Agent
 nat serve --config_file configs/post-purchase.yml --port 8003  # Post-Purchase Agent
+nat serve --config_file configs/recommendation.yml --port 8004 # Recommendation Agent (requires Milvus)
 
 # Frontend UI (port 3000)
 cd src/ui
 cp env.example .env.local  # Configure API endpoints
 pnpm install && pnpm run dev
 ```
+
+### Milvus Setup (for Recommendation Agent)
+
+The Recommendation Agent uses Milvus for vector similarity search. Start Milvus and seed the product catalog:
+
+```bash
+# Start Milvus (Docker required)
+docker compose up -d
+
+# Wait for health check
+curl -s http://localhost:9091/healthz
+
+# Seed product catalog embeddings (from src/agents/)
+cd src/agents
+uv run python scripts/seed_milvus.py
+```
+
+Data persists across restarts. To start fresh:
 
 ### Verify
 

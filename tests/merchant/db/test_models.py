@@ -5,9 +5,11 @@ from datetime import UTC, datetime
 import pytest
 
 from src.merchant.db.models import (
+    BrowseHistory,
     CheckoutSession,
     CheckoutStatus,
     CompetitorPrice,
+    Customer,
     Product,
 )
 
@@ -167,3 +169,116 @@ class TestCheckoutStatusEnum:
         """Edge case: CheckoutStatus can be created from string value."""
         status = CheckoutStatus(status_value)
         assert status.value == status_value
+
+
+class TestCustomerModel:
+    """Test suite for the Customer model."""
+
+    def test_customer_creation_with_all_fields(self) -> None:
+        """Happy path: Customer can be created with all required fields."""
+        now = datetime.now(UTC)
+        customer = Customer(
+            id="cust_test",
+            email="test@example.com",
+            name="Test User",
+            created_at=now,
+        )
+
+        assert customer.id == "cust_test"
+        assert customer.email == "test@example.com"
+        assert customer.name == "Test User"
+        assert customer.created_at == now
+
+    def test_customer_default_created_at(self) -> None:
+        """Edge case: Customer gets default created_at if not provided."""
+        customer = Customer(
+            id="cust_default",
+            email="default@example.com",
+            name="Default User",
+        )
+
+        assert customer.created_at is not None
+        assert isinstance(customer.created_at, datetime)
+
+    def test_customer_browse_history_relationship(self) -> None:
+        """Edge case: Customer has browse_history relationship initialized."""
+        customer = Customer(
+            id="cust_rel",
+            email="rel@example.com",
+            name="Relationship User",
+        )
+
+        # Relationship is initialized as empty list
+        assert customer.browse_history == []
+
+
+class TestBrowseHistoryModel:
+    """Test suite for the BrowseHistory model."""
+
+    def test_browse_history_creation_with_all_fields(self) -> None:
+        """Happy path: BrowseHistory can be created with all fields."""
+        now = datetime.now(UTC)
+        entry = BrowseHistory(
+            customer_id="cust_1",
+            category="tops",
+            search_term="casual wear",
+            product_id="prod_1",
+            price_viewed=2500,
+            viewed_at=now,
+        )
+
+        assert entry.id is None  # Auto-generated on insert
+        assert entry.customer_id == "cust_1"
+        assert entry.category == "tops"
+        assert entry.search_term == "casual wear"
+        assert entry.product_id == "prod_1"
+        assert entry.price_viewed == 2500
+        assert entry.viewed_at == now
+
+    def test_browse_history_minimal_fields(self) -> None:
+        """Edge case: BrowseHistory works with only required fields."""
+        entry = BrowseHistory(
+            customer_id="cust_1",
+            category="bottoms",
+        )
+
+        assert entry.customer_id == "cust_1"
+        assert entry.category == "bottoms"
+        assert entry.search_term is None
+        assert entry.product_id is None
+        assert entry.price_viewed == 0
+        assert entry.viewed_at is not None
+
+    def test_browse_history_price_in_cents(self) -> None:
+        """Edge case: BrowseHistory price is stored in cents."""
+        entry = BrowseHistory(
+            customer_id="cust_1",
+            category="tops",
+            price_viewed=3500,
+        )
+
+        assert entry.price_viewed == 3500
+        assert entry.price_viewed / 100 == 35.00
+
+    def test_browse_history_default_viewed_at(self) -> None:
+        """Edge case: BrowseHistory gets default viewed_at if not provided."""
+        entry = BrowseHistory(
+            customer_id="cust_1",
+            category="accessories",
+        )
+
+        assert entry.viewed_at is not None
+        assert isinstance(entry.viewed_at, datetime)
+
+    @pytest.mark.parametrize(
+        "category",
+        ["tops", "bottoms", "accessories", "footwear", "outerwear"],
+    )
+    def test_browse_history_various_categories(self, category: str) -> None:
+        """Happy path: BrowseHistory accepts various category values."""
+        entry = BrowseHistory(
+            customer_id="cust_1",
+            category=category,
+        )
+
+        assert entry.category == category
