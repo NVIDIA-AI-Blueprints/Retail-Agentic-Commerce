@@ -196,7 +196,87 @@ Each agent is implemented as a NAT workflow following the 3-layer hybrid archite
   This approach achieves up to 42% improvement over vanilla RAG by integrating agentic reasoning into the retrieval pipeline.
 * **FR-POST (Post-Purchase Agent)**: Triggers human-like shipping pulses **to the global webhook endpoint** using the configured **Brand Persona**.
 
-### 2.3 Brand Persona Configuration
+### 2.3 Apps SDK Integration (Merchant-Controlled Iframe)
+
+The platform supports an alternative checkout experience using the **Apps SDK pattern**, where merchants maintain complete UI control via an embedded iframe:
+
+* **FR-SDK-01 (Mode Switcher)**: Client Agent panel provides a tab switcher to toggle between "Native ACP" and "Apps SDK" modes.
+* **FR-SDK-02 (Merchant Iframe)**: In Apps SDK mode, the merchant owns and controls an iframe embedded in the Client Agent panel. The merchant provides the HTML/URL, and the client agent provides the iframe container.
+* **FR-SDK-03 (ARAG Recommendations)**: The merchant iframe displays 3 personalized recommendations from the ARAG Recommendation Agent in a carousel format.
+* **FR-SDK-04 (Shopping Cart)**: Unlike Native ACP (single product checkout), Apps SDK supports a full shopping cart where users can add multiple items before checkout.
+* **FR-SDK-05 (Loyalty Points)**: The iframe displays loyalty points for a pre-authenticated user, demonstrating merchant loyalty program integration.
+* **FR-SDK-06 (Payment Bridge)**: The iframe triggers checkout via the `window.openai.callTool()` pattern (simulated Apps SDK bridge), which initiates the same ACP payment flow as native mode.
+
+#### Apps SDK Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                      CLIENT AGENT PANEL                             │
+│  ┌────────────────┬────────────────┐                               │
+│  │  [Native ACP]  │  [Apps SDK]   │  ← Tab Switcher                │
+│  └────────────────┴────────────────┘                               │
+│                                                                     │
+│  ┌────────────────────────────────────────────────────────────────┐│
+│  │                    MERCHANT IFRAME                              ││
+│  │  ┌───────────────────────────────────────────────────────────┐ ││
+│  │  │  👤 John Doe | 🏆 1,250 pts                               │ ││
+│  │  │  ─────────────────────────────────────────────────────────│ ││
+│  │  │  RECOMMENDATIONS (from ARAG)                              │ ││
+│  │  │  [Item 1] [Item 2] [Item 3]  ← 3 items from ARAG agent   │ ││
+│  │  │  ─────────────────────────────────────────────────────────│ ││
+│  │  │  SHOPPING CART                                            │ ││
+│  │  │  ├─ Classic Tee x1 ... $25                               │ ││
+│  │  │  └─ Total: $25                                           │ ││
+│  │  │  [Checkout] → callTool('checkout', {...})                │ ││
+│  │  └───────────────────────────────────────────────────────────┘ ││
+│  └────────────────────────────────────────────────────────────────┘│
+│                             │                                       │
+│                             ▼                                       │
+│                    ACP Payment Flow                                 │
+│              (same as Native approach)                              │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Differences: Native ACP vs Apps SDK
+
+| Aspect | Native ACP | Apps SDK |
+|--------|-----------|----------|
+| UI Control | Client Agent | Merchant (via iframe) |
+| Product Display | Product grid | Recommendation carousel |
+| Shopping | Single product | Multi-item cart |
+| Recommendations | Agent Activity panel | Integrated in merchant UI |
+| Loyalty | Not displayed | Pre-authenticated user with points |
+| Payment | Same | Same (ACP + PSP) |
+
+#### Apps SDK Deployment & Testing Requirements
+
+Per [OpenAI Apps SDK guidelines](https://developers.openai.com/apps-sdk/deploy), the implementation supports three testing modes:
+
+| Mode | Environment | Purpose |
+|------|-------------|---------|
+| **Standalone** | Local (localhost:3000) | Development with simulated `window.openai` bridge |
+| **ChatGPT Integration** | ngrok tunnel | Pre-production testing in real ChatGPT |
+| **Production** | Vercel/Alpic/Cloud | Public deployment via ChatGPT Apps Directory |
+
+**Standalone Testing** (simulated):
+- Protocol Inspector embeds merchant iframe locally
+- Simulated `window.openai` bridge mimics ChatGPT behavior
+- Full ACP payment flow works without ChatGPT connection
+
+**ChatGPT Integration Testing** (via ngrok):
+```bash
+ngrok http 2091
+# Exposes MCP server at https://<subdomain>.ngrok.app/mcp
+# Configure in ChatGPT Settings → Connectors
+```
+
+**MCP Server Requirements**:
+- Implements `get-recommendations`, `add-to-cart`, `checkout` tools
+- Serves widget HTML resources with `openai/outputTemplate` metadata
+- Connects to ARAG agent for personalized recommendations
+- Triggers ACP payment flow on checkout
+
+### 2.4 Brand Persona Configuration
 
 The Post-Purchase Agent uses a **Brand Persona** for personalized messaging:
 
@@ -214,7 +294,7 @@ The Post-Purchase Agent uses a **Brand Persona** for personalized messaging:
 | `tone` | `string` | Yes | Communication style: "friendly", "professional", "casual", "urgent" |
 | `preferred_language` | `string` | Yes | ISO 639-1 code: "en", "es", "fr" |
 
-### 2.4 Payments (PSP: delegated payments)
+### 2.5 Payments (PSP: delegated payments)
 
 * **FR-PSP-01 (Delegate payment / vault token)**: client submits card details to PSP `POST /agentic_commerce/delegate_payment` and receives a **vault token** `vt_...` (201).
 * **FR-PSP-02 (Idempotency)**: PSP supports `Idempotency-Key`:

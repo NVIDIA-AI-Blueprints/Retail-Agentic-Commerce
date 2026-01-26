@@ -21,6 +21,23 @@ The demo will feature a **multi-panel Protocol Inspector** that provides real-ti
 
 This "glass box" approach makes the invisible mechanics of agentic commerce visible and educational.
 
+### Apps SDK Mode
+
+The Client Agent panel includes a **tab switcher** to toggle between two checkout experiences:
+
+| Mode | Description |
+|------|-------------|
+| **Native ACP** | Client agent controls UI, single product checkout, standard flow |
+| **Apps SDK** | Merchant controls UI via iframe, multi-item cart, ARAG recommendations |
+
+The Apps SDK mode demonstrates how merchants can maintain complete UI control while leveraging the same ACP payment infrastructure. Key features:
+
+* **Merchant-Owned Iframe**: HTML served from `/merchant-app`, fully controlled by merchant
+* **ARAG Recommendations**: 3 personalized cross-sell items in carousel format
+* **Shopping Cart**: Add multiple items before checkout (vs single product in native)
+* **Loyalty Points**: Pre-authenticated user with points balance display
+* **Same Payment Flow**: Uses identical ACP + PSP payment infrastructure
+
 ## 3. Problem Statement
 
 * **Current State**: Merchants struggle to maintain their role as the "Merchant of Record" when transactions occur within third-party AI interfaces.
@@ -80,6 +97,19 @@ The Post-Purchase Agent uses a configurable Brand Persona:
   * `POST /agentic_commerce/delegate_payment` → `vt_...` (idempotent via `Idempotency-Key`)
   * `POST /agentic_commerce/create_and_process_payment_intent` → `pi_...`, token becomes `consumed`
 * **Global Webhook**: Single endpoint for post-purchase event delivery
+* **Apps SDK Integration (Merchant Iframe)**:
+  * Tab switcher to toggle between "Native ACP" and "Apps SDK" modes
+  * Merchant-owned iframe embedded in Client Agent panel
+  * 3 personalized recommendations from ARAG agent in carousel format
+  * Shopping cart supporting multiple items (vs single product in native)
+  * Pre-authenticated user with loyalty points display
+  * Payment via `window.openai.callTool()` pattern → same ACP flow
+  * **Three Testing Modes** per [OpenAI Apps SDK guidelines](https://developers.openai.com/apps-sdk/deploy):
+    * Standalone: Local development with simulated `window.openai` bridge
+    * ChatGPT Integration: Real ChatGPT testing via ngrok tunnel
+    * Production: Deployed MCP server accessible from ChatGPT Apps Directory
+  * MCP server with `get-recommendations`, `add-to-cart`, `checkout` tools
+  * Widget bundles served via `openai/outputTemplate` metadata
 
 * **Out of Scope**:
 * Live production payment processing (Simulated Shared Payment Tokens only).

@@ -26,6 +26,82 @@
 
 ---
 
+### Apps SDK Integration Components
+
+The Apps SDK mode provides an alternative merchant-controlled checkout experience:
+
+| Component | Technology | Purpose |
+| --- | --- | --- |
+| **Tab Switcher** | React Component | Toggle between Native ACP and Apps SDK modes |
+| **Merchant Iframe** | HTML/React in iframe | Merchant-owned UI for product display and cart |
+| **Simulated window.openai** | postMessage Bridge | Communication between iframe and parent for tool calls |
+| **Recommendations API** | Next.js API Route | Proxy to ARAG agent for 3 personalized recommendations |
+| **Shopping Cart** | React State + localStorage | Multi-item cart (unlike single-product native mode) |
+| **Loyalty Display** | React Component | Pre-authenticated user with points balance |
+
+### Apps SDK MCP Server Stack
+
+For ChatGPT integration testing and production deployment:
+
+| Component | Technology | Version | Purpose |
+| --- | --- | --- | --- |
+| **MCP Server** | FastMCP (Python) | 1.0+ | Tool registration and handling for ChatGPT |
+| **Widget Bundle** | Vite + React | latest | Builds HTML widget files for ChatGPT rendering |
+| **Tunnel** | ngrok | latest | Exposes local MCP server to ChatGPT for testing |
+| **Hosting** | Vercel / Alpic | n/a | Production deployment with HTTPS and CDN |
+
+### Testing Modes
+
+The Apps SDK is architected for three testing environments per [OpenAI guidelines](https://developers.openai.com/apps-sdk/deploy):
+
+| Mode | ChatGPT | MCP Server | Purpose |
+| --- | --- | --- | --- |
+| **Standalone** | Simulated | N/A (postMessage) | Local development without ChatGPT |
+| **Integration** | Real | ngrok tunnel | Pre-production testing in ChatGPT |
+| **Production** | Real | Vercel/Alpic | Public deployment |
+
+```bash
+# Standalone (simulated ChatGPT)
+cd src/ui && pnpm run dev
+# Access http://localhost:3000, switch to Apps SDK tab
+
+# Integration (real ChatGPT via ngrok)
+cd src/apps-sdk && npm run dev  # MCP server on :2091
+ngrok http 2091                  # Tunnel to ChatGPT
+# Configure ngrok URL in ChatGPT Settings → Connectors
+```
+
+#### Apps SDK Communication Flow
+
+```
+┌─────────────────────┐                    ┌─────────────────────┐
+│   Parent Window     │                    │   Merchant Iframe   │
+│   (Client Agent)    │                    │   (/merchant-app)   │
+├─────────────────────┤                    ├─────────────────────┤
+│                     │  INIT_MERCHANT_APP │                     │
+│                     │ ──────────────────▶│ Receives user data  │
+│                     │   (user, theme)    │ & recommendations   │
+│                     │                    │                     │
+│                     │                    │ User adds to cart   │
+│                     │                    │ User clicks checkout│
+│                     │                    │                     │
+│                     │     CALL_TOOL      │                     │
+│  Receives checkout  │◀────────────────── │ callTool('checkout')│
+│  request            │   (cart, points)   │                     │
+│                     │                    │                     │
+│  Triggers ACP flow: │                    │                     │
+│  - Create session   │                    │                     │
+│  - Delegate payment │                    │                     │
+│  - Complete checkout│                    │                     │
+│                     │                    │                     │
+│                     │    TOOL_RESULT     │                     │
+│                     │ ──────────────────▶│ Shows confirmation  │
+│                     │   (orderId)        │                     │
+└─────────────────────┘                    └─────────────────────┘
+```
+
+---
+
 ### ARAG Recommendation Components
 
 The Recommendation Agent uses an **Agentic Retrieval Augmented Generation (ARAG)** architecture with the following components:

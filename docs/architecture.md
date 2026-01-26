@@ -29,6 +29,14 @@ graph TD
     subgraph "Consumer Interface"
         A[Client Agent Simulator]
         J[Product Cards UI]
+        TABS[Mode: Native ACP | Apps SDK]
+    end
+
+    subgraph "Apps SDK Mode"
+        MERCHANT_IFRAME[Merchant-Owned Iframe]
+        LOYALTY[Loyalty Points Display]
+        REC_CAROUSEL[Recommendations Carousel]
+        SHOP_CART[Shopping Cart]
     end
 
     subgraph "Intelligent Middleware (FastAPI)"
@@ -62,6 +70,11 @@ graph TD
     end
 
     A -->|UI resources| J
+    A -->|Mode switch| TABS
+    TABS -->|Apps SDK| MERCHANT_IFRAME
+    MERCHANT_IFRAME --> LOYALTY & REC_CAROUSEL & SHOP_CART
+    REC_CAROUSEL -.->|Fetches 3 items| E
+    SHOP_CART -->|callTool checkout| B
     A <-->|ACP REST/JSON| B
     B <--> C
     C --> D & E
@@ -138,6 +151,92 @@ graph TD
 * **Global Webhook Delivery**: Post-purchase shipping pulses are delivered to a **single global webhook URL** configured at the application level. The Post-Purchase Agent uses the **Brand Persona** to generate multilingual updates.
 * **Configurable NIM Endpoint**: Supports both NVIDIA hosted API and local Docker deployment via environment variable.
 * **API Key Auth**: All ACP endpoints require an API key (e.g., `Authorization: Bearer <API_KEY>` or `X-API-Key: <API_KEY>`). Unauthorized requests return 401/403.
+* **Apps SDK Integration**: An alternative checkout mode where the merchant controls a fully-owned iframe embedded within the Client Agent panel:
+
+```mermaid
+graph TD
+    subgraph "Client Agent Panel"
+        TAB[Tab Switcher: Native ACP | Apps SDK]
+        NATIVE[Native ACP Mode]
+        APPSDK[Apps SDK Mode]
+    end
+
+    subgraph "Apps SDK Mode"
+        IFRAME[Merchant Iframe]
+        LOYALTY[Loyalty Points Display]
+        CAROUSEL[ARAG Recommendations Carousel]
+        CART[Shopping Cart - Multi-item]
+        CHECKOUT_BTN[Checkout Button]
+    end
+
+    subgraph "Communication Bridge"
+        BRIDGE[Simulated window.openai]
+        POSTMSG[postMessage Protocol]
+    end
+
+    subgraph "Existing ACP Flow"
+        ACP_SESSION[POST /checkout_sessions]
+        PSP_DELEGATE[POST /delegate_payment]
+        ACP_COMPLETE[POST /complete]
+    end
+
+    TAB -->|Switch| NATIVE
+    TAB -->|Switch| APPSDK
+    APPSDK --> IFRAME
+    IFRAME --> LOYALTY
+    IFRAME --> CAROUSEL
+    IFRAME --> CART
+    CART --> CHECKOUT_BTN
+    CHECKOUT_BTN -->|callTool| BRIDGE
+    BRIDGE -->|postMessage| POSTMSG
+    POSTMSG --> ACP_SESSION
+    ACP_SESSION --> PSP_DELEGATE
+    PSP_DELEGATE --> ACP_COMPLETE
+
+    CAROUSEL -.->|Fetches from| ARAG[ARAG Recommendation Agent]
+```
+
+  The Apps SDK pattern provides:
+  - **Merchant UI Control**: Merchant owns the HTML/CSS/JS within the iframe
+  - **ARAG-Powered Recommendations**: 3 personalized items from the Recommendation Agent
+  - **Shopping Cart**: Multi-item cart (vs single product in native mode)
+  - **Loyalty Integration**: Pre-authenticated user with points display
+  - **Same Payment Flow**: Uses identical ACP + PSP payment infrastructure
+
+* **Apps SDK Testing Modes**: The implementation supports three testing environments per [OpenAI deployment guidelines](https://developers.openai.com/apps-sdk/deploy):
+
+```mermaid
+graph TD
+    subgraph "Mode 1: Standalone"
+        S1[Protocol Inspector]
+        S2[Merchant Iframe]
+        S3[Simulated window.openai]
+        S1 --> S2
+        S2 --> S3
+    end
+
+    subgraph "Mode 2: ChatGPT Integration"
+        C1[ChatGPT]
+        C2[ngrok Tunnel]
+        C3[MCP Server localhost:2091]
+        C4[Widget Bundle]
+        C1 -->|/mcp| C2
+        C2 --> C3
+        C3 -->|outputTemplate| C4
+    end
+
+    subgraph "Mode 3: Production"
+        P1[ChatGPT]
+        P2[MCP Server Vercel/Alpic]
+        P3[Widget CDN]
+        P1 -->|HTTPS| P2
+        P2 --> P3
+    end
+```
+
+  - **Standalone**: Local development with simulated ChatGPT bridge
+  - **ChatGPT Integration**: Real ChatGPT testing via ngrok tunnel before production
+  - **Production**: Deployed MCP server accessible from ChatGPT Apps Directory
 
 ---
 
