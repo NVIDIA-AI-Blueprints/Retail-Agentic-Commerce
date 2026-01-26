@@ -306,6 +306,88 @@ nat run --config_file configs/post-purchase.yml --input '{
 
 The Recommendation Agent uses an ARAG (Agentic RAG) architecture with 4 specialized sub-agents orchestrated by a coordinator workflow.
 
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Checkout / Cart Update                        │
+│              (add_to_cart → get_recommendations)                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│           src/merchant/services/recommendation.py               │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 1: Build Recommendation Request                          │
+│  - Validate cart items exist in product catalog                 │
+│  - Gather session context (browse history, price range)         │
+│  - Determine eligible product categories                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ POST /generate with JSON context
+┌─────────────────────────────────────────────────────────────────┐
+│         Recommendation Agent (ARAG) (nat serve :8004)           │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 2: ARAG Multi-Agent Pipeline                             │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │       Recommendation Coordinator (react_agent workflow)    │ │
+│  │  - Receives cart items + session context                   │ │
+│  │  - Orchestrates specialized agents via tool calls          │ │
+│  │  - Aggregates results into final response                  │ │
+│  └──────────────────────────┬─────────────────────────────────┘ │
+│                             │                                    │
+│            ┌────────────────┼────────────────┐                   │
+│            │                │                │                   │
+│            ▼                ▼                ▼                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ product_     │  │ user_under-  │  │ nli_align-   │           │
+│  │ search       │  │ standing_    │  │ ment_agent   │           │
+│  │ (RAG tool)   │  │ agent (UUA)  │  │ (NLI)        │           │
+│  ├──────────────┤  ├──────────────┤  ├──────────────┤           │
+│  │ Vector search│  │ Infer buyer  │  │ Score align- │           │
+│  │ in Milvus    │  │ preferences  │  │ ment with    │           │
+│  │              │  │ from context │  │ user intent  │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
+│            │                │                │                   │
+│            └────────────────┼────────────────┘                   │
+│                             ▼                                    │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  context_summary_agent (CSA)                               │ │
+│  │  - Synthesizes UUA output + NLI scores + candidates        │ │
+│  │  - Creates focused context for final ranking               │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                             │                                    │
+│                             ▼                                    │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  item_ranker_agent (IRA)                                   │ │
+│  │  - Produces final ranked recommendations                   │ │
+│  │  - Includes reasoning for each suggestion                  │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                             │                                    │
+│  ┌──────────────────────────┴─────────────────────────────────┐ │
+│  │       Recommendation Coordinator (aggregates results)      │ │
+│  │  - Formats recommendations array with rankings             │ │
+│  │  - Includes pipeline_trace for observability               │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ Returns {recommendations, user_intent, pipeline_trace}
+┌─────────────────────────────────────────────────────────────────┐
+│           src/merchant/services/recommendation.py               │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 3: Validate & Filter Recommendations                     │
+│  - Validate products exist and are in-stock                     │
+│  - Exclude items already in cart                                │
+│  - Fallback to popularity-based if agent unavailable            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Checkout Session Response                       │
+│      (cross_sell_recommendations array in session JSON)          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 **Prerequisites:**
 
 1. **Start Milvus Vector Database:**
