@@ -68,7 +68,7 @@ functions:
       - Price sensitivity level
       - Style and category preferences
       - Complementary product needs
-    llm_name: nemotron_fast
+    llm_name: nemotron_nano
     system_prompt: |
       You are a User Understanding Agent for e-commerce personalization.
       
@@ -99,7 +99,7 @@ functions:
       Expert agent for scoring semantic alignment between candidate products
       and the user's inferred intent. Uses Natural Language Inference to determine
       if each product SUPPORTS, is NEUTRAL to, or CONTRADICTS the user's needs.
-    llm_name: nemotron_fast
+    llm_name: nemotron_nano
     system_prompt: |
       You are a Natural Language Inference Agent for product relevance scoring.
       
@@ -132,7 +132,7 @@ functions:
       Expert agent for synthesizing user preferences and NLI alignment scores
       into a focused recommendation context. Filters and prioritizes candidates
       based on business constraints (in-stock, margin) and semantic fit.
-    llm_name: nemotron_fast
+    llm_name: nemotron_nano
     system_prompt: |
       You are a Context Summary Agent that synthesizes recommendation signals.
       
@@ -166,10 +166,10 @@ functions:
   item_ranker_agent:
     _type: chat_completion
     description: |
-      Expert agent for producing the final ranked list of 2-3 cross-sell
+      Expert agent for producing the final ranked list of 3 cross-sell
       recommendations. Considers user preferences, context summary, and
       maximizes relevance while ensuring diversity.
-    llm_name: nemotron_reasoning
+    llm_name: nemotron_nano
     system_prompt: |
       You are an Item Ranker Agent for personalized recommendations.
       
@@ -181,7 +181,7 @@ functions:
       4. Value proposition for the customer
       5. Diversity (don't recommend 3 similar items)
       
-      OUTPUT: Return EXACTLY 2-3 recommendations in valid JSON:
+      OUTPUT: Return EXACTLY 3 recommendations in valid JSON:
       {{
         "recommendations": [
           {{
@@ -198,16 +198,7 @@ functions:
 # =============================================================================
 llms:
   # Fast model for classification and scoring tasks (UUA, NLI, CSA)
-  nemotron_fast:
-    _type: nim
-    model_name: nvidia/nemotron-3-nano-30b-a3b
-    temperature: 0.3
-    max_tokens: 512
-    chat_template_kwargs:
-      enable_thinking: false
-
-  # Reasoning model for final ranking
-  nemotron_reasoning:
+  nemotron_nano:
     _type: nim
     model_name: nvidia/nemotron-3-nano-30b-a3b
     temperature: 0.3
@@ -246,7 +237,7 @@ workflow:
     /no_think You are the ARAG Recommendation Coordinator for an e-commerce platform.
     
     Your task: Given a user's cart items and optional session context, produce
-    2-3 personalized cross-sell recommendations using your specialized agents.
+    3 personalized cross-sell recommendations using your specialized agents.
     
     AVAILABLE TOOLS:
     {tools}
