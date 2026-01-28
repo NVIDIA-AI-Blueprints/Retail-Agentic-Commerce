@@ -124,4 +124,3 @@ export const mockACPRequests: ACPRequest[] = [
     response: mockCheckoutSession,
   },
 ];
-

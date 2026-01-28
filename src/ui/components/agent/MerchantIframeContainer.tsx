@@ -66,7 +66,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
   /**
    * Initialize widget by calling MCP tool to discover widget URI.
    * The client has NO knowledge of the widget URL until the MCP tool responds.
-   * 
+   *
    * Flow:
    * 1. Call MCP tool (search-products)
    * 2. Extract widget URI from _meta.openai/outputTemplate
@@ -98,12 +98,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
       if (widgetUrl && widgetUri) {
         // Successfully discovered widget URL from MCP tool response
         // Include both the discovery and resolution in the completion message
-        completeEvent(
-          eventId,
-          "success",
-          `Discovered: ${widgetUri}`,
-          200
-        );
+        completeEvent(eventId, "success", `Discovered: ${widgetUri}`, 200);
 
         setDiscoveredWidgetUri(widgetUri);
         setIframeSrc(widgetUrl);
@@ -113,15 +108,9 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "MCP tool call failed";
-      console.warn("[MCP] Failed to discover widget URL:", errorMessage);
 
       // Complete the original event with error, include fallback info in the message
-      completeEvent(
-        eventId,
-        "error",
-        `${errorMessage} → Fallback: ${VITE_DEV_URL}`,
-        500
-      );
+      completeEvent(eventId, "error", `${errorMessage} → Fallback: ${VITE_DEV_URL}`, 500);
 
       setIframeSrc(VITE_DEV_URL);
       setMcpStatus("error");
@@ -168,7 +157,6 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
    */
   const handleIframeError = useCallback(() => {
     if (iframeSrc && iframeSrc !== VITE_DEV_URL) {
-      console.log("Widget load failed, falling back to Vite dev server");
       setIframeSrc(VITE_DEV_URL);
     }
   }, [iframeSrc]);
@@ -386,7 +374,10 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
           width: 100%;
           border: none;
           background: transparent;
-          transition: opacity 220ms ease, transform 220ms ease, filter 220ms ease;
+          transition:
+            opacity 220ms ease,
+            transform 220ms ease,
+            filter 220ms ease;
         }
 
         /* Loader overlay with breathing animation */
@@ -401,11 +392,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
           pointer-events: none;
           opacity: 1;
           transition: opacity 200ms ease;
-          background: linear-gradient(
-            to bottom,
-            rgba(26, 26, 26, 0.95),
-            rgba(26, 26, 26, 0.88)
-          );
+          background: linear-gradient(to bottom, rgba(26, 26, 26, 0.95), rgba(26, 26, 26, 0.88));
           animation: breathe 1.6s ease-in-out infinite;
           z-index: 10;
         }

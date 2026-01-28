@@ -170,15 +170,16 @@ export function App() {
         const orderId = `order_${Date.now().toString(36).toUpperCase()}`;
         setCheckoutResult({
           success: true,
+          status: "confirmed",
           orderId,
           message: "Order placed successfully!",
         });
         setCartItems([]);
       }
     } catch (error) {
-      console.error("Checkout error:", error);
       setCheckoutResult({
         success: false,
+        status: "failed",
         error:
           error instanceof Error ? error.message : "Checkout failed",
       });

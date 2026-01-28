@@ -17,8 +17,7 @@ import { useState, useCallback } from "react";
 /**
  * MCP Server base URL - only the server address, NOT the widget path
  */
-const MCP_SERVER_URL =
-  process.env.NEXT_PUBLIC_MCP_SERVER_URL || "http://localhost:2091";
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "http://localhost:2091";
 
 /**
  * MCP tool response structure
@@ -123,7 +122,7 @@ export function useMCPClient() {
 
         // Parse response - MCP uses SSE format
         const text = await response.text();
-        
+
         // Parse SSE stream to find the result
         const lines = text.split("\n");
         for (const line of lines) {
@@ -138,7 +137,7 @@ export function useMCPClient() {
             }
           }
         }
-        
+
         // If no SSE data found, try parsing as plain JSON
         if (!mcpResponse) {
           try {
@@ -161,7 +160,9 @@ export function useMCPClient() {
         const widgetUri = meta?.["openai/outputTemplate"] || null;
 
         if (!widgetUri) {
-          throw new Error("MCP tool response does not contain widget URI in _meta.openai/outputTemplate");
+          throw new Error(
+            "MCP tool response does not contain widget URI in _meta.openai/outputTemplate"
+          );
         }
 
         // Resolve the URI to an HTTP URL
