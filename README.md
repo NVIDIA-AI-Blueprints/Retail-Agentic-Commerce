@@ -56,6 +56,9 @@ uvicorn src.merchant.main:app --reload
 # PSP Service (port 8001)
 uvicorn src.payment.main:app --reload --port 8001
 
+# Apps SDK MCP Server (port 2091)
+uvicorn src.apps_sdk.main:app --reload --port 2091
+
 # NAT Agents (from src/agents/)
 cd src/agents
 uv pip install -e ".[dev]" --prerelease=allow
@@ -68,6 +71,22 @@ cd src/ui
 cp env.example .env.local  # Configure API endpoints
 pnpm install && pnpm run dev
 ```
+
+### Apps SDK Widget
+
+The Apps SDK provides a ChatGPT-compatible merchant widget. Build and serve it:
+
+```bash
+# Build the widget (outputs to src/apps_sdk/dist/)
+cd src/apps_sdk/web
+pnpm install
+pnpm build
+
+# For development with hot reload
+pnpm dev  # Runs on http://localhost:3001
+```
+
+See [src/apps_sdk/README.md](src/apps_sdk/README.md) for full documentation.
 
 ### Milvus Setup (for Recommendation Agent)
 
@@ -92,6 +111,7 @@ Data persists across restarts. To start fresh:
 ```bash
 curl http://localhost:8000/health  # Merchant API
 curl http://localhost:8001/health  # PSP Service
+curl http://localhost:2091/health  # Apps SDK MCP Server
 # Visit http://localhost:3000 for the UI
 ```
 
@@ -113,6 +133,7 @@ The UI has its own environment file at `src/ui/.env.local`. Copy from `src/ui/en
 
 - **Merchant API**: http://localhost:8000/docs
 - **PSP Service**: http://localhost:8001/docs
+- **Apps SDK MCP Server**: http://localhost:2091/docs
 
 ## Documentation
 
@@ -123,5 +144,6 @@ The UI has its own environment file at `src/ui/.env.local`. Copy from `src/ui/en
 | `docs/acp-spec.md` | ACP protocol specification |
 | `docs/features.md` | Feature breakdown and status |
 | `src/agents/README.md` | NAT Agents documentation |
+| `src/apps_sdk/README.md` | Apps SDK MCP Server documentation |
 | `CLAUDE.md` | Development guide for AI assistants |
 | `AGENTS.md` | Quick reference for contributors |

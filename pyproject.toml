@@ -12,6 +12,8 @@ dependencies = [
     "pydantic==2.12.5",
     "pydantic-settings==2.12.0",
     "python-dotenv==1.2.1",
+    "httpx==0.28.1",
+    "mcp==1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -67,7 +69,7 @@ typeCheckingMode = "strict"
 venvPath = "."
 venv = ".venv"
 include = ["src"]
-exclude = ["**/__pycache__"]
+exclude = ["**/__pycache__", "**/node_modules/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

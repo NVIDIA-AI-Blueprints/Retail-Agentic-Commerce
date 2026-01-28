@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ACP Merchant App</title>
+    <script>
+      // Initialize theme before render to prevent flash
+      (function() {
+        var savedTheme = localStorage.getItem('acp-widget-theme');
+        var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <style>
+      /* Critical CSS for loading state with theme support */
+      :root {
+        --loading-bg: #ffffff;
+        --loading-text: rgba(0, 0, 0, 0.6);
+        --loading-spinner-track: rgba(0, 0, 0, 0.1);
+      }
+      [data-theme="dark"] {
+        --loading-bg: #0d0d0d;
+        --loading-text: rgba(255, 255, 255, 0.6);
+        --loading-spinner-track: rgba(255, 255, 255, 0.1);
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: var(--loading-bg);
+        color: var(--loading-text);
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        transition: background-color 0.2s ease, color 0.2s ease;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        gap: 12px;
+        color: var(--loading-text);
+      }
+      .loading-spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid var(--loading-spinner-track);
+        border-top-color: #FF5100;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

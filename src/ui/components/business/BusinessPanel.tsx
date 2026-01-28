@@ -66,7 +66,7 @@ function ACPEventItem({ event }: { event: ACPEvent }) {
                 {isError ? "✗" : "✓"} {event.responseSummary}
               </span>
             )}
-            {event.duration && (
+            {event.duration != null && event.duration > 0 && (
               <span
                 style={{
                   display: "block",
