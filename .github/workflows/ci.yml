@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, acp-implementation]
+    branches: [main, acp-implementation, feat/apps-sdk-implementation]
   pull_request:
     branches: [main]
 
@@ -22,10 +22,10 @@ jobs:
         run: pip install ruff
 
       - name: Run Ruff linting
-        run: ruff check src/merchant/ src/payment/ tests/
+        run: ruff check src/merchant/ src/payment/ src/apps_sdk/ tests/
 
       - name: Run Ruff formatting check
-        run: ruff format --check src/merchant/ src/payment/ tests/
+        run: ruff format --check src/merchant/ src/payment/ src/apps_sdk/ tests/
 
   typecheck:
     name: Type Check
@@ -44,7 +44,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run Pyright
-        run: pyright src/merchant/ src/payment/
+        run: pyright src/merchant/ src/payment/ src/apps_sdk/
 
   test:
     name: Unit Tests
@@ -120,3 +120,51 @@ jobs:
       - name: Run Vitest
         working-directory: src/ui
         run: pnpm test:run
+
+  apps-sdk-widget-typecheck:
+    name: Apps SDK Widget TypeCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: src/apps_sdk/web
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run TypeScript check
+        working-directory: src/apps_sdk/web
+        run: pnpm typecheck
+
+  apps-sdk-widget-build:
+    name: Apps SDK Widget Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: src/apps_sdk/web
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build widget
+        working-directory: src/apps_sdk/web
+        run: pnpm build

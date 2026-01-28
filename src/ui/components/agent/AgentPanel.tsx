@@ -8,6 +8,8 @@ import { CheckoutCard } from "./CheckoutCard";
 import { ConfirmationCard } from "./ConfirmationCard";
 import { StreamingText } from "./StreamingText";
 import { PaymentShippingForm } from "./PaymentShippingForm";
+import { ModeTabSwitcher } from "./ModeTabSwitcher";
+import { MerchantIframeContainer } from "./MerchantIframeContainer";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
 import { useACPLog } from "@/hooks/useACPLog";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
@@ -21,6 +23,7 @@ import type {
   PaymentFormData,
   BillingAddressFormData,
 } from "@/types";
+import type { CheckoutMode } from "./ModeTabSwitcher";
 
 /**
  * Payment Modal Component
@@ -229,6 +232,7 @@ export function AgentPanel() {
   const [messages] = useState<ChatMessageType[]>(mockChatMessages);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
+  const [activeMode, setActiveMode] = useState<CheckoutMode>("native");
   const acpLog = useACPLog();
   const agentActivityLog = useAgentActivityLog();
   const {
@@ -292,6 +296,32 @@ export function AgentPanel() {
   const handleTextComplete = useCallback(() => {
     setShowProducts(true);
   }, []);
+
+  // Handle mode change
+  const handleModeChange = useCallback(
+    (mode: CheckoutMode) => {
+      setActiveMode(mode);
+      // Clear both panels when switching modes to start fresh
+      acpLog.clear();
+      agentActivityLog.clear();
+      // Reset native checkout flow when switching modes
+      if (mode === "apps-sdk") {
+        reset();
+        setIsModalOpen(false);
+      }
+    },
+    [reset, acpLog, agentActivityLog]
+  );
+
+  // Handle Apps SDK checkout complete
+  const handleAppsSdkCheckoutComplete = useCallback(
+    // Order ID is available for future enhancements (e.g., showing notifications)
+    (_orderId: string) => {
+      // Intentionally unused - placeholder for future notification/toast functionality
+      void _orderId;
+    },
+    []
+  );
 
   // Handle continue from summary to payment form
   const handleContinueToPayment = useCallback(() => {
@@ -410,92 +440,105 @@ export function AgentPanel() {
         </div>
       </div>
 
-      {/* Content area */}
-      <div className="glass-content flex-1 overflow-y-auto" style={{ padding: "24px 32px" }}>
-        <Stack gap="6">
-          {/* Chat message */}
-          <Stack gap="3">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
-          </Stack>
+      {/* Mode Tab Switcher */}
+      <ModeTabSwitcher activeMode={activeMode} onModeChange={handleModeChange} />
 
-          {/* Error display */}
-          {context.error && (
-            <ErrorDisplay error={context.error} onRetry={handleRetry} onDismiss={handleRetry} />
-          )}
+      {/* Native ACP Mode Content */}
+      {activeMode === "native" && (
+        <>
+          {/* Content area */}
+          <div className="glass-content flex-1 overflow-y-auto" style={{ padding: "24px 32px" }}>
+            <Stack gap="6">
+              {/* Chat message */}
+              <Stack gap="3">
+                {messages.map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+              </Stack>
 
-          {/* Always show product grid */}
-          {!context.error && (
-            <div className="ml-2">
-              <StreamingText
-                text={INTRO_TEXT}
-                speed={15}
-                onComplete={handleTextComplete}
-                className="text-secondary mb-5 block"
-              />
-              <br />
-              <div
-                className={`transition-all duration-700 ease-out ${
-                  showProducts ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                }`}
-              >
-                {showProducts && (
-                  <ProductGrid
-                    products={mockProducts}
-                    onSelect={handleSelectProduct}
-                    animateEntrance
+              {/* Error display */}
+              {context.error && (
+                <ErrorDisplay error={context.error} onRetry={handleRetry} onDismiss={handleRetry} />
+              )}
+
+              {/* Always show product grid */}
+              {!context.error && (
+                <div className="ml-2">
+                  <StreamingText
+                    text={INTRO_TEXT}
+                    speed={15}
+                    onComplete={handleTextComplete}
+                    className="text-secondary mb-5 block"
                   />
-                )}
-              </div>
-            </div>
-          )}
-        </Stack>
-      </div>
+                  <br />
+                  <div
+                    className={`transition-all duration-700 ease-out ${
+                      showProducts ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                    }`}
+                  >
+                    {showProducts && (
+                      <ProductGrid
+                        products={mockProducts}
+                        onSelect={handleSelectProduct}
+                        animateEntrance
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </Stack>
+          </div>
 
-      {/* Payment Modal */}
-      <PaymentModal isOpen={isAnyModalOpen} onClose={handleCloseModal}>
-        {/* Loading state */}
-        {context.isLoading && !checkoutData && <CheckoutSkeleton />}
+          {/* Payment Modal */}
+          <PaymentModal isOpen={isAnyModalOpen} onClose={handleCloseModal}>
+            {/* Loading state */}
+            {context.isLoading && !checkoutData && <CheckoutSkeleton />}
 
-        {/* Checkout Summary step (first step - with Continue button) */}
-        {showCheckoutSummaryStep && checkoutData && context.selectedProduct && (
-          <CheckoutCard
-            checkout={checkoutData}
-            product={context.selectedProduct}
-            quantity={context.quantity}
-            isProcessing={context.isLoading}
-            isReadyForPayment={isReadyForPayment}
-            onContinue={handleContinueToPayment}
-            onQuantityChange={handleQuantityChange}
-            onShippingChange={handleShippingChange}
-          />
-        )}
+            {/* Checkout Summary step (first step - with Continue button) */}
+            {showCheckoutSummaryStep && checkoutData && context.selectedProduct && (
+              <CheckoutCard
+                checkout={checkoutData}
+                product={context.selectedProduct}
+                quantity={context.quantity}
+                isProcessing={context.isLoading}
+                isReadyForPayment={isReadyForPayment}
+                onContinue={handleContinueToPayment}
+                onQuantityChange={handleQuantityChange}
+                onShippingChange={handleShippingChange}
+              />
+            )}
 
-        {/* Payment Form step (second step - with Pay Now button) */}
-        {showPaymentFormStep && (
-          <PaymentShippingForm
-            onSubmit={handlePaymentFormSubmit}
-            onBack={handleBackToSummary}
-            isProcessing={context.state === "processing" || context.isLoading}
-            initialPaymentInfo={context.paymentInfo}
-            initialBillingAddress={context.billingAddress}
-          />
-        )}
+            {/* Payment Form step (second step - with Pay Now button) */}
+            {showPaymentFormStep && (
+              <PaymentShippingForm
+                onSubmit={handlePaymentFormSubmit}
+                onBack={handleBackToSummary}
+                isProcessing={context.state === "processing" || context.isLoading}
+                initialPaymentInfo={context.paymentInfo}
+                initialBillingAddress={context.billingAddress}
+              />
+            )}
 
-        {/* Confirmation state */}
-        {showConfirmationModal && context.session?.order && context.selectedProduct && (
-          <ConfirmationCard
-            product={context.selectedProduct}
-            quantity={context.quantity}
-            shippingPrice={shipping}
-            orderId={context.session.order.id}
-            orderUrl={context.session.order.permalink_url}
-            estimatedDelivery={selectedShippingOption?.estimatedDelivery ?? "5-7 business days"}
-            onStartOver={handleStartOver}
-          />
-        )}
-      </PaymentModal>
+            {/* Confirmation state */}
+            {showConfirmationModal && context.session?.order && context.selectedProduct && (
+              <ConfirmationCard
+                product={context.selectedProduct}
+                quantity={context.quantity}
+                shippingPrice={shipping}
+                orderId={context.session.order.id}
+                orderUrl={context.session.order.permalink_url}
+                estimatedDelivery={selectedShippingOption?.estimatedDelivery ?? "5-7 business days"}
+                onStartOver={handleStartOver}
+              />
+            )}
+          </PaymentModal>
+        </>
+      )}
+
+      {/* Apps SDK Mode Content */}
+      {activeMode === "apps-sdk" && (
+        <MerchantIframeContainer onCheckoutComplete={handleAppsSdkCheckoutComplete} />
+      )}
     </section>
   );
 }

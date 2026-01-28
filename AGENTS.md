@@ -57,6 +57,9 @@ uvicorn src.merchant.main:app --reload
 
 # PSP
 uvicorn src.payment.main:app --reload --port 8001
+
+# Apps SDK MCP Server
+uvicorn src.apps_sdk.main:app --reload --port 2091
 ```
 
 ### Frontend
@@ -64,6 +67,13 @@ uvicorn src.payment.main:app --reload --port 8001
 cd src/ui
 pnpm install
 pnpm run dev
+```
+
+### Apps SDK Widget (for development)
+```bash
+cd src/apps_sdk/web
+pnpm install
+pnpm dev  # Runs on port 3001
 ```
 
 ## UI-Backend Integration
@@ -155,6 +165,17 @@ src/
 │       ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
 │       └── recommendation.yml   # ARAG multi-agent recommendations (port 8004, planned)
 │
+├── apps_sdk/           # Apps SDK MCP Server (port 2091)
+│   ├── main.py         # FastAPI + MCP server entry point
+│   ├── config.py       # Environment configuration
+│   ├── tools/          # MCP tool implementations
+│   │   ├── recommendations.py  # get-recommendations tool
+│   │   ├── cart.py             # add-to-cart, get-cart tools
+│   │   └── checkout.py         # checkout tool (ACP integration)
+│   ├── web/            # React + Vite widget source
+│   │   └── src/        # Widget components and hooks
+│   └── dist/           # Built widget HTML bundles
+│
 ├── merchant/           # Merchant API (FastAPI backend, port 8000)
 │   ├── main.py         # Application entry point
 │   ├── config.py       # Environment configuration
@@ -201,6 +222,16 @@ PSP Service:
 - Start server: `uvicorn src.payment.main:app --reload --port 8001`
 - Run tests: `pytest tests/payment/ -v`
 - Health: `curl http://localhost:8001/health`
+
+Apps SDK MCP Server:
+- Start server: `uvicorn src.apps_sdk.main:app --reload --port 2091`
+- Health: `curl http://localhost:2091/health`
+- Widget URL: `http://localhost:2091/widget/merchant-app.html`
+
+Apps SDK Widget (from `src/apps_sdk/web/`):
+- Install: `pnpm install`
+- Dev server: `pnpm dev` (port 3001)
+- Build: `pnpm build` (outputs to `../dist/`)
 
 NAT Agents (from `src/agents/`):
 - Install: `uv pip install -e ".[dev]" --prerelease=allow`
