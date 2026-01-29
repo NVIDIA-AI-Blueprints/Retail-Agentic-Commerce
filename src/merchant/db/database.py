@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from src.data.product_catalog import PRODUCTS
 from src.merchant.config import get_settings
 from src.merchant.db.models import BrowseHistory, CompetitorPrice, Customer, Product
 
@@ -54,47 +55,19 @@ def seed_data(session: Session) -> None:
     if existing_product is not None:
         return
 
-    products = [
-        Product(
-            id="prod_1",
-            sku="TS-001",
-            name="Classic Tee",
-            base_price=2500,
-            stock_count=100,
-            min_margin=0.15,
-            image_url="https://placehold.co/400x400/png?text=Classic+Tee",
-        ),
-        Product(
-            id="prod_2",
-            sku="TS-002",
-            name="V-Neck Tee",
-            base_price=2800,
-            stock_count=50,
-            min_margin=0.12,
-            image_url="https://placehold.co/400x400/png?text=V-Neck+Tee",
-        ),
-        Product(
-            id="prod_3",
-            sku="TS-003",
-            name="Graphic Tee",
-            base_price=3200,
-            stock_count=200,
-            min_margin=0.18,
-            image_url="https://placehold.co/400x400/png?text=Graphic+Tee",
-        ),
-        Product(
-            id="prod_4",
-            sku="TS-004",
-            name="Premium Tee",
-            base_price=4500,
-            stock_count=25,
-            min_margin=0.20,
-            image_url="https://placehold.co/400x400/png?text=Premium+Tee",
-        ),
-    ]
-
-    for product in products:
-        session.add(product)
+    # Import products from shared catalog
+    for p in PRODUCTS:
+        session.add(
+            Product(
+                id=p["id"],
+                sku=p["sku"],
+                name=p["name"],
+                base_price=p["price_cents"],
+                stock_count=p["stock_count"],
+                min_margin=p["min_margin"],
+                image_url=p["image_url"],
+            )
+        )
 
     session.commit()
 

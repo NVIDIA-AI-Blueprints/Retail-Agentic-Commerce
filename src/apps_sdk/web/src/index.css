@@ -138,3 +138,32 @@ body {
 .text-accent {
   color: var(--color-accent);
 }
+
+.bg-accent {
+  background-color: var(--color-accent);
+}
+
+.hover\:bg-accent-hover:hover {
+  background-color: #0d9488;
+}
+
+/* Skeleton shimmer animation */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 25%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

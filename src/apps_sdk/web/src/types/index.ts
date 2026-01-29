@@ -177,19 +177,20 @@ export function calculateCartTotals(
 }
 
 /**
- * Get product image URL based on variant
+ * Get product image URL based on product ID
+ * Images are named after product IDs: prod_1.jpeg, prod_2.jpeg, etc.
+ * In production, images are served from /widget/ path by the Apps SDK server.
+ * In development (Vite dev server), images are served from root path.
  */
-export function getProductImage(variant?: string): string {
-  switch (variant?.toLowerCase()) {
-    case "black":
-      return "/black.jpeg";
-    case "natural":
-    case "white":
-      return "/white.jpeg";
-    case "grey":
-    case "gray":
-      return "/gray.jpeg";
-    default:
-      return "/black.jpeg";
+export function getProductImage(productId?: string): string {
+  // Detect if running in production (served from Apps SDK server)
+  // vs development (Vite dev server on localhost:3001)
+  const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
+  const basePath = isViteDevServer ? "" : "/widget";
+
+  if (productId && productId.startsWith("prod_")) {
+    return `${basePath}/${productId}.jpeg`;
   }
+  // Fallback to first product image
+  return `${basePath}/prod_1.jpeg`;
 }

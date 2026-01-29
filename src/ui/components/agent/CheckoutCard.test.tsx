@@ -22,7 +22,7 @@ describe("CheckoutCard", () => {
         item: {
           id: "sku_1",
           name: "Test Shirt",
-          imageUrl: "https://placehold.co/400x400",
+          imageUrl: "/prod_1.jpeg",
         },
         quantity: 1,
         baseAmount: 2500,
@@ -70,7 +70,7 @@ describe("CheckoutCard", () => {
     basePrice: 2500,
     stockCount: 100,
     minMargin: 0.15,
-    imageUrl: "/black.jpeg",
+    imageUrl: "/prod_2.jpeg",
     variant: "Black",
     size: "Large",
   };

@@ -1,6 +1,6 @@
 ---
 name: features
-description: Backend development guidelines for python code
+description: Python backend development standards for FastAPI, SQLModel, and pytest. Enforces Ruff linting, Pyright type checking, and test coverage. Use when writing Python code, creating API endpoints, implementing services, adding database models, or modifying backend logic in src/merchant/, src/payment/, or src/apps_sdk/.
 ---
 
 # Overview

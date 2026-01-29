@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from sqlmodel import Session, select
 
+from src.data.product_catalog import PRODUCTS
 from src.merchant.db.database import (
     get_engine,
     get_session,
@@ -94,7 +95,7 @@ class TestSeedData:
     """Test suite for database seeding."""
 
     def test_seed_data_creates_products(self, temp_db_url: str) -> None:
-        """Happy path: seed_data creates 4 products."""
+        """Happy path: seed_data creates all products from shared catalog."""
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
@@ -106,7 +107,7 @@ class TestSeedData:
                 seed_data(session)
 
                 products = session.exec(select(Product)).all()
-                assert len(products) == 4
+                assert len(products) == len(PRODUCTS)
 
     def test_seed_data_creates_competitor_prices(self, temp_db_url: str) -> None:
         """Happy path: seed_data creates competitor prices for products."""
@@ -138,7 +139,7 @@ class TestSeedData:
                 seed_data(session)
 
                 products = session.exec(select(Product)).all()
-                assert len(products) == 4
+                assert len(products) == len(PRODUCTS)
 
     def test_seed_data_product_fields(self, temp_db_url: str) -> None:
         """Happy path: Seeded products have correct field values."""
@@ -162,10 +163,10 @@ class TestSeedData:
                 assert classic_tee.base_price == 2500
                 assert classic_tee.stock_count == 100
                 assert classic_tee.min_margin == 0.15
-                assert "placehold.co" in classic_tee.image_url
+                assert classic_tee.image_url == "/prod_1.jpeg"
 
-    def test_seed_data_image_urls_are_placeholders(self, temp_db_url: str) -> None:
-        """Happy path: All products have placeholder image URLs."""
+    def test_seed_data_image_urls_match_catalog(self, temp_db_url: str) -> None:
+        """Happy path: All products have image URLs from shared catalog."""
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
@@ -178,8 +179,11 @@ class TestSeedData:
 
                 products = session.exec(select(Product)).all()
 
+                # Build lookup from catalog
+                catalog_images = {p["id"]: p["image_url"] for p in PRODUCTS}
+
                 for product in products:
-                    assert "https://placehold.co/400x400/png" in product.image_url
+                    assert product.image_url == catalog_images[product.id]
 
 
 @pytest.mark.usefixtures("reset_db_engine")
@@ -218,7 +222,7 @@ class TestInitAndSeedDb:
             engine = get_engine()
             with Session(engine) as session:
                 products = session.exec(select(Product)).all()
-                assert len(products) == 4
+                assert len(products) == len(PRODUCTS)
 
                 competitor_prices = session.exec(select(CompetitorPrice)).all()
                 assert len(competitor_prices) > 0

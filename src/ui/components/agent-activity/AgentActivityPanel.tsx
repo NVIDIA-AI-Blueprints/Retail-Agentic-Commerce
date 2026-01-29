@@ -3,15 +3,25 @@
 import { useEffect, useRef } from "react";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
 import { AgentActivityItem } from "./AgentActivityItem";
-import type { AgentActivityEvent, PromotionDecision, PostPurchaseDecision } from "@/types";
+import type {
+  AgentActivityEvent,
+  AgentDecision,
+  PromotionDecision,
+  RecommendationDecision,
+} from "@/types";
 
 /**
  * Type guard for promotion decision
  */
-function isPromotionDecision(
-  decision: PromotionDecision | PostPurchaseDecision
-): decision is PromotionDecision {
+function isPromotionDecision(decision: AgentDecision): decision is PromotionDecision {
   return "action" in decision && "discountAmount" in decision;
+}
+
+/**
+ * Type guard for recommendation decision
+ */
+function isRecommendationDecision(decision: AgentDecision): decision is RecommendationDecision {
+  return "recommendations" in decision && Array.isArray(decision.recommendations);
 }
 
 /**
@@ -45,9 +55,13 @@ function getTimelineMessage(event: AgentActivityEvent): string {
       : "Unknown";
 
   if (event.status === "pending") {
-    return event.agentType === "post_purchase"
-      ? `Generating message for ${productName}...`
-      : `Evaluating ${productName}...`;
+    if (event.agentType === "post_purchase") {
+      return `Generating message for ${productName}...`;
+    }
+    if (event.agentType === "recommendation") {
+      return `Finding recommendations for ${productName}...`;
+    }
+    return `Evaluating ${productName}...`;
   }
 
   if (event.agentType === "post_purchase") {
@@ -55,6 +69,17 @@ function getTimelineMessage(event: AgentActivityEvent): string {
       return `Generated confirmation for ${productName}`;
     }
     return `Failed to generate message for ${productName}`;
+  }
+
+  // Recommendation events
+  if (event.agentType === "recommendation") {
+    if (event.status === "success" && event.decision && isRecommendationDecision(event.decision)) {
+      const count = event.decision.recommendations.length;
+      return count > 0
+        ? `Found ${count} recommendations for ${productName}`
+        : `No recommendations found for ${productName}`;
+    }
+    return `Failed to get recommendations for ${productName}`;
   }
 
   // Promotion events
@@ -193,14 +218,10 @@ function ActiveAgentActivity() {
         <div className={agentState.pillClass}>{agentState.label}</div>
       </div>
 
-      {/* Decision cards */}
+      {/* Decision cards - newest first */}
       <div ref={scrollRef} style={{ maxHeight: "calc(100vh - 350px)", overflowY: "auto" }}>
-        {state.events.map((event, index) => (
-          <AgentActivityItem
-            key={event.id}
-            event={event}
-            isLast={index === state.events.length - 1}
-          />
+        {[...state.events].reverse().map((event, index, arr) => (
+          <AgentActivityItem key={event.id} event={event} isLast={index === arr.length - 1} />
         ))}
       </div>
 

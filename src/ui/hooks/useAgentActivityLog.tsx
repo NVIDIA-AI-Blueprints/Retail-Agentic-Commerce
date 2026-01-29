@@ -7,6 +7,8 @@ import type {
   AgentActivityEvent,
   PostPurchaseInputSignals,
   PostPurchaseDecision,
+  RecommendationInputSignals,
+  RecommendationDecision,
   AgentInputSignals,
   AgentDecision,
 } from "@/types";
@@ -93,6 +95,15 @@ interface AgentActivityLogContextType {
   addPostPurchaseEvent: (
     inputSignals: PostPurchaseInputSignals,
     decision: PostPurchaseDecision | undefined,
+    status: AgentActivityStatus,
+    error?: string
+  ) => void;
+  /**
+   * Add a recommendation agent event specifically
+   */
+  addRecommendationEvent: (
+    inputSignals: RecommendationInputSignals,
+    decision: RecommendationDecision | undefined,
     status: AgentActivityStatus,
     error?: string
   ) => void;
@@ -196,14 +207,56 @@ export function AgentActivityLogProvider({ children }: { children: ReactNode }) 
     []
   );
 
+  const addRecommendationEvent = useCallback(
+    (
+      inputSignals: RecommendationInputSignals,
+      decision: RecommendationDecision | undefined,
+      status: AgentActivityStatus,
+      error?: string
+    ) => {
+      const id = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const event: AgentActivityEvent = {
+        id,
+        timestamp: new Date(),
+        status,
+        agentType: "recommendation",
+        inputSignals,
+      };
+      if (decision !== undefined) {
+        event.decision = decision;
+      }
+      if (error !== undefined) {
+        event.error = error;
+      }
+      dispatch({ type: "ADD_EVENT", event });
+    },
+    []
+  );
+
   const clear = useCallback(() => {
     dispatch({ type: "CLEAR" });
   }, []);
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(
-    () => ({ state, logAgentCall, completeAgentCall, addAgentEvent, addPostPurchaseEvent, clear }),
-    [state, logAgentCall, completeAgentCall, addAgentEvent, addPostPurchaseEvent, clear]
+    () => ({
+      state,
+      logAgentCall,
+      completeAgentCall,
+      addAgentEvent,
+      addPostPurchaseEvent,
+      addRecommendationEvent,
+      clear,
+    }),
+    [
+      state,
+      logAgentCall,
+      completeAgentCall,
+      addAgentEvent,
+      addPostPurchaseEvent,
+      addRecommendationEvent,
+      clear,
+    ]
   );
 
   return (
