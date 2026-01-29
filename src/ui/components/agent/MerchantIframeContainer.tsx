@@ -291,7 +291,8 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
           iframeRef.current.contentWindow.postMessage(messageToSend, "*");
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Failed to get recommendations";
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to get recommendations";
 
         // Complete agent activity log with error
         completeAgentCall(agentEventId, "error", undefined, errorMessage);
@@ -331,7 +332,8 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
         handleRecommendationRequest({
           productId: message.productId as string,
           productName: message.productName as string,
-          cartItems: (message.cartItems as Array<{ productId: string; name: string; price: number }>) ?? [],
+          cartItems:
+            (message.cartItems as Array<{ productId: string; name: string; price: number }>) ?? [],
         });
         return;
       }

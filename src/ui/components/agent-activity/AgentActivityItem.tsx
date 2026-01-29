@@ -433,7 +433,9 @@ function RecommendationCard({
                   {rec.rank}
                 </span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--text-primary)" }}>
+                  <div
+                    style={{ fontSize: "12px", fontWeight: "500", color: "var(--text-primary)" }}
+                  >
                     {rec.productName}
                   </div>
                   <div
@@ -474,7 +476,6 @@ function RecommendationCard({
             {event.error}
           </div>
         )}
-
       </div>
     </div>
   );

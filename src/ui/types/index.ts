@@ -739,10 +739,7 @@ export type AgentInputSignals =
 /**
  * Union type for agent decisions
  */
-export type AgentDecision =
-  | PromotionDecision
-  | PostPurchaseDecision
-  | RecommendationDecision;
+export type AgentDecision = PromotionDecision | PostPurchaseDecision | RecommendationDecision;
 
 /**
  * Agent activity event for the activity panel

@@ -20,9 +20,7 @@ function isPromotionDecision(decision: AgentDecision): decision is PromotionDeci
 /**
  * Type guard for recommendation decision
  */
-function isRecommendationDecision(
-  decision: AgentDecision
-): decision is RecommendationDecision {
+function isRecommendationDecision(decision: AgentDecision): decision is RecommendationDecision {
   return "recommendations" in decision && Array.isArray(decision.recommendations);
 }
 
@@ -223,11 +221,7 @@ function ActiveAgentActivity() {
       {/* Decision cards - newest first */}
       <div ref={scrollRef} style={{ maxHeight: "calc(100vh - 350px)", overflowY: "auto" }}>
         {[...state.events].reverse().map((event, index, arr) => (
-          <AgentActivityItem
-            key={event.id}
-            event={event}
-            isLast={index === arr.length - 1}
-          />
+          <AgentActivityItem key={event.id} event={event} isLast={index === arr.length - 1} />
         ))}
       </div>
 

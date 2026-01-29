@@ -248,7 +248,15 @@ export function AgentActivityLogProvider({ children }: { children: ReactNode }) 
       addRecommendationEvent,
       clear,
     }),
-    [state, logAgentCall, completeAgentCall, addAgentEvent, addPostPurchaseEvent, addRecommendationEvent, clear]
+    [
+      state,
+      logAgentCall,
+      completeAgentCall,
+      addAgentEvent,
+      addPostPurchaseEvent,
+      addRecommendationEvent,
+      clear,
+    ]
   );
 
   return (
