@@ -22,6 +22,11 @@ general:
       console:
         _type: console
         level: info
+    tracing:
+      phoenix:
+        _type: phoenix
+        project: "arag-recommendations"
+        endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006/v1/traces}
 
 # =============================================================================
 # EMBEDDERS - Semantic embeddings for product search
@@ -110,12 +115,16 @@ functions:
       
       INPUT: You will receive:
       - User intent summary (from User Understanding Agent)
-      - List of candidate products with their metadata
+      - List of candidate products with their metadata (including product IDs like prod_7, prod_2)
+      
+      CRITICAL: You MUST use the EXACT product_id values from the input (e.g., "prod_7", "prod_2").
+      NEVER invent, generate, or modify product IDs. If input says "prod_7 (Cargo Shorts)",
+      your output must use "prod_7" as the product_id, NOT "Cargo Shorts" or any other made-up ID.
       
       OUTPUT: Return ONLY valid JSON array with this exact structure:
       [
         {{
-          "product_id": "string",
+          "product_id": "prod_X (EXACT ID from input)",
           "alignment": "supports|neutral|contradicts",
           "relevance_score": 0.0-1.0,
           "reasoning": "brief explanation"
@@ -146,12 +155,16 @@ functions:
       - Key matching attributes for each
       - Cross-sell rationale explaining why each fits
       
+      CRITICAL: You MUST use the EXACT product_id values from the input (e.g., "prod_7", "prod_2").
+      NEVER invent, generate, or modify product IDs. If input says "prod_7 (Cargo Shorts)",
+      your output must use "prod_7" as the product_id
+      
       OUTPUT: Return ONLY valid JSON with this exact structure:
       {{
         "summary": "brief context for ranker describing user needs",
         "top_candidates": [
           {{
-            "product_id": "prod_X",
+            "product_id": "prod_X (EXACT ID from input, e.g. prod_7)",
             "product_name": "exact name from catalog",
             "match_reasons": ["reason1", "reason2"],
             "cross_sell_fit": "brief explanation"
@@ -181,11 +194,15 @@ functions:
       4. Value proposition for the customer
       5. Diversity (don't recommend 3 similar items)
       
+      CRITICAL: You MUST use the EXACT product_id values from the input (e.g., "prod_7", "prod_2").
+      NEVER invent, generate, or modify product IDs. If input says "prod_7 (Cargo Shorts)",
+      your output must use "prod_7" as the product_id.
+      
       OUTPUT: Return EXACTLY 3 recommendations in valid JSON:
       {{
         "recommendations": [
           {{
-            "product_id": "prod_X",
+            "product_id": "prod_X (EXACT ID from input, e.g. prod_7)",
             "product_name": "exact name from list above",
             "rank": 1,
             "reasoning": "why this recommendation makes sense for the user"
@@ -211,7 +228,7 @@ llms:
     _type: nim
     model_name: nvidia/llama-3.3-nemotron-super-49b-v1.5
     thinking: false
-    temperature: 0.3
+    temperature: 0.9
     max_tokens: 512
 
 # =============================================================================
@@ -223,7 +240,7 @@ workflow:
   workflow_alias: recommendation_agent
   llm_name: coordinator_llm
   verbose: true
-  parse_agent_response_max_retries: 2
+  parse_agent_response_max_retries: 3
   tool_names:
     - product_search
     - user_understanding_agent
@@ -234,7 +251,7 @@ workflow:
     ARAG Recommendation Coordinator - orchestrates multi-agent pipeline for
     personalized cross-sell recommendations based on cart items and session context.
   system_prompt: |
-    /no_think You are the ARAG Recommendation Coordinator for an e-commerce platform.
+    You are the ARAG Recommendation Coordinator for an e-commerce platform.
     
     Your task: Given a user's cart items and optional session context, produce
     3 personalized cross-sell recommendations using your specialized agents.
@@ -251,18 +268,22 @@ workflow:
     
     1. RETRIEVE CANDIDATES: Use `product_search` with a text query.
        Example: "bottoms to pair with tees" or "casual summer accessories"
+       NOTE: This returns products with REAL IDs like "prod_7", "prod_2". Save these IDs!
     
     2. UNDERSTAND USER: Call `user_understanding_agent` with a text summary.
        Example: "User has Classic Tee in cart, browsing casual wear, price range 2000-4000"
     
     3. SCORE ALIGNMENT: Call `nli_alignment_agent` with a text summary.
-       Example: "Score products joggers shorts jeans against user wanting casual summer wear"
+       Example: "Score products prod_7 (Cargo Shorts), prod_5 (Joggers) against user wanting casual summer wear"
+       CRITICAL: Always include the actual product IDs (prod_X) in your input!
     
     4. SYNTHESIZE CONTEXT: Call `context_summary_agent` with a text summary.
-       Example: "Summarize context for casual summer shopper, top products: shorts, sneakers"
+       Example: "Summarize context for casual summer shopper, top products: prod_7 (Cargo Shorts), prod_9 (Canvas Sneakers)"
+       CRITICAL: Always include the actual product IDs (prod_X) in your input!
     
     5. RANK ITEMS: Call `item_ranker_agent` with a text summary.
-       Example: "Rank shorts sneakers sunglasses for casual summer shopper"
+       Example: "Rank prod_7 (Cargo Shorts), prod_9 (Canvas Sneakers), prod_11 (Sunglasses) for casual summer shopper"
+       CRITICAL: Always include the actual product IDs (prod_X) in your input!
     
     Use this format for your responses:
     
@@ -287,9 +308,9 @@ workflow:
       ],
       "user_intent": "summary of inferred user intent",
       "pipeline_trace": {{
-        "candidates_found": 20,
-        "after_nli_filter": 8,
-        "final_ranked": 3
+        "candidates_found": "<ACTUAL count from product_search>",
+        "after_nli_filter": "<ACTUAL count after NLI filtering>",
+        "final_ranked": "<ACTUAL count of final recommendations>"
       }}
     }}
     
@@ -297,17 +318,20 @@ workflow:
     - CRITICAL: Only recommend products that were ACTUALLY returned by product_search
     - Use the EXACT product_id and product_name from the retrieved results (e.g., "prod_7", "Cargo Shorts")
     - NEVER invent or hallucinate product names or IDs
+    - NEVER invent or hallucinate counts - use ACTUAL numbers from tool outputs
+    - The pipeline_trace counts MUST reflect real values: count the actual results array length
     - Never recommend items already in the cart
     - Only recommend in-stock items
     - Ensure diversity in recommendations
+    - When calling sub-agents, ALWAYS include the real product IDs (prod_X format) in your text input
     
     If you cannot find suitable recommendations, return:
     {{
       "recommendations": [],
       "user_intent": "description of what was inferred",
       "pipeline_trace": {{
-        "candidates_found": 0,
-        "after_nli_filter": 0,
+        "candidates_found": "<ACTUAL count - may be 0 or more>",
+        "after_nli_filter": "<ACTUAL count after filtering>",
         "final_ranked": 0
       }},
       "message": "No suitable recommendations found for the current cart"

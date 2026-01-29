@@ -8,6 +8,16 @@
 
 general:
   use_uvloop: true
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: info
+    tracing:
+      phoenix:
+        _type: phoenix
+        project: "promotion-agent"
+        endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006/v1/traces}
 
 # LLM configuration
 llms:

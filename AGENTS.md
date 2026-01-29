@@ -163,7 +163,8 @@ src/
 │   └── configs/        # Agent workflow configurations
 │       ├── promotion.yml        # Promotion strategy arbiter (port 8002)
 │       ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
-│       └── recommendation.yml   # ARAG multi-agent recommendations (port 8004)
+│       ├── recommendation.yml   # ARAG multi-agent recommendations (full version)
+│       └── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
 │
 ├── apps_sdk/           # Apps SDK MCP Server (port 2091)
 │   ├── main.py         # FastAPI + MCP server entry point
@@ -237,7 +238,7 @@ NAT Agents (from `src/agents/`):
 - Install: `uv pip install -e ".[dev]" --prerelease=allow`
 - Start Promotion Agent: `nat serve --config_file configs/promotion.yml --port 8002`
 - Start Post-Purchase Agent: `nat serve --config_file configs/post-purchase.yml --port 8003`
-- Start Recommendation Agent (ARAG): `nat serve --config_file configs/recommendation.yml --port 8004`
+- Start Recommendation Agent (ARAG): `nat serve --config_file configs/recommendation-ultrafast.yml --port 8004`
 - Test Promotion: `nat run --config_file configs/promotion.yml --input '{...}'`
 - Test Post-Purchase: `nat run --config_file configs/post-purchase.yml --input '{...}'`
 

@@ -50,7 +50,7 @@ All ACP agents follow a **3-layer hybrid architecture** that combines determinis
 |-------|--------|------|---------|
 | Promotion Agent | `configs/promotion.yml` | 8002 | Strategy arbiter for dynamic pricing |
 | Post-Purchase Agent | `configs/post-purchase.yml` | 8003 | Multilingual shipping message generator |
-| Recommendation Agent (ARAG) | `configs/recommendation.yml` | 8004 | Multi-agent personalized recommendations |
+| Recommendation Agent (ARAG) | `configs/recommendation-ultrafast.yml` | 8004 | Multi-agent personalized recommendations |
 
 ### ARAG Recommendation Agent Architecture
 
@@ -300,7 +300,7 @@ nat run --config_file configs/post-purchase.yml --input '{
 | `out_for_delivery` | Package arriving today |
 | `delivered` | Package delivered |
 
-### Recommendation Agent (`configs/recommendation.yml`)
+### Recommendation Agent (`configs/recommendation-ultrafast.yml`)
 
 **Workflow Type:** `react_agent` (multi-agent orchestration)
 
@@ -388,15 +388,47 @@ The Recommendation Agent uses an ARAG (Agentic RAG) architecture with 4 speciali
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+**Infrastructure (Docker Compose):**
+
+The Recommendation Agent requires Milvus for vector search and Phoenix for observability. Both are defined in `docker-compose.yml` at the project root.
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Milvus | 19530 | Vector similarity search for product embeddings |
+| Phoenix | 6006 | LLM observability UI and trace collection |
+| MinIO | 9001 | Object storage for Milvus (console optional) |
+
+```bash
+# Start infrastructure
+docker compose up -d
+
+# Stop infrastructure
+docker compose down
+
+# Stop and remove all data
+docker compose down -v
+```
+
+| Health Check | Command |
+|--------------|---------|
+| Milvus | `curl -s http://localhost:9091/healthz` |
+| Phoenix | `curl -s http://localhost:6006/healthz` |
+
+| UI | URL |
+|----|-----|
+| Phoenix (traces, LLM calls) | http://localhost:6006 |
+| MinIO Console (optional) | http://localhost:9001 |
+
 **Prerequisites:**
 
-1. **Start Milvus Vector Database:**
+1. **Start Infrastructure (Milvus + Phoenix):**
    ```bash
    # From project root
    docker compose up -d
    
-   # Verify Milvus is running
-   curl -s http://localhost:9091/healthz  # Should return "OK"
+   # Verify services are running
+   curl -s http://localhost:9091/healthz  # Milvus - Should return "OK"
+   curl -s http://localhost:6006/healthz  # Phoenix - Should return "OK"
    ```
 
 2. **Seed Product Catalog with Embeddings:**
@@ -415,7 +447,7 @@ The Recommendation Agent uses an ARAG (Agentic RAG) architecture with 4 speciali
 
 ```bash
 # Start as REST endpoint
-nat serve --config_file configs/recommendation.yml --port 8004
+nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
 
 # Test with curl
 curl -X POST http://localhost:8004/generate \
@@ -562,7 +594,8 @@ src/agents/
 └── configs/
     ├── promotion.yml        # Promotion strategy arbiter (port 8002)
     ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
-    └── recommendation.yml   # ARAG multi-agent recommendations (port 8004, planned)
+    ├── recommendation.yml   # ARAG multi-agent recommendations (full version)
+    └── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
 ```
 
 ## Development
@@ -646,7 +679,7 @@ Traditional RAG retrieves documents based on embedding similarity alone. ARAG in
 | **Context Summary (CSA)** | Synthesize signals | UUA output, NLI scores | Focused context JSON |
 | **Item Ranker (IRA)** | Final ranking | User summary, context | Ranked recommendations |
 
-### Complete NAT Configuration (`configs/recommendation.yml`)
+### Complete NAT Configuration (`configs/recommendation-ultrafast.yml`)
 
 All ARAG agents are orchestrated in a **single YAML file** using NAT's multi-agent pattern.
 
@@ -654,10 +687,10 @@ All ARAG agents are orchestrated in a **single YAML file** using NAT's multi-age
 
 ```bash
 # Start as REST endpoint (single command for all agents)
-nat serve --config_file configs/recommendation.yml --port 8004
+nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
 
 # Test with direct input
-nat run --config_file configs/recommendation.yml --input '{
+nat run --config_file configs/recommendation-ultrafast.yml --input '{
   "cart_items": [
     {"product_id": "prod_1", "name": "Classic Tee", "category": "tops", "price": 2500}
   ],
@@ -701,6 +734,7 @@ nat run --config_file configs/recommendation.yml --input '{
 |----------|-------------|---------|
 | `NVIDIA_API_KEY` | API key for NVIDIA NIM | Required |
 | `MILVUS_URI` | Milvus vector database URI | `http://localhost:19530` |
+| `PHOENIX_ENDPOINT` | Phoenix observability endpoint | `http://localhost:6006` |
 
 ### Architecture Benefits
 
@@ -711,6 +745,76 @@ Using NAT's multi-agent orchestration provides:
 3. **Flexible LLM Assignment**: Different models for different tasks (fast for scoring, reasoning for ranking)
 4. **Built-in Tracing**: Phoenix integration for debugging the multi-agent workflow
 5. **Tool Composition**: Coordinator can call specialized agents as tools
+
+### Observability with Phoenix
+
+The Recommendation Agent includes built-in observability using [Arize Phoenix](https://docs.arize.com/phoenix/), providing distributed tracing and LLM call visualization for debugging the multi-agent pipeline.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ARAG Agent Pipeline                           │
+│  (Coordinator → UUA → NLI → CSA → IRA)                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ OTLP traces (port 6006)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Phoenix (Docker Container)                    │
+├─────────────────────────────────────────────────────────────────┤
+│  - Trace visualization for multi-agent workflow                  │
+│  - LLM call details (prompts, completions, tokens)              │
+│  - Latency breakdown per agent                                   │
+│  - Token usage and cost tracking                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Starting Phoenix:**
+
+```bash
+# Start Phoenix alongside Milvus (from project root)
+docker compose up -d
+
+# Verify Phoenix is running
+curl -s http://localhost:6006/healthz  # Should return "OK"
+```
+
+**Accessing the Phoenix UI:**
+
+Open http://localhost:6006 in your browser to view:
+- **Traces**: End-to-end request traces showing all agent calls
+- **Spans**: Individual LLM calls with prompts, completions, and token counts
+- **Latency**: Time breakdown for each step in the pipeline
+- **Errors**: Failed calls and error details
+
+**Configuration:**
+
+Phoenix tracing is configured in `configs/recommendation-ultrafast.yml`:
+
+```yaml
+general:
+  telemetry:
+    tracing:
+      phoenix:
+        _type: phoenix
+        project_name: "arag-recommendations"
+        endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006}
+```
+
+**Installation:**
+
+To enable Phoenix tracing, install the Phoenix telemetry package:
+
+```bash
+pip install "nvidia-nat[phoenix]"
+```
+
+**Troubleshooting Phoenix:**
+
+| Issue | Solution |
+|-------|----------|
+| No traces appearing | Verify Phoenix is running: `curl http://localhost:6006/healthz` |
+| Connection refused | Check `PHOENIX_ENDPOINT` env var matches your Phoenix URL |
+| Traces missing spans | Ensure `nvidia-nat[phoenix]` is installed |
 
 ### Service Integration
 

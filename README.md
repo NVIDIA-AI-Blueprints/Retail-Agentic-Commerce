@@ -64,7 +64,7 @@ cd src/agents
 uv pip install -e ".[dev]" --prerelease=allow
 nat serve --config_file configs/promotion.yml --port 8002      # Promotion Agent
 nat serve --config_file configs/post-purchase.yml --port 8003  # Post-Purchase Agent
-nat serve --config_file configs/recommendation.yml --port 8004 # Recommendation Agent (requires Milvus)
+nat serve --config_file configs/recommendation-ultrafast.yml --port 8004 # Recommendation Agent (requires Milvus)
 
 # Frontend UI (port 3000)
 cd src/ui
@@ -88,23 +88,29 @@ pnpm dev  # Runs on http://localhost:3001
 
 See [src/apps_sdk/README.md](src/apps_sdk/README.md) for full documentation.
 
-### Milvus Setup (for Recommendation Agent)
+### Infrastructure (Docker)
 
-The Recommendation Agent uses Milvus for vector similarity search. Start Milvus and seed the product catalog:
+The Recommendation Agent requires Milvus (vector search) and Phoenix (observability). Start both with Docker Compose:
 
 ```bash
-# Start Milvus (Docker required)
+# Start infrastructure
 docker compose up -d
 
-# Wait for health check
-curl -s http://localhost:9091/healthz
+# Verify services
+curl -s http://localhost:9091/healthz  # Milvus
+curl -s http://localhost:6006/healthz  # Phoenix
 
-# Seed product catalog embeddings (from src/agents/)
+# Seed product catalog (from src/agents/)
 cd src/agents
 uv run python scripts/seed_milvus.py
 ```
 
-Data persists across restarts. To start fresh:
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Milvus | localhost:19530 | Vector similarity search |
+| Phoenix | http://localhost:6006 | LLM observability UI |
+
+Data persists across restarts. To reset: `docker compose down -v`
 
 ### Verify
 

@@ -1,13 +1,5 @@
-# Docker Compose for Milvus Vector Database
-# ==========================================
-# Required for ARAG Recommendation Agent
-# Milvus provides vector similarity search for product catalog embeddings.
-#
-# Usage:
-#   docker compose up -d                    # Start Milvus in background
-#   docker compose down                     # Stop Milvus
-#   docker compose down -v                  # Stop and remove volumes
-#   curl -s http://localhost:9091/healthz   # Health check
+# Infrastructure for ARAG Recommendation Agent
+# See src/agents/README.md for full documentation
 
 services:
   # etcd - Metadata storage for Milvus
@@ -76,6 +68,25 @@ services:
     networks:
       - milvus-network
 
+  # Phoenix - LLM Observability and Tracing
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: phoenix
+    ports:
+      - "6006:6006"   # Phoenix UI and OTLP HTTP collector
+      - "4317:4317"   # OTLP gRPC collector
+    environment:
+      - PHOENIX_WORKING_DIR=/mnt/data
+    volumes:
+      - phoenix_data:/mnt/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6006/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - milvus-network
+
 networks:
   milvus-network:
     driver: bridge
@@ -84,3 +95,4 @@ volumes:
   etcd_data:
   minio_data:
   milvus_data:
+  phoenix_data:
