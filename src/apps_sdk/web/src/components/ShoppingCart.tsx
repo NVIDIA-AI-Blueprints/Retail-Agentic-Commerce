@@ -40,7 +40,7 @@ function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowProps) {
         {/* Icon container */}
         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-default">
           <img
-            src={getProductImage(item.variant)}
+            src={getProductImage(item.id)}
             alt={item.name}
             className="h-full w-full object-cover"
             loading="lazy"

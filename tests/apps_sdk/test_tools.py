@@ -21,7 +21,7 @@ from src.apps_sdk.tools.cart import (
 )
 from src.apps_sdk.tools.checkout import checkout
 from src.apps_sdk.tools.recommendations import (
-    MOCK_PRODUCTS,
+    CATALOG_PRODUCTS,
     search_products,
 )
 
@@ -50,20 +50,22 @@ class TestSearchProducts:
 
     @pytest.mark.asyncio
     async def test_search_filters_by_query(self) -> None:
-        """Search filters products by name/variant/sku."""
-        result = await search_products(query="black")
+        """Search filters products by name/category/sku/description."""
+        result = await search_products(query="jeans")
 
-        # Should find products with "black" in name or variant
+        # Should find products with "jeans" in name/category/description
         assert result["totalResults"] > 0
         # Check that filtering worked (at least one product matches)
         for product in result["products"]:
             name_lower = str(product.get("name", "")).lower()
-            variant_lower = str(product.get("variant", "")).lower()
+            category_lower = str(product.get("category", "")).lower()
             sku_lower = str(product.get("sku", "")).lower()
+            description_lower = str(product.get("description", "")).lower()
             assert (
-                "black" in name_lower
-                or "black" in variant_lower
-                or "black" in sku_lower
+                "jeans" in name_lower
+                or "jeans" in category_lower
+                or "jeans" in sku_lower
+                or "jeans" in description_lower
             )
 
     @pytest.mark.asyncio
@@ -102,10 +104,10 @@ class TestSearchProducts:
     @pytest.mark.asyncio
     async def test_no_match_returns_all_products(self) -> None:
         """When no products match, returns all products as fallback."""
-        result = await search_products(query="nonexistent_product_xyz123")
+        result = await search_products(query="nonexistent_product_xyz123", limit=50)
 
-        # Should fallback to all products
-        assert result["totalResults"] == len(MOCK_PRODUCTS)
+        # Should fallback to all products (up to limit)
+        assert result["totalResults"] == len(CATALOG_PRODUCTS)
 
 
 # =============================================================================
@@ -119,7 +121,7 @@ class TestAddToCart:
     @pytest.mark.asyncio
     async def test_add_product_creates_cart(self) -> None:
         """Adding a product creates a new cart if none exists."""
-        result = await add_to_cart(product_id="prod_001", quantity=1)
+        result = await add_to_cart(product_id="prod_1", quantity=1)
 
         assert "cartId" in result
         assert result["cartId"].startswith("cart_")
@@ -130,11 +132,11 @@ class TestAddToCart:
     async def test_add_product_to_existing_cart(self) -> None:
         """Adding a product to an existing cart works correctly."""
         # Create cart first
-        first_result = await add_to_cart(product_id="prod_001", quantity=1)
+        first_result = await add_to_cart(product_id="prod_1", quantity=1)
         cart_id = first_result["cartId"]
 
         # Add another product
-        result = await add_to_cart(product_id="prod_002", quantity=2, cart_id=cart_id)
+        result = await add_to_cart(product_id="prod_2", quantity=2, cart_id=cart_id)
 
         assert result["cartId"] == cart_id
         assert len(result["items"]) == 2
@@ -143,10 +145,10 @@ class TestAddToCart:
     @pytest.mark.asyncio
     async def test_add_existing_product_increases_quantity(self) -> None:
         """Adding an existing product increases its quantity."""
-        first_result = await add_to_cart(product_id="prod_001", quantity=1)
+        first_result = await add_to_cart(product_id="prod_1", quantity=1)
         cart_id = first_result["cartId"]
 
-        result = await add_to_cart(product_id="prod_001", quantity=2, cart_id=cart_id)
+        result = await add_to_cart(product_id="prod_1", quantity=2, cart_id=cart_id)
 
         assert len(result["items"]) == 1
         assert result["items"][0]["quantity"] == 3
@@ -162,9 +164,9 @@ class TestAddToCart:
     @pytest.mark.asyncio
     async def test_cart_totals_calculated_correctly(self) -> None:
         """Cart totals (subtotal, tax, shipping, total) are calculated."""
-        result = await add_to_cart(product_id="prod_001", quantity=2)
+        result = await add_to_cart(product_id="prod_1", quantity=2)
 
-        product_price = MOCK_PRODUCTS[0]["basePrice"]
+        product_price = CATALOG_PRODUCTS[0]["basePrice"]
         expected_subtotal = product_price * 2
 
         assert result["subtotal"] == expected_subtotal
@@ -176,7 +178,7 @@ class TestAddToCart:
     @pytest.mark.asyncio
     async def test_metadata_includes_session_id(self) -> None:
         """Cart metadata includes widgetSessionId for state correlation."""
-        result = await add_to_cart(product_id="prod_001")
+        result = await add_to_cart(product_id="prod_1")
 
         meta = result["_meta"]
         assert meta["openai/widgetSessionId"] == result["cartId"]
@@ -189,21 +191,21 @@ class TestRemoveFromCart:
     async def test_remove_product_from_cart(self) -> None:
         """Removing a product removes it from the cart."""
         # Set up cart
-        add_result = await add_to_cart(product_id="prod_001")
-        await add_to_cart(product_id="prod_002", cart_id=add_result["cartId"])
+        add_result = await add_to_cart(product_id="prod_1")
+        await add_to_cart(product_id="prod_2", cart_id=add_result["cartId"])
         cart_id = add_result["cartId"]
 
         # Remove first product
-        result = await remove_from_cart(product_id="prod_001", cart_id=cart_id)
+        result = await remove_from_cart(product_id="prod_1", cart_id=cart_id)
 
         assert len(result["items"]) == 1
-        assert result["items"][0]["id"] == "prod_002"
+        assert result["items"][0]["id"] == "prod_2"
 
     @pytest.mark.asyncio
     async def test_remove_from_nonexistent_cart(self) -> None:
         """Removing from a nonexistent cart returns error."""
         result = await remove_from_cart(
-            product_id="prod_001", cart_id="nonexistent_cart"
+            product_id="prod_1", cart_id="nonexistent_cart"
         )
 
         assert "error" in result
@@ -216,11 +218,11 @@ class TestUpdateCartQuantity:
     @pytest.mark.asyncio
     async def test_update_quantity(self) -> None:
         """Updating quantity changes the item count."""
-        add_result = await add_to_cart(product_id="prod_001", quantity=1)
+        add_result = await add_to_cart(product_id="prod_1", quantity=1)
         cart_id = add_result["cartId"]
 
         result = await update_cart_quantity(
-            product_id="prod_001", quantity=5, cart_id=cart_id
+            product_id="prod_1", quantity=5, cart_id=cart_id
         )
 
         assert result["items"][0]["quantity"] == 5
@@ -229,11 +231,11 @@ class TestUpdateCartQuantity:
     @pytest.mark.asyncio
     async def test_update_to_zero_removes_item(self) -> None:
         """Setting quantity to 0 removes the item."""
-        add_result = await add_to_cart(product_id="prod_001")
+        add_result = await add_to_cart(product_id="prod_1")
         cart_id = add_result["cartId"]
 
         result = await update_cart_quantity(
-            product_id="prod_001", quantity=0, cart_id=cart_id
+            product_id="prod_1", quantity=0, cart_id=cart_id
         )
 
         assert len(result["items"]) == 0
@@ -245,7 +247,7 @@ class TestGetCart:
     @pytest.mark.asyncio
     async def test_get_existing_cart(self) -> None:
         """Getting an existing cart returns its state."""
-        add_result = await add_to_cart(product_id="prod_001", quantity=2)
+        add_result = await add_to_cart(product_id="prod_1", quantity=2)
         cart_id = add_result["cartId"]
 
         result = await get_cart(cart_id=cart_id)
@@ -289,7 +291,7 @@ class TestCheckout:
     async def test_checkout_success_simulated(self) -> None:
         """Successful checkout (simulated) returns order details."""
         # Add items to cart
-        add_result = await add_to_cart(product_id="prod_001", quantity=2)
+        add_result = await add_to_cart(product_id="prod_1", quantity=2)
         cart_id = add_result["cartId"]
 
         result = await checkout(cart_id=cart_id)
@@ -305,7 +307,7 @@ class TestCheckout:
     @pytest.mark.asyncio
     async def test_checkout_clears_cart(self) -> None:
         """Checkout clears the cart after success."""
-        add_result = await add_to_cart(product_id="prod_001")
+        add_result = await add_to_cart(product_id="prod_1")
         cart_id = add_result["cartId"]
 
         await checkout(cart_id=cart_id)
@@ -317,7 +319,7 @@ class TestCheckout:
     @pytest.mark.asyncio
     async def test_checkout_metadata_closes_widget(self) -> None:
         """Successful checkout metadata includes closeWidget flag."""
-        add_result = await add_to_cart(product_id="prod_001")
+        add_result = await add_to_cart(product_id="prod_1")
         cart_id = add_result["cartId"]
 
         result = await checkout(cart_id=cart_id)
@@ -328,10 +330,10 @@ class TestCheckout:
     @pytest.mark.asyncio
     async def test_checkout_with_multiple_items(self) -> None:
         """Checkout works with multiple different products."""
-        add_result = await add_to_cart(product_id="prod_001", quantity=1)
+        add_result = await add_to_cart(product_id="prod_1", quantity=1)
         cart_id = add_result["cartId"]
-        await add_to_cart(product_id="prod_002", quantity=2, cart_id=cart_id)
-        await add_to_cart(product_id="prod_003", quantity=1, cart_id=cart_id)
+        await add_to_cart(product_id="prod_2", quantity=2, cart_id=cart_id)
+        await add_to_cart(product_id="prod_3", quantity=1, cart_id=cart_id)
 
         result = await checkout(cart_id=cart_id)
 
@@ -350,7 +352,7 @@ class TestOutputSchemaCompliance:
     @pytest.mark.asyncio
     async def test_cart_output_has_required_fields(self) -> None:
         """Cart operations return all required fields per spec."""
-        result = await add_to_cart(product_id="prod_001")
+        result = await add_to_cart(product_id="prod_1")
 
         # Required fields per Apps SDK spec
         assert "cartId" in result
@@ -365,7 +367,7 @@ class TestOutputSchemaCompliance:
     @pytest.mark.asyncio
     async def test_checkout_output_has_required_fields(self) -> None:
         """Checkout output includes all required fields per spec."""
-        add_result = await add_to_cart(product_id="prod_001")
+        add_result = await add_to_cart(product_id="prod_1")
         result = await checkout(cart_id=add_result["cartId"])
 
         # Required fields per Apps SDK spec

@@ -6,21 +6,15 @@ import { formatCurrency } from "@/lib/utils";
 import type { Product } from "@/types";
 
 /**
- * Map product variant to corresponding image
+ * Get product image URL based on product ID
+ * Images are named after product IDs: prod_1.jpeg, prod_2.jpeg, etc.
  */
-function getProductImage(variant: string | undefined): string {
-  switch (variant?.toLowerCase()) {
-    case "black":
-      return "/black.jpeg";
-    case "natural":
-    case "white":
-      return "/white.jpeg";
-    case "grey":
-    case "gray":
-      return "/gray.jpeg";
-    default:
-      return "/black.jpeg";
+function getProductImage(productId: string | undefined): string {
+  if (productId && productId.startsWith("prod_")) {
+    return `/${productId}.jpeg`;
   }
+  // Fallback to first product image
+  return "/prod_1.jpeg";
 }
 
 interface ProductCardProps {
@@ -56,7 +50,7 @@ export function ProductCard({ product, onBuy }: ProductCardProps) {
       {/* Product Image */}
       <div className="aspect-square w-full bg-[#c8c8d0] overflow-hidden relative rounded-t-xl">
         <Image
-          src={getProductImage(product.variant)}
+          src={getProductImage(product.id)}
           alt={product.name}
           fill
           sizes="220px"

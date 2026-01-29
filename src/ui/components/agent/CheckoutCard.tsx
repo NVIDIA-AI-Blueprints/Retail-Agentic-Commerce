@@ -7,21 +7,15 @@ import { formatCurrency } from "@/lib/utils";
 import type { Product } from "@/types";
 
 /**
- * Map product variant to corresponding image
+ * Get product image URL based on product ID
+ * Images are named after product IDs: prod_1.jpeg, prod_2.jpeg, etc.
  */
-function getProductImage(variant: string | undefined): string {
-  switch (variant?.toLowerCase()) {
-    case "black":
-      return "/black.jpeg";
-    case "natural":
-    case "white":
-      return "/white.jpeg";
-    case "grey":
-    case "gray":
-      return "/gray.jpeg";
-    default:
-      return "/black.jpeg";
+function getProductImage(productId: string | undefined): string {
+  if (productId && productId.startsWith("prod_")) {
+    return `/${productId}.jpeg`;
   }
+  // Fallback to first product image
+  return "/prod_1.jpeg";
 }
 
 interface LegacyFulfillmentOption {
@@ -178,7 +172,7 @@ export function CheckoutCard({
           <Flex gap="3" align="start">
             <div className="relative w-16 h-16 rounded overflow-hidden flex-shrink-0">
               <Image
-                src={getProductImage(product?.variant)}
+                src={getProductImage(product?.id)}
                 alt={product?.name ?? lineItem?.item.name ?? "Product"}
                 fill
                 sizes="64px"

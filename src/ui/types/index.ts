@@ -692,14 +692,57 @@ export interface PostPurchaseDecision {
 }
 
 /**
+ * Input signals for recommendation agent
+ */
+export interface RecommendationInputSignals {
+  productId: string;
+  productName: string;
+  cartItems: Array<{ productId: string; name: string; price: number }>;
+}
+
+/**
+ * Single recommendation from the ARAG agent
+ */
+export interface RecommendationItem {
+  productId: string;
+  productName: string;
+  rank: number;
+  reasoning: string;
+}
+
+/**
+ * Pipeline trace from ARAG agent
+ */
+export interface RecommendationPipelineTrace {
+  candidatesFound: number;
+  afterNliFilter: number;
+  finalRanked: number;
+}
+
+/**
+ * Recommendation decision from ARAG agent
+ */
+export interface RecommendationDecision {
+  recommendations: RecommendationItem[];
+  userIntent?: string;
+  pipelineTrace?: RecommendationPipelineTrace;
+}
+
+/**
  * Union type for agent input signals
  */
-export type AgentInputSignals = PromotionInputSignals | PostPurchaseInputSignals;
+export type AgentInputSignals =
+  | PromotionInputSignals
+  | PostPurchaseInputSignals
+  | RecommendationInputSignals;
 
 /**
  * Union type for agent decisions
  */
-export type AgentDecision = PromotionDecision | PostPurchaseDecision;
+export type AgentDecision =
+  | PromotionDecision
+  | PostPurchaseDecision
+  | RecommendationDecision;
 
 /**
  * Agent activity event for the activity panel

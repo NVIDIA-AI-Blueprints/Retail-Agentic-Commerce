@@ -205,6 +205,86 @@ export function useMCPClient() {
   );
 
   /**
+   * Call an MCP tool without requiring a widget URI response.
+   * Used for tools like get-recommendations that return data, not widget URIs.
+   */
+  const callToolSimple = useCallback(
+    async (
+      toolName: string,
+      args: Record<string, unknown> = {}
+    ): Promise<Record<string, unknown> | null> => {
+      try {
+        const response = await fetch(`${MCP_SERVER_URL}/api/mcp`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json, text/event-stream",
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: Date.now(),
+            method: "tools/call",
+            params: {
+              name: toolName,
+              arguments: args,
+            },
+          }),
+          signal: AbortSignal.timeout(65000), // 65s timeout for ARAG agent (takes ~25s)
+        });
+
+        if (!response.ok) {
+          throw new Error(`MCP server returned ${response.status}`);
+        }
+
+        let mcpResponse: MCPToolResponse | null = null;
+        const text = await response.text();
+        console.log("[MCP] Raw response text (first 500 chars):", text.slice(0, 500));
+
+        // Parse SSE stream
+        const lines = text.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.result || data.error) {
+                mcpResponse = data;
+                console.log("[MCP] Parsed SSE data:", data);
+              }
+            } catch {
+              // Continue parsing
+            }
+          }
+        }
+
+        // Try plain JSON if no SSE
+        if (!mcpResponse) {
+          try {
+            mcpResponse = JSON.parse(text);
+            console.log("[MCP] Parsed as plain JSON:", mcpResponse);
+          } catch {
+            // Not valid JSON
+          }
+        }
+
+        if (!mcpResponse) {
+          throw new Error("No valid response from MCP server");
+        }
+
+        if (mcpResponse.error) {
+          throw new Error(`MCP error: ${mcpResponse.error.message}`);
+        }
+
+        console.log("[MCP] Returning structuredContent:", mcpResponse.result?.structuredContent);
+        return mcpResponse.result?.structuredContent || null;
+      } catch (error) {
+        console.error("MCP tool call failed:", error);
+        throw error;
+      }
+    },
+    []
+  );
+
+  /**
    * Get widget URL by calling the search-products tool.
    * The widget URI is discovered from the tool response, NOT hardcoded.
    *
@@ -220,7 +300,8 @@ export function useMCPClient() {
 
   return {
     ...state,
-    callTool,
+    callTool: callToolSimple,
+    callToolWithWidget: callTool,
     getWidgetUrl,
     mcpServerUrl: MCP_SERVER_URL,
   };

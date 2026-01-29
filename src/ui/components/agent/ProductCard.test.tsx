@@ -20,7 +20,7 @@ describe("ProductCard", () => {
     basePrice: 2500,
     stockCount: 100,
     minMargin: 0.15,
-    imageUrl: "https://placehold.co/400x400",
+    imageUrl: "/prod_1.jpeg",
     variant: "Black",
     size: "Large",
   };

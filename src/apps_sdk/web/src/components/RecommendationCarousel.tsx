@@ -6,17 +6,21 @@ import { formatPrice, getProductImage } from "@/types";
 interface RecommendationCarouselProps {
   products: Product[];
   onAddToCart: (product: Product) => void;
+  onProductClick?: (product: Product) => void;
 }
 
 /**
- * Product card for the carousel
+ * Product card for the carousel with dual interaction:
+ * - Card click navigates to product detail
+ * - Add to Cart button adds to cart (stopPropagation)
  */
 interface ProductCardProps {
   product: Product;
   onAddToCart: (product: Product) => void;
+  onProductClick?: (product: Product) => void;
 }
 
-function ProductCard({ product, onAddToCart }: ProductCardProps) {
+function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps) {
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -25,12 +29,35 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
     [onAddToCart, product]
   );
 
+  const handleCardClick = useCallback(() => {
+    if (onProductClick) {
+      onProductClick(product);
+    }
+  }, [onProductClick, product]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.key === "Enter" || e.key === " ") && onProductClick) {
+        e.preventDefault();
+        onProductClick(product);
+      }
+    },
+    [onProductClick, product]
+  );
+
   return (
-    <article className="group min-w-[220px] max-w-[220px] flex-shrink-0 flex flex-col cursor-pointer overflow-hidden rounded-xl border border-default bg-surface-elevated transition-all hover:border-accent dark:hover:border-accent/70">
+    <article
+      onClick={handleCardClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`View ${product.name} details`}
+      className="group min-w-[220px] max-w-[220px] flex-shrink-0 flex flex-col cursor-pointer overflow-hidden rounded-xl border border-default bg-surface-elevated transition-all hover:border-accent dark:hover:border-accent/70"
+    >
       {/* Product Image */}
       <div className="relative overflow-hidden">
         <img
-          src={getProductImage(product.variant)}
+          src={getProductImage(product.id)}
           alt={product.name}
           className="h-60 w-full object-cover transition-transform duration-200 group-hover:scale-105"
           loading="lazy"
@@ -60,6 +87,7 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
         <button
           onClick={handleAddToCart}
           className="flex w-full items-center justify-center gap-1.5 rounded-full border border-accent/30 bg-transparent px-3 py-2.5 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent/5 active:scale-[0.98] dark:border-accent/40 dark:hover:border-accent/70 dark:hover:bg-accent/10"
+          aria-label={`Add ${product.name} to cart`}
         >
           <ShoppingCart className="h-4 w-4" strokeWidth={2} />
           Add to Cart
@@ -74,10 +102,13 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
  *
  * Displays a horizontal scrollable carousel with product recommendations.
  * Supports light/dark mode theming.
+ * - Card click navigates to product detail
+ * - Add to Cart button adds to cart directly
  */
 export function RecommendationCarousel({
   products,
   onAddToCart,
+  onProductClick,
 }: RecommendationCarouselProps) {
   if (products.length === 0) {
     return null;
@@ -96,6 +127,7 @@ export function RecommendationCarousel({
               key={product.id}
               product={product}
               onAddToCart={onAddToCart}
+              onProductClick={onProductClick}
             />
           ))}
         </div>

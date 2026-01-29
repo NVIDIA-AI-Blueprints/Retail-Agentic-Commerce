@@ -647,11 +647,11 @@ async def checkout(cart_id: str) -> dict:
 - [x] Implement `useOpenAiGlobal` and `useWidgetState` hooks
 - [x] Implement `useCallTool` hook for tool calling
 
-**Phase 5: ARAG Integration**
-- [ ] Create `/api/recommendations` proxy route (for standalone)
-- [ ] Connect MCP `get-recommendations` tool to ARAG agent
-- [ ] Implement `useRecommendations` hook for widgets
-- [ ] Add loading and error states
+**Phase 5: ARAG Integration** ✅
+- [x] Create `/api/recommendations` proxy route (for standalone)
+- [x] Connect MCP `get-recommendations` tool to ARAG agent
+- [x] Implement `useRecommendations` hook for widgets
+- [x] Add loading and error states
 
 **Phase 6: Payment Flow Integration**
 - [ ] Connect MCP `checkout` tool to ACP payment flow
@@ -693,10 +693,10 @@ async def checkout(cart_id: str) -> dict:
 - [x] Widget resources are served with correct MIME types
 - [ ] Server supports ngrok tunneling for ChatGPT testing (Phase 7)
 
-**ARAG Integration**:
-- [ ] Recommendations are fetched from ARAG Recommendation Agent
-- [ ] Recommendations are contextually relevant (based on session)
-- [ ] Loading and error states are handled gracefully
+**ARAG Integration** ✅:
+- [x] Recommendations are fetched from ARAG Recommendation Agent
+- [x] Recommendations are contextually relevant (based on session)
+- [x] Loading and error states are handled gracefully
 
 **Communication Bridge**:
 - [ ] `window.openai.callTool()` pattern works from iframe (standalone)

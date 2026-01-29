@@ -1,6 +1,6 @@
 ---
 name: ui
-description: Frontend development guidelines for React/Next.js UI components
+description: React/Next.js frontend development standards with TypeScript, Tailwind CSS, and Kaizen UI. Enforces ESLint, Prettier, and browser validation via MCP. Use when creating React components, modifying pages, styling with Tailwind, implementing hooks, or working in src/ui/. Validates changes in browser when MCP tools available.
 ---
 
 # Overview

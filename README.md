@@ -129,6 +129,17 @@ The frontend connects to both the Merchant API and PSP Service for end-to-end ch
 
 The UI has its own environment file at `src/ui/.env.local`. Copy from `src/ui/env.example` - the defaults work out of the box for local development.
 
+## Backend Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **Merchant API** | 8000 | Core ACP checkout sessions, products, and order management |
+| **PSP Service** | 8001 | Payment delegation, vault tokens, and payment intents |
+| **Apps SDK MCP Server** | 2091 | ChatGPT-compatible MCP server with merchant widget |
+| **Promotion Agent** | 8002 | NAT agent for promotion strategy arbitration |
+| **Post-Purchase Agent** | 8003 | NAT agent for multilingual shipping messages |
+| **Recommendation Agent** | 8004 | ARAG multi-agent for personalized recommendations (requires Milvus) |
+
 ## API Documentation
 
 - **Merchant API**: http://localhost:8000/docs

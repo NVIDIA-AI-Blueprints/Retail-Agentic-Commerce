@@ -3,6 +3,8 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { useACPLog } from "@/hooks/useACPLog";
 import { useMCPClient } from "@/hooks/useMCPClient";
+import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
+import type { RecommendationInputSignals, RecommendationDecision } from "@/types";
 
 /**
  * Props for the MerchantIframeContainer component
@@ -16,13 +18,19 @@ interface MerchantIframeContainerProps {
  * Fallback URL for development when MCP server is not running.
  * Uses the Vite dev server directly (port may vary if 3001 is in use).
  */
-const VITE_DEV_URL = "http://localhost:3002";
+const VITE_DEV_URL = "http://localhost:3001";
 
 /**
  * Loading animation delay in milliseconds.
  * Shows the skeleton loader for this duration before revealing the iframe.
  */
 const LOADING_DELAY_MS = 4000;
+
+/**
+ * Minimum delay for recommendation requests in milliseconds.
+ * Ensures the skeleton loader is visible for at least this duration.
+ */
+const MIN_RECOMMENDATION_DELAY_MS = 1000;
 
 /**
  * MerchantIframeContainer Component
@@ -60,8 +68,11 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
   // ACP logging for protocol inspector - extract stable functions only
   const { logEvent, completeEvent } = useACPLog();
 
-  // MCP client hook for URL discovery - extract stable function only
-  const { getWidgetUrl } = useMCPClient();
+  // MCP client hook for URL discovery and tool calls
+  const { getWidgetUrl, callTool } = useMCPClient();
+
+  // Agent activity logging for recommendation events
+  const { logAgentCall, completeAgentCall } = useAgentActivityLog();
 
   /**
    * Initialize widget by calling MCP tool to discover widget URI.
@@ -162,14 +173,175 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
   }, [iframeSrc]);
 
   /**
+   * Handle GET_RECOMMENDATIONS request from iframe.
+   * Calls the MCP tool and logs to Agent Activity panel.
+   * Ensures a minimum delay for UX (skeleton visibility).
+   */
+  const handleRecommendationRequest = useCallback(
+    async (data: {
+      productId: string;
+      productName: string;
+      cartItems: Array<{ productId: string; name: string; price: number }>;
+    }) => {
+      // Record start time for minimum delay calculation
+      const startTime = Date.now();
+
+      // Create input signals for agent activity logging
+      const inputSignals: RecommendationInputSignals = {
+        productId: data.productId,
+        productName: data.productName,
+        cartItems: data.cartItems,
+      };
+
+      // Log the start of the recommendation request
+      const agentEventId = logAgentCall("recommendation", inputSignals);
+
+      // Log to ACP protocol inspector
+      const acpEventId = logEvent(
+        "session_update",
+        "POST",
+        "/api/mcp (tools/call: get-recommendations)",
+        `Getting recommendations for ${data.productName}...`
+      );
+
+      /**
+       * Helper to ensure minimum delay before sending result.
+       * This ensures the skeleton loader is visible for at least MIN_RECOMMENDATION_DELAY_MS.
+       */
+      const waitForMinDelay = async () => {
+        const elapsed = Date.now() - startTime;
+        const remaining = MIN_RECOMMENDATION_DELAY_MS - elapsed;
+        if (remaining > 0) {
+          await new Promise((resolve) => setTimeout(resolve, remaining));
+        }
+      };
+
+      try {
+        // Call the MCP tool
+        console.log("[Parent] Calling get-recommendations with:", data);
+        const result = await callTool("get-recommendations", {
+          productId: data.productId,
+          productName: data.productName,
+          cartItems: data.cartItems,
+        });
+        console.log("[Parent] MCP result:", result);
+
+        // Parse the result - ensure recommendations is an array
+        const rawRecommendations = Array.isArray(result?.recommendations)
+          ? result.recommendations
+          : [];
+        console.log("[Parent] rawRecommendations:", rawRecommendations);
+        const userIntent = typeof result?.userIntent === "string" ? result.userIntent : undefined;
+        const rawPipelineTrace = result?.pipelineTrace as
+          | {
+              candidatesFound?: number;
+              afterNliFilter?: number;
+              finalRanked?: number;
+            }
+          | undefined;
+
+        // Map recommendations to typed format
+        type RawRec = {
+          productId?: string;
+          product_id?: string;
+          productName?: string;
+          product_name?: string;
+          rank: number;
+          reasoning: string;
+        };
+        const mappedRecommendations = rawRecommendations.map((rec: RawRec) => ({
+          productId: rec.productId ?? rec.product_id ?? "",
+          productName: rec.productName ?? rec.product_name ?? "",
+          rank: rec.rank,
+          reasoning: rec.reasoning,
+        }));
+
+        // Create decision for agent activity log
+        const decision: RecommendationDecision = {
+          recommendations: mappedRecommendations,
+          ...(userIntent !== undefined && { userIntent }),
+          ...(rawPipelineTrace && {
+            pipelineTrace: {
+              candidatesFound: rawPipelineTrace.candidatesFound ?? 0,
+              afterNliFilter: rawPipelineTrace.afterNliFilter ?? 0,
+              finalRanked: rawPipelineTrace.finalRanked ?? 0,
+            },
+          }),
+        };
+
+        // Complete agent activity log
+        completeAgentCall(agentEventId, "success", decision);
+
+        // Complete ACP log
+        completeEvent(
+          acpEventId,
+          "success",
+          `Found ${rawRecommendations.length} recommendations`,
+          200
+        );
+
+        // Ensure minimum delay for UX before sending result
+        await waitForMinDelay();
+
+        // Send result back to iframe
+        const messageToSend = {
+          type: "RECOMMENDATIONS_RESULT",
+          recommendations: rawRecommendations,
+          userIntent,
+          pipelineTrace: rawPipelineTrace,
+        };
+        console.log("[Parent] Sending to iframe:", messageToSend);
+        if (iframeRef.current?.contentWindow) {
+          console.log("[Parent] iframe contentWindow found, posting message");
+          iframeRef.current.contentWindow.postMessage(messageToSend, "*");
+        } else {
+          console.error("[Parent] iframe contentWindow not found!");
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to get recommendations";
+
+        // Complete agent activity log with error
+        completeAgentCall(agentEventId, "error", undefined, errorMessage);
+
+        // Complete ACP log with error
+        completeEvent(acpEventId, "error", errorMessage, 500);
+
+        // Ensure minimum delay for UX before sending error
+        await waitForMinDelay();
+
+        // Send error back to iframe
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            type: "RECOMMENDATIONS_RESULT",
+            recommendations: [],
+            error: errorMessage,
+          },
+          "*"
+        );
+      }
+    },
+    [logAgentCall, completeAgentCall, logEvent, completeEvent, callTool]
+  );
+
+  /**
    * Handle messages from the iframe.
-   * The widget is self-contained - we only listen for completion notifications.
+   * Handles checkout completion and recommendation requests.
    */
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       const message = event.data;
 
       if (typeof message !== "object" || message === null) return;
+
+      // Handle recommendation request from widget
+      if (message.type === "GET_RECOMMENDATIONS") {
+        handleRecommendationRequest({
+          productId: message.productId as string,
+          productName: message.productName as string,
+          cartItems: (message.cartItems as Array<{ productId: string; name: string; price: number }>) ?? [],
+        });
+        return;
+      }
 
       // Listen for checkout completion notification from the widget
       if (message.type === "CHECKOUT_COMPLETE" && message.orderId) {
@@ -186,7 +358,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
         }
       }
     },
-    [logEvent, completeEvent, onCheckoutComplete]
+    [logEvent, completeEvent, onCheckoutComplete, handleRecommendationRequest]
   );
 
   /**

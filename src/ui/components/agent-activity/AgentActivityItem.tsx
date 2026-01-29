@@ -8,6 +8,8 @@ import type {
   PromotionDecision,
   PostPurchaseInputSignals,
   PostPurchaseDecision,
+  RecommendationInputSignals,
+  RecommendationDecision,
 } from "@/types";
 
 /**
@@ -25,6 +27,13 @@ function isPostPurchaseEvent(event: AgentActivityEvent): event is AgentActivityE
   decision?: PostPurchaseDecision;
 } {
   return event.agentType === "post_purchase";
+}
+
+function isRecommendationEvent(event: AgentActivityEvent): event is AgentActivityEvent & {
+  inputSignals: RecommendationInputSignals;
+  decision?: RecommendationDecision;
+} {
+  return event.agentType === "recommendation";
 }
 
 /**
@@ -310,6 +319,168 @@ function PostPurchaseCard({
 }
 
 /**
+ * Recommendation Card - displays recommendations from ARAG agent
+ */
+function RecommendationCard({
+  event,
+  isLast,
+}: {
+  event: AgentActivityEvent & {
+    inputSignals: RecommendationInputSignals;
+    decision?: RecommendationDecision;
+  };
+  isLast: boolean;
+}) {
+  const typeInfo = getAgentTypeInfo(event.agentType);
+  const isPending = event.status === "pending";
+  const isError = event.status === "error";
+  const isSuccess = event.status === "success" && event.decision;
+
+  const recommendationCount = event.decision?.recommendations?.length ?? 0;
+
+  return (
+    <div style={{ marginBottom: isLast ? 0 : "12px" }}>
+      <div className={`glass-decision ${isSuccess ? "highlight" : ""}`}>
+        {/* Header row */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "12px",
+          }}
+        >
+          <div className="glass-kicker">
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: isPending
+                  ? "rgba(255, 255, 255, 0.4)"
+                  : isError
+                    ? "#FF6B6B"
+                    : "rgba(118, 185, 0, 0.9)",
+                boxShadow: isPending
+                  ? "none"
+                  : isError
+                    ? "0 0 0 4px rgba(255, 107, 107, 0.12)"
+                    : "0 0 0 4px rgba(118, 185, 0, 0.12)",
+                display: "inline-block",
+              }}
+            ></span>
+            {typeInfo.label} Agent
+          </div>
+          <div className={`glass-pill ${isPending ? "yellow" : isError ? "" : "green"}`}>
+            {isPending ? "Generating" : isError ? "Error" : `${recommendationCount} items`}
+          </div>
+        </div>
+
+        {/* Product that triggered the request */}
+        <div
+          style={{
+            marginTop: "8px",
+            fontSize: "13px",
+            color: "var(--text-secondary)",
+            fontWeight: "650",
+          }}
+        >
+          {event.inputSignals.productName}
+        </div>
+
+        {/* User Intent */}
+        {event.decision?.userIntent && (
+          <div
+            style={{
+              marginTop: "10px",
+              color: "var(--text-muted)",
+              fontSize: "12px",
+              lineHeight: "1.35",
+            }}
+          >
+            {event.decision.userIntent}
+          </div>
+        )}
+
+        {/* Recommendations List */}
+        {event.decision?.recommendations && event.decision.recommendations.length > 0 && (
+          <div style={{ marginTop: "12px" }}>
+            {event.decision.recommendations.map((rec, index) => (
+              <div
+                key={rec.productId}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 0",
+                  borderTop: index === 0 ? "none" : "1px solid rgba(255, 255, 255, 0.06)",
+                }}
+              >
+                <span
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    background: "rgba(118, 185, 0, 0.15)",
+                    color: "rgba(118, 185, 0, 0.9)",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {rec.rank}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--text-primary)" }}>
+                    {rec.productName}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text-muted)",
+                      marginTop: "2px",
+                      lineHeight: "1.3",
+                    }}
+                  >
+                    {rec.reasoning}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isPending && (
+          <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "10px" }}>
+            Generating personalized recommendations...
+          </div>
+        )}
+
+        {/* Error message */}
+        {isError && event.error && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "10px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255, 107, 107, 0.25)",
+              background: "rgba(255, 107, 107, 0.08)",
+              fontSize: "12px",
+              color: "#FF6B6B",
+            }}
+          >
+            {event.error}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+/**
  * Decision Card - displays a single agent decision with glass design
  */
 export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
@@ -321,6 +492,11 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
   // Handle post-purchase events with specialized card
   if (isPostPurchaseEvent(event)) {
     return <PostPurchaseCard event={event} isLast={isLast} />;
+  }
+
+  // Handle recommendation events with specialized card
+  if (isRecommendationEvent(event)) {
+    return <RecommendationCard event={event} isLast={isLast} />;
   }
 
   // Only process promotion events from here

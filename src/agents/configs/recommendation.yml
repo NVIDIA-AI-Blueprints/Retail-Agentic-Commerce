@@ -223,7 +223,7 @@ workflow:
   workflow_alias: recommendation_agent
   llm_name: coordinator_llm
   verbose: true
-  parse_agent_response_max_retries: 3
+  parse_agent_response_max_retries: 2
   tool_names:
     - product_search
     - user_understanding_agent

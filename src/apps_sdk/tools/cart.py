@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from src.apps_sdk.tools.recommendations import MOCK_PRODUCTS
+from src.apps_sdk.tools.recommendations import CATALOG_PRODUCTS
 
 # In-memory cart storage (use database in production)
 # Exported for use by checkout module
@@ -43,7 +43,7 @@ def find_product(product_id: str) -> dict[str, Any] | None:
     Returns:
         Product dictionary or None if not found.
     """
-    return next((p for p in MOCK_PRODUCTS if p["id"] == product_id), None)
+    return next((p for p in CATALOG_PRODUCTS if p["id"] == product_id), None)
 
 
 def calculate_cart_totals(items: list[dict[str, Any]]) -> dict[str, int]:

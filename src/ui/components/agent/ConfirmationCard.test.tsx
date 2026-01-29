@@ -20,7 +20,7 @@ describe("ConfirmationCard", () => {
     basePrice: 2600,
     stockCount: 100,
     minMargin: 0.15,
-    imageUrl: "/black.jpeg",
+    imageUrl: "/prod_1.jpeg",
     variant: "Black",
     size: "Large",
   };

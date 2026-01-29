@@ -163,7 +163,7 @@ src/
 │   └── configs/        # Agent workflow configurations
 │       ├── promotion.yml        # Promotion strategy arbiter (port 8002)
 │       ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
-│       └── recommendation.yml   # ARAG multi-agent recommendations (port 8004, planned)
+│       └── recommendation.yml   # ARAG multi-agent recommendations (port 8004)
 │
 ├── apps_sdk/           # Apps SDK MCP Server (port 2091)
 │   ├── main.py         # FastAPI + MCP server entry point

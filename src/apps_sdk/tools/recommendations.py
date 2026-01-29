@@ -9,42 +9,25 @@ from __future__ import annotations
 
 from typing import Any
 
-# Mock products for development (mirrors src/merchant/db/database.py seed data)
-MOCK_PRODUCTS = [
+from src.data.product_catalog import PRODUCTS
+
+# Transform catalog products to widget format
+CATALOG_PRODUCTS = [
     {
-        "id": "prod_001",
-        "sku": "TEE-BLK-M",
-        "name": "Classic Black Tee",
-        "basePrice": 2499,
-        "stockCount": 150,
-        "variant": "Black",
-        "size": "M",
-        "imageUrl": "/black.jpeg",
-    },
-    {
-        "id": "prod_002",
-        "sku": "TEE-WHT-L",
-        "name": "Essential White Tee",
-        "basePrice": 2499,
-        "stockCount": 200,
-        "variant": "White",
-        "size": "L",
-        "imageUrl": "/white.jpeg",
-    },
-    {
-        "id": "prod_003",
-        "sku": "TEE-GRY-S",
-        "name": "Heather Gray Tee",
-        "basePrice": 2799,
-        "stockCount": 100,
-        "variant": "Grey",
-        "size": "S",
-        "imageUrl": "/gray.jpeg",
-    },
+        "id": p["id"],
+        "sku": p["sku"],
+        "name": p["name"],
+        "basePrice": p["price_cents"],
+        "stockCount": p["stock_count"],
+        "category": p["category"],
+        "description": p["description"],
+        "imageUrl": p["image_url"],
+    }
+    for p in PRODUCTS
 ]
 
-# Mock user for development
-MOCK_USER = {
+# Default user context for widget
+DEFAULT_USER = {
     "id": "user_demo123",
     "name": "John Doe",
     "email": "john@example.com",
@@ -78,10 +61,11 @@ async def search_products(
     query_lower = query.lower()
     filtered_products = [
         p
-        for p in MOCK_PRODUCTS
+        for p in CATALOG_PRODUCTS
         if query_lower in str(p["name"]).lower()
-        or query_lower in str(p.get("variant", "")).lower()
+        or query_lower in str(p.get("category", "")).lower()
         or query_lower in str(p.get("sku", "")).lower()
+        or query_lower in str(p.get("description", "")).lower()
     ]
 
     # Apply category filter if provided
@@ -90,13 +74,13 @@ async def search_products(
         filtered_products = [
             p
             for p in filtered_products
-            if category_lower in str(p.get("variant", "")).lower()
+            if category_lower in str(p.get("category", "")).lower()
             or category_lower in str(p["name"]).lower()
         ]
 
     # If no matches, return all products (for demo purposes)
     if not filtered_products:
-        filtered_products = MOCK_PRODUCTS
+        filtered_products = CATALOG_PRODUCTS
 
     # Apply limit
     limit = min(limit, 50)
@@ -107,7 +91,7 @@ async def search_products(
         "query": query,
         "category": category,
         "totalResults": len(results),
-        "user": MOCK_USER,
+        "user": DEFAULT_USER,
         "theme": "dark",
         "locale": "en-US",
         "_meta": {
