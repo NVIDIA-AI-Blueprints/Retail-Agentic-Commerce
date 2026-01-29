@@ -204,9 +204,7 @@ class TestRemoveFromCart:
     @pytest.mark.asyncio
     async def test_remove_from_nonexistent_cart(self) -> None:
         """Removing from a nonexistent cart returns error."""
-        result = await remove_from_cart(
-            product_id="prod_1", cart_id="nonexistent_cart"
-        )
+        result = await remove_from_cart(product_id="prod_1", cart_id="nonexistent_cart")
 
         assert "error" in result
         assert "not found" in result["error"].lower()

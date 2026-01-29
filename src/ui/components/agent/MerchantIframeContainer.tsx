@@ -218,19 +218,16 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
 
       try {
         // Call the MCP tool
-        console.log("[Parent] Calling get-recommendations with:", data);
         const result = await callTool("get-recommendations", {
           productId: data.productId,
           productName: data.productName,
           cartItems: data.cartItems,
         });
-        console.log("[Parent] MCP result:", result);
 
         // Parse the result - ensure recommendations is an array
         const rawRecommendations = Array.isArray(result?.recommendations)
           ? result.recommendations
           : [];
-        console.log("[Parent] rawRecommendations:", rawRecommendations);
         const userIntent = typeof result?.userIntent === "string" ? result.userIntent : undefined;
         const rawPipelineTrace = result?.pipelineTrace as
           | {
@@ -290,12 +287,8 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
           userIntent,
           pipelineTrace: rawPipelineTrace,
         };
-        console.log("[Parent] Sending to iframe:", messageToSend);
         if (iframeRef.current?.contentWindow) {
-          console.log("[Parent] iframe contentWindow found, posting message");
           iframeRef.current.contentWindow.postMessage(messageToSend, "*");
-        } else {
-          console.error("[Parent] iframe contentWindow not found!");
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to get recommendations";

@@ -163,10 +163,10 @@ class TestSeedData:
                 assert classic_tee.base_price == 2500
                 assert classic_tee.stock_count == 100
                 assert classic_tee.min_margin == 0.15
-                assert "placehold.co" in classic_tee.image_url
+                assert classic_tee.image_url == "/prod_1.jpeg"
 
-    def test_seed_data_image_urls_are_placeholders(self, temp_db_url: str) -> None:
-        """Happy path: All products have placeholder image URLs."""
+    def test_seed_data_image_urls_match_catalog(self, temp_db_url: str) -> None:
+        """Happy path: All products have image URLs from shared catalog."""
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
@@ -179,8 +179,11 @@ class TestSeedData:
 
                 products = session.exec(select(Product)).all()
 
+                # Build lookup from catalog
+                catalog_images = {p["id"]: p["image_url"] for p in PRODUCTS}
+
                 for product in products:
-                    assert "https://placehold.co/400x400/png" in product.image_url
+                    assert product.image_url == catalog_images[product.id]
 
 
 @pytest.mark.usefixtures("reset_db_engine")
