@@ -11,8 +11,9 @@ import type {
   CartItem,
   CartState,
   CheckoutResult,
+  ACPSessionResponse,
 } from "@/types";
-import { calculateCartTotals } from "@/types";
+import { cartStateFromSession, EMPTY_CART_STATE } from "@/types";
 
 /**
  * Widget page state for navigation
@@ -89,11 +90,11 @@ export function App() {
   const [checkoutRecommendations, setCheckoutRecommendations] = useState<Product[]>([]);
   const [isLoadingCheckoutRecommendations, setIsLoadingCheckoutRecommendations] = useState(false);
 
-  // Cart state
+  // Cart state - totals come from backend ACP session
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [cartState, setCartState] = useState<CartState>(() =>
-    calculateCartTotals("", [])
-  );
+  const [cartState, setCartState] = useState<CartState>(EMPTY_CART_STATE);
+  // Track pending backend updates to show loading state
+  const [isPendingCartUpdate, setIsPendingCartUpdate] = useState(false);
 
   // Checkout state
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -103,6 +104,7 @@ export function App() {
 
   // ACP session state
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [acpSession, setAcpSession] = useState<ACPSessionResponse | null>(null);
 
   // API base URL - relative in production, localhost in dev
   const getApiBaseUrl = useCallback(() => {
@@ -112,10 +114,10 @@ export function App() {
 
   // Create or update ACP checkout session
   const syncCheckoutSession = useCallback(
-    async (items: CartItem[], currentSessionId: string | null): Promise<string | null> => {
+    async (items: CartItem[], currentSessionId: string | null): Promise<{sessionId: string | null; sessionData: ACPSessionResponse | null}> => {
       if (items.length === 0) {
         // No items, no session needed
-        return null;
+        return { sessionId: null, sessionData: null };
       }
 
       const apiBaseUrl = getApiBaseUrl();
@@ -138,8 +140,9 @@ export function App() {
           });
 
           if (response.ok) {
-            const data = await response.json();
-            return data.id || currentSessionId;
+            const data = await response.json() as ACPSessionResponse;
+            console.log("[Widget] ACP session updated with promotion data:", data.line_items?.map(li => li.promotion));
+            return { sessionId: data.id || currentSessionId, sessionData: data };
           } else {
             // Session might be invalid, create a new one
             console.warn("[Widget] Session update failed, creating new session");
@@ -170,15 +173,16 @@ export function App() {
         });
 
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json() as ACPSessionResponse;
           console.log("[Widget] ACP session created:", data.id);
-          return data.id;
+          console.log("[Widget] Promotion data:", data.line_items?.map(li => li.promotion));
+          return { sessionId: data.id, sessionData: data };
         }
       } catch (error) {
         console.warn("[Widget] Failed to sync ACP session:", error);
       }
 
-      return currentSessionId;
+      return { sessionId: currentSessionId, sessionData: null };
     },
     [getApiBaseUrl]
   );
@@ -186,19 +190,67 @@ export function App() {
   // Notify server of cart updates via ACP
   const notifyCartUpdate = useCallback(
     async (items: CartItem[]) => {
-      const newSessionId = await syncCheckoutSession(items, sessionId);
-      if (newSessionId !== sessionId) {
-        setSessionId(newSessionId);
+      // Mark as pending to show loading state while backend calculates
+      setIsPendingCartUpdate(true);
+      try {
+        const { sessionId: newSessionId, sessionData } = await syncCheckoutSession(items, sessionId);
+        if (newSessionId !== sessionId) {
+          setSessionId(newSessionId);
+        }
+        if (sessionData) {
+          setAcpSession(sessionData);
+        }
+      } finally {
+        setIsPendingCartUpdate(false);
       }
     },
     [sessionId, syncCheckoutSession]
   );
 
-  // Update cart state when items change
+  // Update shipping option via ACP - backend recalculates totals
+  const handleShippingUpdate = useCallback(
+    async (fulfillmentOptionId: string) => {
+      if (!sessionId) {
+        console.warn("[Widget] No session ID for shipping update");
+        return;
+      }
+
+      const apiBaseUrl = getApiBaseUrl();
+      try {
+        console.log("[Widget] Updating shipping to:", fulfillmentOptionId);
+        const response = await fetch(`${apiBaseUrl}/acp/sessions/${sessionId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            fulfillmentOptionId,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json() as ACPSessionResponse;
+          console.log("[Widget] Shipping updated, new totals:", data.totals);
+          setAcpSession(data);
+        } else {
+          console.error("[Widget] Shipping update failed:", response.status);
+        }
+      } catch (error) {
+        console.error("[Widget] Failed to update shipping:", error);
+        throw error;
+      }
+    },
+    [sessionId, getApiBaseUrl]
+  );
+
+  // Update cart state when ACP session changes - totals come from backend
   useEffect(() => {
-    const newCartState = calculateCartTotals(cartState.cartId || "", cartItems);
+    const newCartState = cartStateFromSession(acpSession, cartItems, sessionId || "");
+    // Override isCalculating if we're waiting for a backend update
+    if (isPendingCartUpdate) {
+      newCartState.isCalculating = true;
+    }
     setCartState(newCartState);
-  }, [cartItems, cartState.cartId]);
+  }, [acpSession, cartItems, sessionId, isPendingCartUpdate]);
 
   // Add item to cart
   const handleAddToCart = useCallback((product: Product) => {
@@ -463,7 +515,10 @@ export function App() {
       setCheckoutResult(result);
 
       if (result.success) {
+        // Clear cart and session state on successful checkout
         setCartItems([]);
+        setSessionId(null);
+        setAcpSession(null);
       }
     } catch (error) {
       console.error("[Checkout] Error:", error);
@@ -513,7 +568,6 @@ export function App() {
           isLoadingRecommendations={isLoadingCheckoutRecommendations}
           isProcessing={isCheckingOut}
           checkoutResult={checkoutResult}
-          sessionId={sessionId}
           onBack={handleBackToBrowse}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
@@ -521,6 +575,7 @@ export function App() {
           onProductClick={handleProductClick}
           onQuickAdd={handleAddToCart}
           onClearResult={handleClearCart}
+          onShippingUpdate={handleShippingUpdate}
         />
       </div>
     );

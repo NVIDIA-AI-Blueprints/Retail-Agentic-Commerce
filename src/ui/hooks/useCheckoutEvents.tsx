@@ -2,6 +2,8 @@
 
 import { useEffect, useCallback, useRef } from "react";
 import { useACPLog, type ACPEventType } from "./useACPLog";
+import { useAgentActivityLog } from "./useAgentActivityLog";
+import type { PromotionInputSignals, PromotionDecision } from "@/types";
 
 /**
  * SSE event from the MCP server
@@ -16,6 +18,23 @@ interface CheckoutSSEEvent {
   statusCode?: number;
   sessionId?: string;
   orderId?: string;
+  timestamp: string;
+}
+
+/**
+ * Agent activity SSE event from the MCP server
+ */
+interface AgentActivitySSEEvent {
+  id: string;
+  agentType: string;
+  productId: string;
+  productName: string;
+  action: string;
+  discountAmount: number;
+  reasonCodes: string[];
+  reasoning: string;
+  stockCount: number;
+  basePrice: number;
   timestamp: string;
 }
 
@@ -48,10 +67,11 @@ function mapEventType(type: string): ACPEventType {
  */
 export function useCheckoutEvents(mcpServerUrl = "http://localhost:2091") {
   const { logEvent, completeEvent } = useACPLog();
+  const { addAgentEvent } = useAgentActivityLog();
   const eventSourceRef = useRef<EventSource | null>(null);
   const pendingEventsRef = useRef<Map<string, string>>(new Map());
 
-  const handleEvent = useCallback(
+  const handleCheckoutEvent = useCallback(
     (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data) as CheckoutSSEEvent;
@@ -95,10 +115,46 @@ export function useCheckoutEvents(mcpServerUrl = "http://localhost:2091") {
           }
         }
       } catch (error) {
-        console.error("[useCheckoutEvents] Failed to parse event:", error);
+        console.error("[useCheckoutEvents] Failed to parse checkout event:", error);
       }
     },
     [logEvent, completeEvent]
+  );
+
+  const handleAgentActivityEvent = useCallback(
+    (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data) as AgentActivitySSEEvent;
+
+        // Only handle promotion agent events for now
+        if (data.agentType === "promotion") {
+          // Build input signals
+          const inputSignals: PromotionInputSignals = {
+            productId: data.productId,
+            productName: data.productName,
+            stockCount: data.stockCount,
+            basePrice: data.basePrice,
+            competitorPrice: null,
+            inventoryPressure: data.stockCount > 50 ? "high" : "low",
+            competitionPosition: inferCompetitionPosition(data.reasonCodes),
+          };
+
+          // Build decision
+          const decision: PromotionDecision = {
+            action: data.action,
+            discountAmount: data.discountAmount,
+            reasonCodes: data.reasonCodes,
+            reasoning: data.reasoning,
+          };
+
+          // Add to agent activity log
+          addAgentEvent("promotion", inputSignals, decision, "success");
+        }
+      } catch (error) {
+        console.error("[useCheckoutEvents] Failed to parse agent activity event:", error);
+      }
+    },
+    [addAgentEvent]
   );
 
   useEffect(() => {
@@ -111,7 +167,8 @@ export function useCheckoutEvents(mcpServerUrl = "http://localhost:2091") {
     const eventSource = new EventSource(`${mcpServerUrl}/events`);
     eventSourceRef.current = eventSource;
 
-    eventSource.addEventListener("checkout", handleEvent);
+    eventSource.addEventListener("checkout", handleCheckoutEvent);
+    eventSource.addEventListener("agent_activity", handleAgentActivityEvent);
 
     eventSource.onerror = () => {
       // EventSource will automatically reconnect
@@ -121,5 +178,17 @@ export function useCheckoutEvents(mcpServerUrl = "http://localhost:2091") {
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [mcpServerUrl, handleEvent]);
+  }, [mcpServerUrl, handleCheckoutEvent, handleAgentActivityEvent]);
+}
+
+/**
+ * Infer competition position from reason codes
+ */
+function inferCompetitionPosition(
+  reasonCodes: string[]
+): "above_market" | "at_market" | "below_market" | "unknown" {
+  if (reasonCodes.includes("ABOVE_MARKET")) return "above_market";
+  if (reasonCodes.includes("BELOW_MARKET")) return "below_market";
+  if (reasonCodes.includes("AT_MARKET")) return "at_market";
+  return "unknown";
 }

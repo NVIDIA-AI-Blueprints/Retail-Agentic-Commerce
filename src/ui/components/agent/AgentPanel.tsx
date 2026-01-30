@@ -526,7 +526,6 @@ export function AgentPanel() {
                 quantity={context.quantity}
                 shippingPrice={shipping}
                 orderId={context.session.order.id}
-                orderUrl={context.session.order.permalink_url}
                 estimatedDelivery={selectedShippingOption?.estimatedDelivery ?? "5-7 business days"}
                 onStartOver={handleStartOver}
               />
@@ -537,7 +536,18 @@ export function AgentPanel() {
 
       {/* Apps SDK Mode Content */}
       {activeMode === "apps-sdk" && (
-        <MerchantIframeContainer onCheckoutComplete={handleAppsSdkCheckoutComplete} />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Chat bubble - same as native mode */}
+          {messages[0] && (
+            <div style={{ padding: "24px 32px 16px 32px" }}>
+              <ChatMessage message={messages[0]} />
+            </div>
+          )}
+          {/* Spacer between chat bubble and iframe */}
+          <div style={{ height: "12px", flexShrink: 0 }} />
+          {/* Merchant widget iframe */}
+          <MerchantIframeContainer onCheckoutComplete={handleAppsSdkCheckoutComplete} />
+        </div>
       )}
     </section>
   );

@@ -164,19 +164,39 @@ export function ShoppingCart({
           </div>
         </section>
 
-        {/* Order summary */}
+        {/* Order summary - all values from backend */}
         <section className="space-y-2 border-t border-default/50 pt-3">
+          {cartState.isCalculating && (
+            <div className="flex items-center justify-center gap-2 py-2 text-sm text-text-secondary">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-accent" />
+              <span>Calculating...</span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span className="text-text-secondary">Subtotal</span>
-            <span className="text-text">{formatPrice(cartState.subtotal)}</span>
+            <span className={`text-text ${cartState.isCalculating ? "opacity-50" : ""}`}>
+              {formatPrice(cartState.subtotal)}
+            </span>
           </div>
+          {cartState.discount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-emerald-600 dark:text-emerald-400">Discount</span>
+              <span className={`font-medium text-emerald-600 dark:text-emerald-400 ${cartState.isCalculating ? "opacity-50" : ""}`}>
+                −{formatPrice(cartState.discount)}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span className="text-text-secondary">Tax</span>
-            <span className="text-text">{formatPrice(cartState.tax)}</span>
+            <span className={`text-text ${cartState.isCalculating ? "opacity-50" : ""}`}>
+              {formatPrice(cartState.tax)}
+            </span>
           </div>
           <div className="flex justify-between pt-2 text-base font-semibold">
             <span className="text-text">Total</span>
-            <span className="text-text">{formatPrice(cartState.total)}</span>
+            <span className={`text-text ${cartState.isCalculating ? "opacity-50" : ""}`}>
+              {formatPrice(cartState.total)}
+            </span>
           </div>
         </section>
       </div>

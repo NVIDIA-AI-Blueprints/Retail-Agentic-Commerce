@@ -3,92 +3,6 @@
 import { useEffect, useRef } from "react";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
 import { AgentActivityItem } from "./AgentActivityItem";
-import type {
-  AgentActivityEvent,
-  AgentDecision,
-  PromotionDecision,
-  RecommendationDecision,
-} from "@/types";
-
-/**
- * Type guard for promotion decision
- */
-function isPromotionDecision(decision: AgentDecision): decision is PromotionDecision {
-  return "action" in decision && "discountAmount" in decision;
-}
-
-/**
- * Type guard for recommendation decision
- */
-function isRecommendationDecision(decision: AgentDecision): decision is RecommendationDecision {
-  return "recommendations" in decision && Array.isArray(decision.recommendations);
-}
-
-/**
- * Convert action code to human-readable text for timeline display
- */
-function getHumanReadableAction(action: string): string {
-  switch (action) {
-    case "DISCOUNT_5_PCT":
-      return "Applied 5% discount";
-    case "DISCOUNT_10_PCT":
-      return "Applied 10% discount";
-    case "DISCOUNT_15_PCT":
-      return "Applied 15% discount";
-    case "FREE_SHIPPING":
-      return "Applied free shipping";
-    case "NO_PROMO":
-      return "No promotion needed";
-    default:
-      return action;
-  }
-}
-
-/**
- * Get timeline message for an event
- */
-function getTimelineMessage(event: AgentActivityEvent): string {
-  // Get product name from input signals - all signal types have productName
-  const productName =
-    "productName" in event.inputSignals
-      ? (event.inputSignals as { productName: string }).productName
-      : "Unknown";
-
-  if (event.status === "pending") {
-    if (event.agentType === "post_purchase") {
-      return `Generating message for ${productName}...`;
-    }
-    if (event.agentType === "recommendation") {
-      return `Finding recommendations for ${productName}...`;
-    }
-    return `Evaluating ${productName}...`;
-  }
-
-  if (event.agentType === "post_purchase") {
-    if (event.status === "success" && event.decision) {
-      return `Generated confirmation for ${productName}`;
-    }
-    return `Failed to generate message for ${productName}`;
-  }
-
-  // Recommendation events
-  if (event.agentType === "recommendation") {
-    if (event.status === "success" && event.decision && isRecommendationDecision(event.decision)) {
-      const count = event.decision.recommendations.length;
-      return count > 0
-        ? `Found ${count} recommendations for ${productName}`
-        : `No recommendations found for ${productName}`;
-    }
-    return `Failed to get recommendations for ${productName}`;
-  }
-
-  // Promotion events
-  if (event.decision && isPromotionDecision(event.decision)) {
-    return `${getHumanReadableAction(event.decision.action)} for ${productName}`;
-  }
-
-  return `Processed ${productName}`;
-}
 
 /**
  * Empty state - shows agent waiting state
@@ -219,41 +133,10 @@ function ActiveAgentActivity() {
       </div>
 
       {/* Decision cards - newest first */}
-      <div ref={scrollRef} style={{ maxHeight: "calc(100vh - 350px)", overflowY: "auto" }}>
+      <div ref={scrollRef} style={{ maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
         {[...state.events].reverse().map((event, index, arr) => (
           <AgentActivityItem key={event.id} event={event} isLast={index === arr.length - 1} />
         ))}
-      </div>
-
-      {/* Timeline */}
-      <div className="glass-section">
-        <h3>Agent Timeline</h3>
-        <div className="glass-timeline" style={{ maxHeight: "200px", overflowY: "auto" }}>
-          {[...state.events].reverse().map((event) => (
-            <div key={`timeline-${event.id}`} className="glass-event">
-              <div className="time">
-                {event.timestamp.toLocaleTimeString("en-US", {
-                  hour12: false,
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </div>
-              <div className="msg">{getTimelineMessage(event)}</div>
-              <div
-                className={`glass-tag ${event.status === "success" ? "green" : event.status === "error" ? "" : "yellow"}`}
-              >
-                {event.status === "pending"
-                  ? "EVALUATING"
-                  : event.status === "success"
-                    ? "DECIDED"
-                    : event.status === "error"
-                      ? "ERROR"
-                      : "SKIPPED"}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

@@ -54,8 +54,16 @@ function ACPEventItem({ event }: { event: ACPEvent }) {
           <span style={{ color: "var(--text-muted)" }}>Processing request...</span>
         ) : (
           <>
-            <span style={{ color: "var(--text-muted)" }}>{event.method}</span>{" "}
-            <span style={{ color: "var(--text-secondary)" }}>{event.endpoint}</span>
+            <div
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span style={{ color: "var(--text-muted)" }}>{event.method}</span>{" "}
+              <span style={{ color: "var(--text-secondary)" }}>{event.endpoint}</span>
+            </div>
             {event.responseSummary && (
               <span
                 style={{
@@ -255,7 +263,8 @@ export function BusinessPanel() {
   // This allows the widget to remain isolated (no postMessage)
   useCheckoutEvents();
 
-  // Clear both local state and server-side event store
+  // Clear local ACP log state and server-side event store
+  // Note: Agent Activity is cleared by switching tabs or refreshing the page
   const handleClear = useCallback(async () => {
     // Clear local state first for immediate UI feedback
     clear();

@@ -1,166 +1,271 @@
 # NVIDIA AI Blueprint: Retail Agentic Commerce
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
+
+A reference implementation of the **Agentic Commerce Protocol (ACP)**: a retailer-operated checkout system that enables agentic negotiation while maintaining merchant control.
+
 <div align="center">
 
 ![NVIDIA Logo](https://avatars.githubusercontent.com/u/178940881?s=200&v=4)
 
 </div>
 
-A **reference implementation** of the **Agentic Commerce Protocol (ACP)**: a retailer-operated checkout system that enables agentic negotiation while maintaining merchant control.
+## What is ACP?
 
-> **Third-Party Software Notice**
-> This project may download and install additional third-party open source software projects.
-> Please review the license terms of these open source projects before use.
+ACP lets AI agents negotiate with merchants on behalf of users. The merchant stays in control while agents can:
+
+- Request promotions and discounts
+- Get personalized recommendations
+- Complete checkout with delegated payments
+- Receive multilingual post-purchase updates
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python 3.12+
-- Node.js 18+ (for UI)
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- Docker (for Milvus vector database)
+- Node.js 18+
+- [uv](https://docs.astral.sh/uv/) package manager
+- Docker (optional, for Recommendation Agent)
 
-### Installation
+### 1. Clone and Configure
 
 ```bash
 git clone https://github.com/NVIDIA/Retail-Agentic-Commerce.git
 cd Retail-Agentic-Commerce
 cp env.example .env
+```
+
+Edit `.env` and add your NVIDIA API key ([get one here](https://build.nvidia.com/settings/api-keys)):
+
+```env
+NVIDIA_API_KEY=nvapi-xxx
+```
+
+### 2. Backend Services (Merchant, PSP, Apps SDK)
+
+Create and activate a virtual environment, then start the services in separate terminals:
+
+```bash
+# Setup (run once)
+uv venv
+source .venv/bin/activate
 uv sync
 ```
 
-### Environment Variables
-
-Copy `env.example` to `.env`. Most variables have sensible defaults and work out of the box:
-
-```env
-# Required - get your key from https://build.nvidia.com/settings/api-keys
-NVIDIA_API_KEY=nvapi-xxx   # For agents to call Nemotron Nano v3
-
-# Optional - these have working defaults
-API_KEY=your-api-key                        # Merchant API auth
-PSP_API_KEY=psp-api-key-12345               # PSP service auth
-PROMOTION_AGENT_URL=http://localhost:8002
-POST_PURCHASE_AGENT_URL=http://localhost:8003
-```
-
-> **Note**: `NVIDIA_API_KEY` is the only variable you must set. It enables the NAT agents (Promotion and Post-Purchase) to communicate with the nemontron-nano-v3 public endpoint.
-
-### Run the Services
-
 ```bash
-# Merchant API (port 8000)
+# Terminal 1: Merchant API (port 8000)
+source .venv/bin/activate
 uvicorn src.merchant.main:app --reload
-
-# PSP Service (port 8001)
-uvicorn src.payment.main:app --reload --port 8001
-
-# Apps SDK MCP Server (port 2091)
-uvicorn src.apps_sdk.main:app --reload --port 2091
-
-# NAT Agents (from src/agents/)
-cd src/agents
-uv pip install -e ".[dev]" --prerelease=allow
-nat serve --config_file configs/promotion.yml --port 8002      # Promotion Agent
-nat serve --config_file configs/post-purchase.yml --port 8003  # Post-Purchase Agent
-nat serve --config_file configs/recommendation-ultrafast.yml --port 8004 # Recommendation Agent (requires Milvus)
-
-# Frontend UI (port 3000)
-cd src/ui
-cp env.example .env.local  # Configure API endpoints
-pnpm install && pnpm run dev
 ```
 
-### Apps SDK Widget
-
-The Apps SDK provides a ChatGPT-compatible merchant widget. Build and serve it:
+```bash
+# Terminal 2: PSP Service (port 8001)
+source .venv/bin/activate
+uvicorn src.payment.main:app --reload --port 8001
+```
 
 ```bash
-# Build the widget (outputs to src/apps_sdk/dist/)
+# Terminal 3: Apps SDK MCP Server (port 2091)
+source .venv/bin/activate
+uvicorn src.apps_sdk.main:app --reload --port 2091
+```
+
+### 3. NAT Agents (Separate Environment)
+
+The agents use their own virtual environment:
+
+```bash
+# Setup (run once)
+cd src/agents
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]" --prerelease=allow
+```
+
+```bash
+# Terminal 4: Promotion Agent (port 8002)
+cd src/agents
+source .venv/bin/activate
+nat serve --config_file configs/promotion.yml --port 8002
+```
+
+```bash
+# Terminal 5: Post-Purchase Agent (port 8003)
+cd src/agents
+source .venv/bin/activate
+nat serve --config_file configs/post-purchase.yml --port 8003
+```
+
+```bash
+# Terminal 6: Recommendation Agent (port 8004) - requires Docker
+cd src/agents
+source .venv/bin/activate
+nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
+```
+
+> **Note**: The Recommendation Agent requires Milvus. See [Optional: Milvus Setup](#optional-milvus-setup) below.
+
+### 4. Frontend
+
+```bash
+# Terminal 7: Demo UI (port 3000)
+cd src/ui
+pnpm install
+pnpm dev
+```
+
+```bash
+# Terminal 8: Apps SDK Widget (port 3001) - for development
 cd src/apps_sdk/web
 pnpm install
-pnpm build
-
-# For development with hot reload
-pnpm dev  # Runs on http://localhost:3001
+pnpm dev
 ```
 
-See [src/apps_sdk/README.md](src/apps_sdk/README.md) for full documentation.
-
-### Infrastructure (Docker)
-
-The Recommendation Agent requires Milvus (vector search) and Phoenix (observability). Start both with Docker Compose:
-
-```bash
-# Start infrastructure
-docker compose up -d
-
-# Verify services
-curl -s http://localhost:9091/healthz  # Milvus
-curl -s http://localhost:6006/healthz  # Phoenix
-
-# Seed product catalog (from src/agents/)
-cd src/agents
-uv run python scripts/seed_milvus.py
-```
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| Milvus | localhost:19530 | Vector similarity search |
-| Phoenix | http://localhost:6006 | LLM observability UI |
-
-Data persists across restarts. To reset: `docker compose down -v`
-
-### Verify
+### 5. Verify
 
 ```bash
 curl http://localhost:8000/health  # Merchant API
 curl http://localhost:8001/health  # PSP Service
-curl http://localhost:2091/health  # Apps SDK MCP Server
-# Visit http://localhost:3000 for the UI
+curl http://localhost:2091/health  # Apps SDK
 ```
 
-## UI Integration
+Visit **http://localhost:3000** to see the demo UI.
 
-The frontend connects to both the Merchant API and PSP Service for end-to-end checkout:
+## Architecture
 
-1. **Product Selection** - User selects a product from the grid
-2. **Session Creation** - UI calls `POST /checkout_sessions` to create a checkout session
-3. **Shipping Selection** - UI calls `POST /checkout_sessions/{id}` to update shipping
-4. **Payment Delegation** - UI calls PSP `POST /agentic_commerce/delegate_payment` to get a vault token
-5. **Checkout Completion** - UI calls `POST /checkout_sessions/{id}/complete` with the vault token
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Client Agent                             │
+│                    (ChatGPT, Claude, etc.)                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Apps SDK MCP Server                         │
+│                        (Port 2091)                              │
+│   ┌─────────────┬─────────────────┬────────────────────────┐    │
+│   │ get-recs    │ add-to-cart     │ checkout               │    │
+│   └─────────────┴─────────────────┴────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Merchant API                               │
+│                        (Port 8000)                              │
+│   ┌─────────────┬─────────────────┬────────────────────────┐    │
+│   │ Products    │ Checkout        │ Orders                 │    │
+│   │ Sessions    │ Promotions      │ Recommendations        │    │
+│   └─────────────┴─────────────────┴────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+          │                    │                    │
+          ▼                    ▼                    ▼
+   ┌────────────┐       ┌────────────┐       ┌────────────┐
+   │ Promotion  │       │ Post-      │       │ Recommend  │
+   │ Agent      │       │ Purchase   │       │ Agent      │
+   │ (8002)     │       │ (8003)     │       │ (8004)     │
+   └────────────┘       └────────────┘       └────────────┘
+```
 
-### Environment Variables (UI)
-
-The UI has its own environment file at `src/ui/.env.local`. Copy from `src/ui/env.example` - the defaults work out of the box for local development.
-
-## Backend Services
+## Services
 
 | Service | Port | Description |
 |---------|------|-------------|
-| **Merchant API** | 8000 | Core ACP checkout sessions, products, and order management |
-| **PSP Service** | 8001 | Payment delegation, vault tokens, and payment intents |
-| **Apps SDK MCP Server** | 2091 | ChatGPT-compatible MCP server with merchant widget |
-| **Promotion Agent** | 8002 | NAT agent for promotion strategy arbitration |
-| **Post-Purchase Agent** | 8003 | NAT agent for multilingual shipping messages |
-| **Recommendation Agent** | 8004 | ARAG multi-agent for personalized recommendations (requires Milvus) |
+| Merchant API | 8000 | ACP checkout, products, orders |
+| PSP Service | 8001 | Payment delegation, vault tokens |
+| Apps SDK | 2091 | MCP server for AI agents |
+| Promotion Agent | 8002 | Discount strategy (NAT) |
+| Post-Purchase Agent | 8003 | Multilingual messages (NAT) |
+| Recommendation Agent | 8004 | Personalized recs (requires Docker) |
 
-## API Documentation
+## API Docs
+
+Interactive docs available when services are running:
 
 - **Merchant API**: http://localhost:8000/docs
 - **PSP Service**: http://localhost:8001/docs
-- **Apps SDK MCP Server**: http://localhost:2091/docs
+- **Apps SDK**: http://localhost:2091/docs
+
+## Project Structure
+
+```
+src/
+├── merchant/          # Merchant API (FastAPI)
+├── payment/           # PSP Service (FastAPI)
+├── apps_sdk/          # MCP Server + Widget
+├── agents/            # NAT Agent configs
+└── ui/                # Demo UI (Next.js)
+
+docs/
+├── architecture.md    # System design
+├── features.md        # Feature status
+└── specs/             # Protocol specs
+```
+
+## Optional: Milvus Setup
+
+The Recommendation Agent requires Milvus for vector search. Start it before running the agent:
+
+```bash
+# Start Milvus (from project root)
+docker compose up -d
+
+# Verify Milvus is running
+curl -s http://localhost:9091/healthz
+
+# Seed the product catalog (from agents env)
+cd src/agents
+source .venv/bin/activate
+uv run python scripts/seed_milvus.py
+```
+
+## Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Create a branch** for your feature (`git checkout -b feature/amazing-feature`)
+3. **Make your changes** following our code standards
+4. **Run tests** to ensure nothing is broken
+5. **Submit a Pull Request**
+
+### Code Standards
+
+```bash
+# Backend (Python)
+ruff check src/ tests/
+ruff format src/ tests/
+pyright src/
+pytest tests/ -v
+
+# Frontend (TypeScript)
+cd src/ui
+pnpm lint
+pnpm typecheck
+pnpm test:run
+```
+
+See [AGENTS.md](AGENTS.md) for detailed development guidelines.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| `docs/PRD.md` | Product requirements |
-| `docs/architecture.md` | System architecture |
-| `docs/acp-spec.md` | ACP protocol specification |
-| `docs/features.md` | Feature breakdown and status |
-| `src/agents/README.md` | NAT Agents documentation |
-| `src/apps_sdk/README.md` | Apps SDK MCP Server documentation |
-| `CLAUDE.md` | Development guide for AI assistants |
-| `AGENTS.md` | Quick reference for contributors |
+| [Architecture](docs/architecture.md) | System design and data flow |
+| [Features](docs/features.md) | Feature breakdown and status |
+| [ACP Spec](docs/specs/acp-spec.md) | Protocol specification |
+| [Apps SDK](src/apps_sdk/README.md) | MCP server documentation |
+| [NAT Agents](src/agents/README.md) | Agent configuration guide |
+
+## Getting Help
+
+- **Issues**: [Open an issue](https://github.com/NVIDIA/Retail-Agentic-Commerce/issues) for bugs or feature requests
+- **Security**: See [SECURITY.md](SECURITY.md) for reporting vulnerabilities
+
+## License
+
+This project is licensed under Apache 2.0 - see [LICENSE](LICENSE) for details.
+
+> **Third-Party Software Notice**: This project may download and install additional third-party open source software projects. Review the license terms of these projects before use.

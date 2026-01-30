@@ -19,13 +19,16 @@ import { PaymentSheet } from "@/components/PaymentSheet";
 
 /**
  * Delivery option configuration
+ * Note: Prices are display-only references. Actual shipping costs
+ * are calculated by the backend when fulfillment option is selected.
  */
 interface DeliveryOption {
   id: string;
   name: string;
   description: string;
-  price: number;
+  displayPrice: number; // Display reference only - backend calculates actual
   icon: typeof Truck;
+  fulfillmentOptionId: string; // Maps to merchant API fulfillment option
 }
 
 const DELIVERY_OPTIONS: DeliveryOption[] = [
@@ -33,32 +36,28 @@ const DELIVERY_OPTIONS: DeliveryOption[] = [
     id: "standard",
     name: "Standard Delivery",
     description: "5-7 business days",
-    price: 0,
+    displayPrice: 599, // $5.99 - display only, backend calculates actual
     icon: Truck,
+    fulfillmentOptionId: "shipping_standard", // Matches backend ID
   },
   {
     id: "express",
     name: "Express Delivery",
-    description: "1-2 business days",
-    price: 999, // $9.99 in cents
+    description: "2-3 business days",
+    displayPrice: 1299, // $12.99 - display only, backend calculates actual
     icon: Zap,
+    fulfillmentOptionId: "shipping_express", // Matches backend ID
   },
 ];
 
-// Map delivery option IDs to merchant fulfillment option IDs
-const FULFILLMENT_OPTION_MAP: Record<string, string> = {
-  standard: "ship_standard",
-  express: "ship_express",
-};
-
 interface CheckoutPageProps {
   cartItems: CartItem[];
+  /** Cart state with totals from backend - isCalculating indicates pending update */
   cartState: CartState;
   recommendations: Product[];
   isLoadingRecommendations: boolean;
   isProcessing: boolean;
   checkoutResult: CheckoutResult | null;
-  sessionId: string | null;
   onBack: () => void;
   onUpdateQuantity: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
@@ -66,6 +65,8 @@ interface CheckoutPageProps {
   onProductClick: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
   onClearResult: () => void;
+  /** Called when shipping option changes - parent handles backend call */
+  onShippingUpdate: (fulfillmentOptionId: string) => Promise<void>;
 }
 
 /**
@@ -229,7 +230,6 @@ export function CheckoutPage({
   isLoadingRecommendations,
   isProcessing,
   checkoutResult,
-  sessionId,
   onBack,
   onUpdateQuantity,
   onRemoveItem,
@@ -237,62 +237,51 @@ export function CheckoutPage({
   onProductClick,
   onQuickAdd,
   onClearResult,
+  onShippingUpdate,
 }: CheckoutPageProps) {
   const isEmpty = cartItems.length === 0;
   const [selectedDelivery, setSelectedDelivery] = useState<string>("standard");
   const [isDeliveryOpen, setIsDeliveryOpen] = useState(false);
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
+  const [isUpdatingShipping, setIsUpdatingShipping] = useState(false);
 
   const currentDelivery = DELIVERY_OPTIONS.find((d) => d.id === selectedDelivery) || DELIVERY_OPTIONS[0];
-  const deliveryPrice = currentDelivery.price;
-  
-  // Calculate adjusted totals with selected delivery
-  const adjustedTotal = cartState.subtotal + cartState.tax + deliveryPrice;
 
-  // API base URL - relative in production, localhost in dev
-  const getApiBaseUrl = useCallback(() => {
-    const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
-    return isViteDevServer ? "http://localhost:2091" : "";
-  }, []);
+  // All totals come from backend (cartState is derived from ACP session)
+  // cartState.isCalculating indicates we're waiting for backend
+  const isCalculating = cartState.isCalculating || isUpdatingShipping;
 
-  // Notify server of shipping updates via real ACP endpoint
-  const notifyShippingUpdate = useCallback(
-    async (option: typeof currentDelivery) => {
-      if (!sessionId) {
-        console.warn("[Widget] No session ID for shipping update");
-        return;
-      }
+  // Use cartState values (which come from ACP session via cartStateFromSession)
+  const subtotal = cartState.subtotal;
+  const shipping = cartState.shipping;
+  const tax = cartState.tax;
+  const totalDiscount = cartState.discount;
+  const total = cartState.total;
 
-      const fulfillmentOptionId = FULFILLMENT_OPTION_MAP[option.id] || option.id;
-
-      try {
-        await fetch(`${getApiBaseUrl()}/acp/sessions/${sessionId}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId,
-            fulfillmentOptionId,
-          }),
-        });
-        console.log("[Widget] Shipping updated via ACP:", option.name);
-      } catch (error) {
-        console.warn("[Widget] Failed to update shipping via ACP:", error);
-      }
-    },
-    [sessionId, getApiBaseUrl]
-  );
-
-  // Handle delivery selection
+  // Handle delivery selection - calls parent to update backend
   const handleSelectDelivery = useCallback(
-    (optionId: string) => {
+    async (optionId: string) => {
       const option = DELIVERY_OPTIONS.find((d) => d.id === optionId);
       if (option) {
+        const previousSelection = selectedDelivery;
         setSelectedDelivery(optionId);
         setIsDeliveryOpen(false);
-        notifyShippingUpdate(option);
+        
+        // Show loading state while backend calculates new totals
+        setIsUpdatingShipping(true);
+        try {
+          // Parent handles the backend call and updates ACP session
+          await onShippingUpdate(option.fulfillmentOptionId);
+        } catch (error) {
+          console.warn("[Widget] Failed to update shipping, reverting selection:", error);
+          // Revert to previous selection on error
+          setSelectedDelivery(previousSelection);
+        } finally {
+          setIsUpdatingShipping(false);
+        }
       }
     },
-    [notifyShippingUpdate]
+    [onShippingUpdate, selectedDelivery]
   );
 
   // Open payment sheet
@@ -437,6 +426,7 @@ export function CheckoutPage({
                 ))}
               </div>
 
+
               {/* Order Summary Panel */}
               <div className="space-y-4 rounded-3xl border border-default bg-surface-elevated px-5 pb-5 pt-4 shadow-lg transition-colors dark:shadow-none">
                 {/* Delivery section */}
@@ -460,9 +450,13 @@ export function CheckoutPage({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-success">
-                          {deliveryPrice === 0 ? "Free" : formatPrice(deliveryPrice)}
-                        </span>
+                        {isUpdatingShipping ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-accent" />
+                        ) : (
+                          <span className="text-sm font-semibold text-success">
+                            {shipping === 0 ? "Free" : formatPrice(shipping)}
+                          </span>
+                        )}
                         <ChevronDown
                           className={`h-4 w-4 text-text-tertiary transition-transform ${isDeliveryOpen ? "rotate-180" : ""}`}
                           strokeWidth={2}
@@ -470,7 +464,7 @@ export function CheckoutPage({
                       </div>
                     </button>
 
-                    {/* Dropdown options */}
+                    {/* Dropdown options - shows displayPrice as preview, actual price comes from backend after selection */}
                     {isDeliveryOpen && (
                       <div
                         className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-default bg-surface shadow-lg dark:shadow-none"
@@ -479,6 +473,8 @@ export function CheckoutPage({
                         {DELIVERY_OPTIONS.map((option) => {
                           const Icon = option.icon;
                           const isSelected = option.id === selectedDelivery;
+                          // For selected option, show actual backend price; for others, show expected price
+                          const priceToShow = isSelected ? shipping : option.displayPrice;
                           return (
                             <button
                               key={option.id}
@@ -505,7 +501,7 @@ export function CheckoutPage({
                                 </div>
                               </div>
                               <span className={`text-sm font-semibold ${isSelected ? "text-accent" : "text-success"}`}>
-                                {option.price === 0 ? "Free" : formatPrice(option.price)}
+                                {priceToShow === 0 ? "Free" : formatPrice(priceToShow)}
                               </span>
                             </button>
                           );
@@ -515,25 +511,47 @@ export function CheckoutPage({
                   </div>
                 </section>
 
-                {/* Order summary */}
+                {/* Order summary - all values from backend */}
                 <section className="space-y-2 border-t border-default/50 pt-3">
+                  {isCalculating && (
+                    <div className="flex items-center justify-center gap-2 py-2 text-sm text-text-secondary">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-accent" />
+                      <span>Calculating totals...</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Subtotal</span>
-                    <span className="text-text">{formatPrice(cartState.subtotal)}</span>
+                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
+                      {formatPrice(subtotal)}
+                    </span>
                   </div>
+                  {totalDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        Discount
+                      </span>
+                      <span className={`font-medium text-emerald-600 dark:text-emerald-400 ${isCalculating ? "opacity-50" : ""}`}>
+                        −{formatPrice(totalDiscount)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Shipping</span>
-                    <span className="text-text">
-                      {deliveryPrice === 0 ? "Free" : formatPrice(deliveryPrice)}
+                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
+                      {shipping === 0 ? "Free" : formatPrice(shipping)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Tax</span>
-                    <span className="text-text">{formatPrice(cartState.tax)}</span>
+                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
+                      {formatPrice(tax)}
+                    </span>
                   </div>
                   <div className="flex justify-between pt-2 text-base font-semibold">
                     <span className="text-text">Total</span>
-                    <span className="text-text">{formatPrice(adjustedTotal)}</span>
+                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
+                      {formatPrice(total)}
+                    </span>
                   </div>
                 </section>
               </div>
@@ -542,13 +560,14 @@ export function CheckoutPage({
             {/* Checkout Button */}
             <div className="py-5">
               <button
-                className="flex w-full items-center justify-center gap-2.5 rounded-full bg-primary px-6 py-4 text-base font-semibold text-white shadow-lg transition-all hover:bg-primary-hover active:scale-[0.98] dark:shadow-primary/20"
+                className="flex w-full items-center justify-center gap-2.5 rounded-full bg-primary px-6 py-4 text-base font-semibold text-white shadow-lg transition-all hover:bg-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-primary/20"
                 onClick={handleOpenPayment}
+                disabled={isCalculating}
               >
                 <Lock className="h-4 w-4" strokeWidth={2} />
                 <span className="flex-1 text-center">Complete Purchase</span>
                 <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-medium">
-                  {formatPrice(adjustedTotal)}
+                  {isCalculating ? "..." : formatPrice(total)}
                 </span>
               </button>
             </div>
@@ -560,10 +579,6 @@ export function CheckoutPage({
 
         {/* Recommendations Section */}
         <div className="py-5">
-          <h3 className="mb-3 text-base font-semibold text-text">
-            {isEmpty ? "Recommended For You" : "You May Also Like"}
-          </h3>
-
           {/* Loading Skeleton */}
           {isLoadingRecommendations && <RecommendationSkeleton />}
 
@@ -592,7 +607,7 @@ export function CheckoutPage({
       <PaymentSheet
         isOpen={isPaymentSheetOpen}
         isProcessing={isProcessing}
-        total={adjustedTotal}
+        total={total}
         onClose={handleClosePayment}
         onPay={handlePay}
       />

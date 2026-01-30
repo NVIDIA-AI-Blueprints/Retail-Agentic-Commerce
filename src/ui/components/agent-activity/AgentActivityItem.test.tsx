@@ -32,9 +32,9 @@ describe("AgentActivityItem", () => {
     expect(screen.getByText("Classic T-Shirt")).toBeInTheDocument();
   });
 
-  it("renders the Promotion Decision kicker", () => {
+  it("renders the Promotion Agent kicker", () => {
     render(<AgentActivityItem event={baseEvent} isLast={false} />);
-    expect(screen.getByText("Promotion Decision")).toBeInTheDocument();
+    expect(screen.getByText("Promotion Agent")).toBeInTheDocument();
   });
 
   it("renders Applied status pill for positive outcomes", () => {

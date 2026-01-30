@@ -71,59 +71,248 @@ def seed_data(session: Session) -> None:
 
     session.commit()
 
+    # Competitor pricing data for all products
+    # Prices are strategically set to demonstrate promotion scenarios:
+    # - Some competitors are cheaper (triggers price match discounts)
+    # - Some competitors are same price (triggers small incentive discounts)
+    # - Some competitors are more expensive (no discount needed)
     competitor_prices = [
+        # --- Tops: T-Shirts (prod_1 to prod_4) ---
+        # prod_1: Classic Tee ($25.00) - Competitors cheaper, should trigger discount
         CompetitorPrice(
             product_id="prod_1",
             retailer_name="FashionMart",
-            price=2400,
+            price=2400,  # $24.00 - cheaper
             updated_at=datetime.now(UTC),
         ),
         CompetitorPrice(
             product_id="prod_1",
             retailer_name="StyleHub",
-            price=2600,
+            price=2350,  # $23.50 - cheapest
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_2: V-Neck Tee ($28.00) - One cheaper, one same
+        CompetitorPrice(
+            product_id="prod_2",
+            retailer_name="FashionMart",
+            price=2700,  # $27.00 - cheaper
             updated_at=datetime.now(UTC),
         ),
         CompetitorPrice(
             product_id="prod_2",
-            retailer_name="FashionMart",
-            price=2700,
-            updated_at=datetime.now(UTC),
-        ),
-        CompetitorPrice(
-            product_id="prod_2",
             retailer_name="TrendyWear",
-            price=2900,
+            price=2800,  # $28.00 - same price
             updated_at=datetime.now(UTC),
         ),
+        # prod_3: Graphic Tee ($32.00) - Competitors cheaper, good discount demo
         CompetitorPrice(
             product_id="prod_3",
             retailer_name="StyleHub",
-            price=3000,
+            price=3000,  # $30.00 - cheaper
             updated_at=datetime.now(UTC),
         ),
         CompetitorPrice(
             product_id="prod_3",
             retailer_name="FashionMart",
-            price=3100,
+            price=2950,  # $29.50 - cheapest
             updated_at=datetime.now(UTC),
         ),
         CompetitorPrice(
             product_id="prod_3",
             retailer_name="TrendyWear",
-            price=3300,
+            price=3100,  # $31.00 - cheaper
             updated_at=datetime.now(UTC),
         ),
+        # prod_4: Premium Tee ($45.00) - Mixed pricing
         CompetitorPrice(
             product_id="prod_4",
             retailer_name="StyleHub",
-            price=4300,
+            price=4300,  # $43.00 - cheaper
             updated_at=datetime.now(UTC),
         ),
         CompetitorPrice(
             product_id="prod_4",
             retailer_name="TrendyWear",
-            price=4600,
+            price=4600,  # $46.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        # --- Bottoms (prod_5 to prod_8) ---
+        # prod_5: Classic Denim Jeans ($59.00) - Competitors cheaper
+        CompetitorPrice(
+            product_id="prod_5",
+            retailer_name="DenimDirect",
+            price=5500,  # $55.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_5",
+            retailer_name="JeansWorld",
+            price=5700,  # $57.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_6: Khaki Chinos ($45.00) - Same and cheaper mix
+        CompetitorPrice(
+            product_id="prod_6",
+            retailer_name="FashionMart",
+            price=4400,  # $44.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_6",
+            retailer_name="StyleHub",
+            price=4500,  # $45.00 - same
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_7: Cargo Shorts ($35.00) - All more expensive (no discount)
+        CompetitorPrice(
+            product_id="prod_7",
+            retailer_name="FashionMart",
+            price=3700,  # $37.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_7",
+            retailer_name="OutdoorGear",
+            price=3900,  # $39.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_8: Athletic Joggers ($42.00) - Competitor cheaper
+        CompetitorPrice(
+            product_id="prod_8",
+            retailer_name="SportStyle",
+            price=3900,  # $39.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_8",
+            retailer_name="AthleticWear",
+            price=4100,  # $41.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        # --- Outerwear (prod_9 to prod_11) ---
+        # prod_9: Denim Jacket ($75.00) - Competitors cheaper
+        CompetitorPrice(
+            product_id="prod_9",
+            retailer_name="DenimDirect",
+            price=7200,  # $72.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_9",
+            retailer_name="JeansWorld",
+            price=7000,  # $70.00 - cheapest
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_10: Lightweight Hoodie ($55.00) - Mixed
+        CompetitorPrice(
+            product_id="prod_10",
+            retailer_name="StyleHub",
+            price=5200,  # $52.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_10",
+            retailer_name="FashionMart",
+            price=5600,  # $56.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_11: Bomber Jacket ($89.00) - All more expensive
+        CompetitorPrice(
+            product_id="prod_11",
+            retailer_name="StyleHub",
+            price=9200,  # $92.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_11",
+            retailer_name="TrendyWear",
+            price=9500,  # $95.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        # --- Accessories (prod_12 to prod_14) ---
+        # prod_12: Canvas Belt ($18.00) - Competitors cheaper
+        CompetitorPrice(
+            product_id="prod_12",
+            retailer_name="AccessoryZone",
+            price=1650,  # $16.50 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_12",
+            retailer_name="FashionMart",
+            price=1750,  # $17.50 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_13: Classic Sunglasses ($22.00) - Same price
+        CompetitorPrice(
+            product_id="prod_13",
+            retailer_name="ShadesPlus",
+            price=2200,  # $22.00 - same
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_13",
+            retailer_name="EyewearExpress",
+            price=2100,  # $21.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_14: Baseball Cap ($15.00) - More expensive competitors
+        CompetitorPrice(
+            product_id="prod_14",
+            retailer_name="CapCity",
+            price=1700,  # $17.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_14",
+            retailer_name="HeadwearHub",
+            price=1600,  # $16.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        # --- Footwear (prod_15 to prod_17) ---
+        # prod_15: Canvas Sneakers ($49.00) - Competitors cheaper
+        CompetitorPrice(
+            product_id="prod_15",
+            retailer_name="ShoeWarehouse",
+            price=4500,  # $45.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_15",
+            retailer_name="FootwearFactory",
+            price=4700,  # $47.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_16: Leather Loafers ($85.00) - Mixed pricing
+        CompetitorPrice(
+            product_id="prod_16",
+            retailer_name="ShoeWarehouse",
+            price=8200,  # $82.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_16",
+            retailer_name="FootwearFactory",
+            price=8800,  # $88.00 - more expensive
+            updated_at=datetime.now(UTC),
+        ),
+        # prod_17: Athletic Running Shoes ($95.00) - Competitor cheaper
+        CompetitorPrice(
+            product_id="prod_17",
+            retailer_name="SportStyle",
+            price=8900,  # $89.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_17",
+            retailer_name="AthleticWear",
+            price=9200,  # $92.00 - cheaper
+            updated_at=datetime.now(UTC),
+        ),
+        CompetitorPrice(
+            product_id="prod_17",
+            retailer_name="RunnersPro",
+            price=9400,  # $94.00 - cheaper
             updated_at=datetime.now(UTC),
         ),
     ]
