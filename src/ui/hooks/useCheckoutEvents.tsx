@@ -184,7 +184,9 @@ export function useCheckoutEvents(mcpServerUrl = "http://localhost:2091") {
 /**
  * Infer competition position from reason codes
  */
-function inferCompetitionPosition(reasonCodes: string[]): "above_market" | "at_market" | "below_market" | "unknown" {
+function inferCompetitionPosition(
+  reasonCodes: string[]
+): "above_market" | "at_market" | "below_market" | "unknown" {
   if (reasonCodes.includes("ABOVE_MARKET")) return "above_market";
   if (reasonCodes.includes("BELOW_MARKET")) return "below_market";
   if (reasonCodes.includes("AT_MARKET")) return "at_market";

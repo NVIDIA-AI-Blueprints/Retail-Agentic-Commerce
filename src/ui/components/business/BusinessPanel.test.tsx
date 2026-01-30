@@ -2,10 +2,15 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BusinessPanel } from "./BusinessPanel";
 import { ACPLogProvider } from "@/hooks/useACPLog";
+import { AgentActivityLogProvider } from "@/hooks/useAgentActivityLog";
 
 // Wrapper component to provide required context
 function renderWithProviders(ui: React.ReactElement) {
-  return render(<ACPLogProvider>{ui}</ACPLogProvider>);
+  return render(
+    <AgentActivityLogProvider>
+      <ACPLogProvider>{ui}</ACPLogProvider>
+    </AgentActivityLogProvider>
+  );
 }
 
 describe("BusinessPanel", () => {

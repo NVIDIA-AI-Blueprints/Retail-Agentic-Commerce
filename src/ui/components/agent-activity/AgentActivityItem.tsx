@@ -151,7 +151,10 @@ function PostPurchaseCard({
             gap: "12px",
           }}
         >
-          <div className="glass-kicker" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            className="glass-kicker"
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
+          >
             {/* AI Agent Icon Badge */}
             <span
               style={{
@@ -342,7 +345,10 @@ function RecommendationCard({
             gap: "12px",
           }}
         >
-          <div className="glass-kicker" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            className="glass-kicker"
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
+          >
             {/* AI Agent Icon Badge */}
             <span
               style={{
@@ -533,7 +539,10 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
             gap: "12px",
           }}
         >
-          <div className="glass-kicker" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            className="glass-kicker"
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
+          >
             {/* AI Agent Icon Badge */}
             <span
               style={{

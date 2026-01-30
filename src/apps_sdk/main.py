@@ -1053,7 +1053,7 @@ def emit_agent_activity_event(
 
 async def event_generator() -> AsyncGenerator[dict[str, Any], None]:
     """Generator that yields SSE events.
-    
+
     Note: We intentionally do NOT send historical events on connect.
     The Protocol Inspector should start fresh on page load/refresh.
     Events are stored in checkout_events deque for debugging purposes only.
@@ -1347,7 +1347,7 @@ async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]
     # Clear previous session events - new session means fresh protocol trace
     # This prevents stale events from appearing in Protocol Inspector on fresh start
     checkout_events.clear()
-    
+
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
     api_key = settings.api_key

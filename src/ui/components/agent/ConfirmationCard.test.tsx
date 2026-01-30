@@ -142,5 +142,4 @@ describe("ConfirmationCard", () => {
 
     expect(screen.getByText("Amount Paid")).toBeInTheDocument();
   });
-
 });
