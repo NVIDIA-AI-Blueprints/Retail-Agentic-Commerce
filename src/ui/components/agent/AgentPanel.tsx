@@ -538,9 +538,11 @@ export function AgentPanel() {
       {activeMode === "apps-sdk" && (
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Chat bubble - same as native mode */}
-          <div style={{ padding: "24px 32px 16px 32px" }}>
-            <ChatMessage message={messages[0]} />
-          </div>
+          {messages[0] && (
+            <div style={{ padding: "24px 32px 16px 32px" }}>
+              <ChatMessage message={messages[0]} />
+            </div>
+          )}
           {/* Spacer between chat bubble and iframe */}
           <div style={{ height: "12px", flexShrink: 0 }} />
           {/* Merchant widget iframe */}
