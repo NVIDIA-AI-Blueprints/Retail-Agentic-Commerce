@@ -116,10 +116,6 @@ export function RecommendationCarousel({
 
   return (
     <section className="py-4">
-      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text">
-        <span>Recommended For You</span>
-      </h2>
-
       <div className="grid grid-cols-3 gap-3">
         {products.map((product) => (
           <ProductCard

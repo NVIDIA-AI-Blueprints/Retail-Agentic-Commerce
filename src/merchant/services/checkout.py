@@ -153,6 +153,7 @@ def _calculate_line_item(
             "id": product.id,
             "quantity": quantity,
         },
+        "name": product.name,
         "base_amount": base_amount,
         "discount": total_discount,
         "subtotal": subtotal,
@@ -160,12 +161,13 @@ def _calculate_line_item(
         "total": total,
     }
 
-    # Add promotion metadata if available
+    # Add promotion metadata if available (include stock_count for agent activity display)
     if promotion_info:
         line_item["promotion"] = {
             "action": promotion_info.get("action", "NO_PROMO"),
             "reason_codes": promotion_info.get("reason_codes", []),
             "reasoning": promotion_info.get("reasoning", ""),
+            "stock_count": product.stock_count,
         }
 
     return line_item
@@ -250,11 +252,13 @@ def _dict_to_line_item(data: dict[str, Any]) -> LineItem:
             action=data["promotion"].get("action", "NO_PROMO"),
             reason_codes=data["promotion"].get("reason_codes", []),
             reasoning=data["promotion"].get("reasoning", ""),
+            stock_count=data["promotion"].get("stock_count"),
         )
 
     return LineItem(
         id=data["id"],
         item=Item(id=data["item"]["id"], quantity=data["item"]["quantity"]),
+        name=data.get("name"),
         base_amount=data["base_amount"],
         discount=data["discount"],
         subtotal=data["subtotal"],

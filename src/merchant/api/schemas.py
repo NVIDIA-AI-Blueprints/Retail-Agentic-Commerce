@@ -239,6 +239,9 @@ class PromotionMetadata(BaseModel):
         default_factory=list, description="Reason codes for the decision"
     )
     reasoning: str = Field(default="", description="LLM reasoning for the decision")
+    stock_count: int | None = Field(
+        default=None, description="Product stock count at time of decision"
+    )
 
 
 class LineItem(BaseModel):
@@ -246,6 +249,7 @@ class LineItem(BaseModel):
 
     id: str = Field(..., description="Line item ID")
     item: Item = Field(..., description="Item reference")
+    name: str | None = Field(default=None, description="Product name")
     base_amount: Annotated[
         int, Field(ge=0, description="Base price before adjustments")
     ]

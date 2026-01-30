@@ -32,10 +32,15 @@ def _emit_event(
     status_code: int | None = None,
     session_id: str | None = None,
     order_id: str | None = None,
+    event_id: str | None = None,
 ) -> None:
     """Emit checkout event to SSE subscribers.
 
     Lazy import to avoid circular dependency.
+
+    Args:
+        event_id: Stable event ID for matching pending/complete events.
+                  Must be the same for both pending and success/error events.
     """
     try:
         from src.apps_sdk.main import emit_checkout_event
@@ -49,6 +54,7 @@ def _emit_event(
             status_code=status_code,
             session_id=session_id,
             order_id=order_id,
+            event_id=event_id,
         )
     except ImportError:
         # Module not loaded yet, skip event emission
@@ -104,11 +110,14 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=15.0) as client:
             # Step 1: Create checkout session on merchant API
             logger.info(f"Creating checkout session for cart {cart_id}")
+            # Generate stable event ID for matching pending/complete events
+            session_create_event_id = f"evt_session_create_{uuid4().hex[:12]}"
             _emit_event(
                 "session_create",
                 "/checkout_sessions",
                 status="pending",
                 summary=f"Creating session for {item_count} item(s)",
+                event_id=session_create_event_id,
             )
             session_response = await client.post(
                 f"{merchant_api_url}/checkout_sessions",
@@ -150,6 +159,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                 summary=f"Session {session_id} created",
                 status_code=201,
                 session_id=session_id,
+                event_id=session_create_event_id,
             )
 
             # Get the first available fulfillment option
@@ -187,12 +197,15 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
 
             # Step 3: Delegate payment to PSP to get vault token (need session total)
             logger.info(f"Delegating payment to PSP for session {session_id}")
+            # Generate stable event ID for matching pending/complete events
+            delegate_payment_event_id = f"evt_delegate_payment_{uuid4().hex[:12]}"
             _emit_event(
                 "delegate_payment",
                 "/agentic_commerce/delegate_payment",
                 status="pending",
                 summary="Delegating payment to PSP...",
                 session_id=session_id,
+                event_id=delegate_payment_event_id,
             )
             idempotency_key = f"checkout_{cart_id}_{uuid4().hex[:8]}"
             expires_at = datetime.now(UTC) + timedelta(hours=1)
@@ -256,16 +269,20 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                 summary=f"Vault token {vault_token_id} received",
                 status_code=201,
                 session_id=session_id,
+                event_id=delegate_payment_event_id,
             )
 
             # Step 4: Complete checkout with vault token
             logger.info(f"Completing checkout session {session_id} with vault token")
+            # Generate stable event ID for matching pending/complete events
+            session_complete_event_id = f"evt_session_complete_{uuid4().hex[:12]}"
             _emit_event(
                 "session_complete",
                 f"/checkout_sessions/{session_id}/complete",
                 status="pending",
                 summary="Completing checkout...",
                 session_id=session_id,
+                event_id=session_complete_event_id,
             )
             complete_response = await client.post(
                 f"{merchant_api_url}/checkout_sessions/{session_id}/complete",
@@ -306,6 +323,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                     status_code=200,
                     session_id=session_id,
                     order_id=order_id,
+                    event_id=session_complete_event_id,
                 )
                 return {
                     "success": True,
@@ -327,6 +345,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                     summary=f"Checkout failed: {complete_response.status_code}",
                     status_code=complete_response.status_code,
                     session_id=session_id,
+                    event_id=session_complete_event_id,
                 )
                 return {
                     "success": False,

@@ -665,12 +665,6 @@ async def checkout(cart_id: str) -> dict:
 - [ ] Test complete flow in real ChatGPT
 - [ ] Capture screenshots/recordings for documentation
 
-**Phase 8: Polish & Production Prep**
-- [ ] Add smooth transitions between modes
-- [ ] Ensure consistent styling with native mode
-- [ ] Add deployment scripts for Vercel
-- [ ] Create deployment documentation
-
 ## Acceptance Criteria
 
 **Tab Switcher** ✅:

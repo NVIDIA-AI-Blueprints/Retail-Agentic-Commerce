@@ -971,6 +971,7 @@ def emit_checkout_event(
     status_code: int | None = None,
     session_id: str | None = None,
     order_id: str | None = None,
+    event_id: str | None = None,
 ) -> None:
     """Emit a checkout event to all SSE subscribers.
 
@@ -983,9 +984,10 @@ def emit_checkout_event(
         status_code: HTTP status code
         session_id: Checkout session ID
         order_id: Order ID (for completed checkouts)
+        event_id: Optional stable event ID for matching pending/complete events
     """
     event = {
-        "id": f"evt_{datetime.now().timestamp()}",
+        "id": event_id or f"evt_{datetime.now().timestamp()}",
         "type": event_type,
         "endpoint": endpoint,
         "method": method,
@@ -1004,19 +1006,67 @@ def emit_checkout_event(
             queue.put_nowait(event)
 
 
+def emit_agent_activity_event(
+    agent_type: str,
+    product_id: str,
+    product_name: str,
+    action: str,
+    discount_amount: int,
+    reason_codes: list[str],
+    reasoning: str,
+    stock_count: int = 0,
+    base_price: int = 0,
+) -> None:
+    """Emit an agent activity event to all SSE subscribers.
+
+    Args:
+        agent_type: Type of agent (promotion, recommendation, post_purchase)
+        product_id: Product ID
+        product_name: Product name
+        action: Agent action (e.g., DISCOUNT_10_PCT, NO_PROMO)
+        discount_amount: Discount in cents
+        reason_codes: List of reason codes
+        reasoning: Agent's reasoning
+        stock_count: Product stock count
+        base_price: Product base price in cents
+    """
+    event = {
+        "id": f"agent_{datetime.now().timestamp()}",
+        "agentType": agent_type,
+        "productId": product_id,
+        "productName": product_name,
+        "action": action,
+        "discountAmount": discount_amount,
+        "reasonCodes": reason_codes,
+        "reasoning": reasoning,
+        "stockCount": stock_count,
+        "basePrice": base_price,
+        "timestamp": datetime.now().isoformat(),
+    }
+    checkout_events.append(event)
+
+    # Notify all subscribers
+    for queue in event_subscribers:
+        with contextlib.suppress(asyncio.QueueFull):
+            queue.put_nowait(event)
+
+
 async def event_generator() -> AsyncGenerator[dict[str, Any], None]:
-    """Generator that yields SSE events."""
+    """Generator that yields SSE events.
+    
+    Note: We intentionally do NOT send historical events on connect.
+    The Protocol Inspector should start fresh on page load/refresh.
+    Events are stored in checkout_events deque for debugging purposes only.
+    """
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=50)
     event_subscribers.append(queue)
     try:
-        # Send recent events on connect
-        for event in list(checkout_events)[-10:]:
-            yield {"event": "checkout", "data": json.dumps(event)}
-
-        # Stream new events
+        # Stream new events only - no historical events on connect
+        # This ensures Protocol Inspector starts fresh on page refresh
         while True:
             event = await queue.get()
-            yield {"event": "checkout", "data": json.dumps(event)}
+            event_type = "agent_activity" if "agentType" in event else "checkout"
+            yield {"event": event_type, "data": json.dumps(event)}
     finally:
         event_subscribers.remove(queue)
 
@@ -1294,6 +1344,10 @@ async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]
     Returns:
         Checkout session response from merchant API.
     """
+    # Clear previous session events - new session means fresh protocol trace
+    # This prevents stale events from appearing in Protocol Inspector on fresh start
+    checkout_events.clear()
+    
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
     api_key = settings.api_key
@@ -1330,6 +1384,28 @@ async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]
                     status_code=201,
                     session_id=session_id,
                 )
+
+                # Emit agent activity events for promotion decisions (session create only)
+                line_items = data.get("line_items", [])
+                for line_item in line_items:
+                    promotion = line_item.get("promotion")
+                    if promotion:
+                        item_info = line_item.get("item", {})
+                        product_id = item_info.get("id", "unknown")
+                        product_name = line_item.get("name") or product_id
+                        stock_count = promotion.get("stock_count", 0)
+
+                        emit_agent_activity_event(
+                            agent_type="promotion",
+                            product_id=product_id,
+                            product_name=product_name,
+                            action=promotion.get("action", "NO_PROMO"),
+                            discount_amount=line_item.get("discount", 0),
+                            reason_codes=promotion.get("reason_codes", []),
+                            reasoning=promotion.get("reasoning", ""),
+                            stock_count=stock_count,
+                            base_price=line_item.get("base_amount", 0),
+                        )
 
                 return data
             else:
@@ -1418,6 +1494,9 @@ async def acp_update_session(
                     status_code=200,
                     session_id=session_id,
                 )
+
+                # Note: Agent activity events are only emitted on session CREATE
+                # to match Native ACP behavior (no duplicates on updates)
 
                 return data
             else:

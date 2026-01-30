@@ -46,6 +46,10 @@ export interface CartItem {
   imageUrl?: string;
 }
 
+/**
+ * Cart state - totals should come from backend ACP session
+ * Frontend should not calculate these values
+ */
 export interface CartState {
   cartId: string;
   items: CartItem[];
@@ -54,13 +58,28 @@ export interface CartState {
   shipping: number;
   tax: number;
   total: number;
+  discount: number;
+  /** True when waiting for backend to return calculated totals */
+  isCalculating: boolean;
 }
 
-// Fee constants
-export const CART_FEES = {
-  SHIPPING_STANDARD: 500, // $5.00 in cents
-  TAX_RATE: 0.0875, // 8.75%
-} as const;
+/**
+ * Empty cart state - used for initialization
+ */
+export const EMPTY_CART_STATE: CartState = {
+  cartId: "",
+  items: [],
+  itemCount: 0,
+  subtotal: 0,
+  shipping: 0,
+  tax: 0,
+  total: 0,
+  discount: 0,
+  isCalculating: false,
+};
+
+// Note: All fee calculations happen on the backend.
+// No frontend constants needed - shipping rates come from merchant API.
 
 // =============================================================================
 // Widget State Types
@@ -86,6 +105,59 @@ export interface CheckoutResult {
   total?: number;
   itemCount?: number;
   orderUrl?: string;
+}
+
+// =============================================================================
+// ACP Session Types (Promotion Agent Integration)
+// =============================================================================
+
+/**
+ * Promotion metadata from the Promotion Agent
+ */
+export interface PromotionMetadata {
+  action: string; // e.g., "DISCOUNT_10_PCT", "NO_PROMO", "FREE_SHIPPING"
+  reason_codes: string[]; // e.g., ["HIGH_INVENTORY", "ABOVE_MARKET"]
+  reasoning: string; // LLM reasoning for the decision
+}
+
+/**
+ * ACP Line Item with promotion data
+ * Matches backend LineItem schema from merchant API
+ */
+export interface ACPLineItem {
+  id: string;
+  item: {
+    id: string;
+    quantity: number;
+  };
+  name?: string; // Product name (optional in backend)
+  base_amount: number;
+  discount: number;
+  subtotal: number;
+  tax: number;
+  total: number;
+  promotion?: PromotionMetadata;
+}
+
+/**
+ * ACP Total entry
+ */
+export interface ACPTotal {
+  type: string;
+  display_text: string;
+  amount: number;
+}
+
+/**
+ * ACP Session response from the Merchant API
+ */
+export interface ACPSessionResponse {
+  id: string;
+  status: string;
+  currency: string;
+  line_items: ACPLineItem[];
+  totals: ACPTotal[];
+  // Other fields we don't need for promotion display
 }
 
 // =============================================================================
@@ -151,28 +223,87 @@ export function formatPrice(cents: number): string {
 }
 
 /**
- * Calculate cart totals from items
+ * Create cart state from ACP session response
+ * All totals come from backend - no local calculations
+ */
+export function cartStateFromSession(
+  session: ACPSessionResponse | null,
+  items: CartItem[],
+  cartId: string = ""
+): CartState {
+  if (!session) {
+    // No session yet - return items with zero totals, mark as calculating
+    return {
+      cartId,
+      items,
+      itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      subtotal: 0,
+      shipping: 0,
+      tax: 0,
+      total: 0,
+      discount: 0,
+      isCalculating: items.length > 0, // Calculating if we have items but no session
+    };
+  }
+
+  // Extract totals from ACP session
+  // Backend uses these total types:
+  // - items_base_amount: Original item prices before discounts
+  // - items_discount: Total discount amount  
+  // - subtotal: Items after discounts
+  // - tax: Tax amount
+  // - fulfillment: Shipping cost (called "fulfillment" in backend)
+  // - total: Grand total
+  const findTotal = (type: string): number =>
+    session.totals?.find((t) => t.type === type)?.amount ?? 0;
+
+  // Get all totals from backend - NO frontend calculations
+  const itemsBase = findTotal("items_base_amount");
+  const subtotalAfterDiscount = findTotal("subtotal");
+  const tax = findTotal("tax");
+  const shipping = findTotal("fulfillment");
+  const total = findTotal("total");
+
+  // Calculate discount from line items (sum of individual discounts)
+  const discount = session.line_items?.reduce(
+    (sum, li) => sum + (li.discount || 0),
+    0
+  ) ?? 0;
+
+  return {
+    cartId: session.id || cartId,
+    items,
+    itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+    // Display items_base_amount as subtotal (before discounts) for transparency
+    subtotal: itemsBase > 0 ? itemsBase : subtotalAfterDiscount,
+    shipping,
+    tax,
+    // Use backend total directly - never calculate on frontend
+    total,
+    discount,
+    isCalculating: false,
+  };
+}
+
+/**
+ * @deprecated Use cartStateFromSession instead - totals should come from backend
+ * This function is kept only for backwards compatibility during migration
  */
 export function calculateCartTotals(
   cartId: string,
   items: CartItem[]
 ): CartState {
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.basePrice * item.quantity,
-    0
-  );
-  const shipping = items.length > 0 ? CART_FEES.SHIPPING_STANDARD : 0;
-  const tax = Math.round(subtotal * CART_FEES.TAX_RATE);
-  const total = subtotal + shipping + tax;
-
+  // Return state with isCalculating=true to indicate backend should be called
   return {
     cartId,
     items,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    subtotal,
-    shipping,
-    tax,
-    total,
+    subtotal: 0,
+    shipping: 0,
+    tax: 0,
+    total: 0,
+    discount: 0,
+    isCalculating: true, // Signal that we need backend data
   };
 }
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Bot } from "@/components/icons";
 import type {
   AgentActivityEvent,
-  AgentType,
   PromotionInputSignals,
   PromotionDecision,
   PostPurchaseInputSignals,
@@ -34,23 +34,6 @@ function isRecommendationEvent(event: AgentActivityEvent): event is AgentActivit
   decision?: RecommendationDecision;
 } {
   return event.agentType === "recommendation";
-}
-
-/**
- * Get display info for agent types
- */
-function getAgentTypeInfo(type: AgentType): {
-  label: string;
-  icon: string;
-} {
-  switch (type) {
-    case "promotion":
-      return { label: "Promotion", icon: "%" };
-    case "recommendation":
-      return { label: "Recommendation", icon: "★" };
-    case "post_purchase":
-      return { label: "Post-Purchase", icon: "✉" };
-  }
 }
 
 /**
@@ -150,7 +133,6 @@ function PostPurchaseCard({
   isLast: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const typeInfo = getAgentTypeInfo(event.agentType);
   const isPending = event.status === "pending";
   const isError = event.status === "error";
   const isSuccess = event.status === "success" && event.decision;
@@ -160,7 +142,7 @@ function PostPurchaseCard({
   return (
     <div style={{ marginBottom: isLast ? 0 : "12px" }}>
       <div className={`glass-decision ${isSuccess ? "highlight" : ""}`}>
-        {/* Header row */}
+        {/* Header row with AI icon */}
         <div
           style={{
             display: "flex",
@@ -169,26 +151,37 @@ function PostPurchaseCard({
             gap: "12px",
           }}
         >
-          <div className="glass-kicker">
+          <div className="glass-kicker" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {/* AI Agent Icon Badge */}
             <span
               style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
+                width: "24px",
+                height: "24px",
+                borderRadius: "6px",
                 background: isPending
-                  ? "rgba(255, 255, 255, 0.4)"
+                  ? "rgba(255, 255, 255, 0.08)"
                   : isError
-                    ? "#FF6B6B"
-                    : "rgba(118, 185, 0, 0.9)",
-                boxShadow: isPending
-                  ? "none"
-                  : isError
-                    ? "0 0 0 4px rgba(255, 107, 107, 0.12)"
-                    : "0 0 0 4px rgba(118, 185, 0, 0.12)",
-                display: "inline-block",
+                    ? "rgba(255, 107, 107, 0.15)"
+                    : "rgba(118, 185, 0, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
-            ></span>
-            {typeInfo.label} Message
+            >
+              <Bot
+                style={{
+                  width: "14px",
+                  height: "14px",
+                  color: isPending
+                    ? "rgba(255, 255, 255, 0.5)"
+                    : isError
+                      ? "#FF6B6B"
+                      : "rgba(118, 185, 0, 0.9)",
+                }}
+              />
+            </span>
+            Post-Purchase Agent
           </div>
           <div className={`glass-pill ${isPending ? "yellow" : isError ? "" : "green"}`}>
             {isPending ? "Generating" : isError ? "Error" : "Sent"}
@@ -331,7 +324,6 @@ function RecommendationCard({
   };
   isLast: boolean;
 }) {
-  const typeInfo = getAgentTypeInfo(event.agentType);
   const isPending = event.status === "pending";
   const isError = event.status === "error";
   const isSuccess = event.status === "success" && event.decision;
@@ -341,7 +333,7 @@ function RecommendationCard({
   return (
     <div style={{ marginBottom: isLast ? 0 : "12px" }}>
       <div className={`glass-decision ${isSuccess ? "highlight" : ""}`}>
-        {/* Header row */}
+        {/* Header row with AI icon */}
         <div
           style={{
             display: "flex",
@@ -350,26 +342,37 @@ function RecommendationCard({
             gap: "12px",
           }}
         >
-          <div className="glass-kicker">
+          <div className="glass-kicker" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {/* AI Agent Icon Badge */}
             <span
               style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
+                width: "24px",
+                height: "24px",
+                borderRadius: "6px",
                 background: isPending
-                  ? "rgba(255, 255, 255, 0.4)"
+                  ? "rgba(255, 255, 255, 0.08)"
                   : isError
-                    ? "#FF6B6B"
-                    : "rgba(118, 185, 0, 0.9)",
-                boxShadow: isPending
-                  ? "none"
-                  : isError
-                    ? "0 0 0 4px rgba(255, 107, 107, 0.12)"
-                    : "0 0 0 4px rgba(118, 185, 0, 0.12)",
-                display: "inline-block",
+                    ? "rgba(255, 107, 107, 0.15)"
+                    : "rgba(118, 185, 0, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
-            ></span>
-            {typeInfo.label} Agent
+            >
+              <Bot
+                style={{
+                  width: "14px",
+                  height: "14px",
+                  color: isPending
+                    ? "rgba(255, 255, 255, 0.5)"
+                    : isError
+                      ? "#FF6B6B"
+                      : "rgba(118, 185, 0, 0.9)",
+                }}
+              />
+            </span>
+            Recommendation Agent
           </div>
           <div className={`glass-pill ${isPending ? "yellow" : isError ? "" : "green"}`}>
             {isPending ? "Generating" : isError ? "Error" : `${recommendationCount} items`}
@@ -486,7 +489,6 @@ function RecommendationCard({
  */
 export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const typeInfo = getAgentTypeInfo(event.agentType);
   const isPending = event.status === "pending";
   const isError = event.status === "error";
 
@@ -522,7 +524,7 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
     <div style={{ marginBottom: isLast ? 0 : "12px" }}>
       {/* Decision Card */}
       <div className={`glass-decision ${isHighlight ? "highlight" : ""}`}>
-        {/* Header row */}
+        {/* Header row with AI icon */}
         <div
           style={{
             display: "flex",
@@ -531,26 +533,37 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
             gap: "12px",
           }}
         >
-          <div className="glass-kicker">
+          <div className="glass-kicker" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {/* AI Agent Icon Badge */}
             <span
               style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
+                width: "24px",
+                height: "24px",
+                borderRadius: "6px",
                 background: isPending
-                  ? "rgba(255, 255, 255, 0.4)"
+                  ? "rgba(255, 255, 255, 0.08)"
                   : isError
-                    ? "#FF6B6B"
-                    : "rgba(118, 185, 0, 0.9)",
-                boxShadow: isPending
-                  ? "none"
-                  : isError
-                    ? "0 0 0 4px rgba(255, 107, 107, 0.12)"
-                    : "0 0 0 4px rgba(118, 185, 0, 0.12)",
-                display: "inline-block",
+                    ? "rgba(255, 107, 107, 0.15)"
+                    : "rgba(118, 185, 0, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
-            ></span>
-            {typeInfo.label} Decision
+            >
+              <Bot
+                style={{
+                  width: "14px",
+                  height: "14px",
+                  color: isPending
+                    ? "rgba(255, 255, 255, 0.5)"
+                    : isError
+                      ? "#FF6B6B"
+                      : "rgba(118, 185, 0, 0.9)",
+                }}
+              />
+            </span>
+            Promotion Agent
           </div>
           <div
             className={`glass-pill ${isPending ? "yellow" : isError ? "" : outcomeInfo?.isPositive ? "green" : ""}`}

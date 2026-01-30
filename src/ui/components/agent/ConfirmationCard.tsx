@@ -23,7 +23,6 @@ interface ConfirmationCardProps {
   quantity: number;
   shippingPrice: number;
   orderId: string;
-  orderUrl?: string;
   estimatedDelivery: string;
   onStartOver: () => void;
 }
@@ -36,7 +35,6 @@ export function ConfirmationCard({
   quantity,
   shippingPrice,
   orderId,
-  orderUrl,
   estimatedDelivery,
   onStartOver,
 }: ConfirmationCardProps) {
@@ -137,20 +135,9 @@ export function ConfirmationCard({
             <Text kind="body/regular/sm" className="text-secondary">
               Order ID
             </Text>
-            {orderUrl ? (
-              <a
-                href={orderUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-mono text-[#76b900] hover:underline"
-              >
-                {orderId}
-              </a>
-            ) : (
-              <Text kind="label/regular/sm" className="text-primary font-mono">
-                {orderId}
-              </Text>
-            )}
+            <Text kind="label/regular/sm" className="text-primary font-mono">
+              {orderId}
+            </Text>
           </Flex>
           <Flex justify="between" align="center">
             <Text kind="body/regular/sm" className="text-secondary">
@@ -161,21 +148,6 @@ export function ConfirmationCard({
             </Text>
           </Flex>
         </Stack>
-
-        {/* View order link */}
-        {orderUrl && (
-          <>
-            <Divider />
-            <a
-              href={orderUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2 px-4 text-center text-sm font-medium text-[#76b900] hover:bg-[#76b900]/10 rounded-md transition-colors"
-            >
-              View Order Details
-            </a>
-          </>
-        )}
 
         {/* Start over button */}
         <Button

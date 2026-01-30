@@ -279,11 +279,6 @@ export function PaymentSheet({
               </>
             )}
           </button>
-
-          {/* Security note */}
-          <p className="mt-3 text-center text-xs text-text-tertiary">
-            Secured by Agentic Commerce Protocol
-          </p>
         </form>
       </div>
     </div>

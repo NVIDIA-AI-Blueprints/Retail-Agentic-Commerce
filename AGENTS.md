@@ -305,3 +305,144 @@ curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://localhost:2091/acp/sessions
 - **No log output**: Code path not executed
 
 **DO NOT** just read code and say "this should work" - always test and show evidence.
+
+## Critical Verification Diligence (MUST READ)
+
+**Passing static checks (TypeScript, linting, tests, code review) does NOT mean code works correctly.**
+
+Many bugs are invisible to static analysis. You MUST verify actual runtime behavior through real testing, not just reading code and assuming it works.
+
+### Verification Blind Spots
+
+These pass all static checks but contain bugs:
+
+| Blind Spot | What You See | Reality |
+|------------|--------------|---------|
+| **Mock/Hardcoded Data** | Code calls a function that "returns data" | Function returns hardcoded values, not real API calls |
+| **Fire-and-Forget Async** | `fetchData()` is called | Call is made but result is never awaited or used |
+| **Stale State Display** | UI updates when state changes | UI shows OLD data while waiting for NEW data |
+| **Unused Results** | Backend call is made | Response is ignored; UI uses local calculation instead |
+| **Dead Code Paths** | Function exists and looks correct | Function is never actually called in the flow |
+| **Wrong Data Source** | Display shows correct-looking values | Values come from local state, not backend response |
+
+### Questions to Ask Before Claiming "It Works"
+
+1. **Is this REAL or MOCK?**
+   - Trace the data from UI back to source
+   - Is there an actual HTTP call? Check network tab or server logs
+   - Are there hardcoded values, default fallbacks, or mock returns?
+
+2. **Is this USED or IGNORED?**
+   - If backend returns data, is that data actually used in the UI?
+   - Or does the UI calculate/derive values locally and ignore the response?
+
+3. **What happens DURING async operations?**
+   - What does user see while waiting for response?
+   - Is stale data shown without indication?
+   - Can mismatched data appear (e.g., new quantity but old total)?
+
+4. **What happens on FAILURE?**
+   - If the backend call fails, does the UI handle it?
+   - Are optimistic updates rolled back?
+
+5. **Is the CODE PATH actually executed?**
+   - Just because code exists doesn't mean it runs
+   - Add console.log or check server logs to confirm execution
+
+### Verification Methods (In Order of Reliability)
+
+1. **Server Logs** - Most reliable. Shows actual HTTP calls made.
+   ```bash
+   # Check terminal for: "POST /endpoint HTTP/1.1 200 OK"
+   ```
+
+2. **Network Tab** - Shows real requests from browser/client.
+
+3. **Console Logs** - Add logging at key points to trace execution.
+
+4. **Manual User Testing** - Actually use the UI as a user would.
+
+5. **curl/HTTP Tests** - Verify endpoints respond correctly.
+
+6. **Code Reading** - LEAST reliable alone. Must be combined with above.
+
+### Common Deceptive Patterns
+
+**Pattern 1: Looks like API call, is actually local**
+```tsx
+// DECEPTIVE: Looks like it uses backend data
+const total = calculateTotal(items);  // Actually local calculation!
+
+// CORRECT: Actually uses backend response
+const total = backendResponse.totals.find(t => t.type === 'total').amount;
+```
+
+**Pattern 2: Backend called but result ignored**
+```tsx
+// DECEPTIVE: Makes call but ignores result
+await updateBackend(newItems);
+setDisplayTotal(localCalculation(newItems));  // BUG: should use response!
+
+// CORRECT: Uses backend result
+const response = await updateBackend(newItems);
+setDisplayTotal(response.total);
+```
+
+**Pattern 3: Async without proper waiting**
+```tsx
+// DECEPTIVE: Looks correct but has timing bug
+setItems(newItems);           // UI updates immediately
+notifyBackend(newItems);      // Async fires (no await)
+// BUG: UI shows new items but old totals until backend responds!
+
+// CORRECT: Track pending state
+setItems(newItems);
+setIsPending(true);
+await notifyBackend(newItems);
+setIsPending(false);
+```
+
+**Pattern 4: Default/fallback hides missing data**
+```tsx
+// DECEPTIVE: Fallback masks the bug
+const price = response.price ?? calculateLocally(item);  // Fallback used!
+
+// CORRECT: Fail explicitly if data missing
+const price = response.price;
+if (price === undefined) throw new Error("Backend did not return price");
+```
+
+### Verification Checklist
+
+Before saying code is correct, verify these with EVIDENCE:
+
+- [ ] **Server logs show HTTP calls** were actually made
+- [ ] **Response data is used** in the UI (not local calculations)
+- [ ] **No hardcoded/mock data** in the actual code path
+- [ ] **Loading states shown** during async operations
+- [ ] **Error handling works** when backend fails
+- [ ] **User sees correct data** through manual testing
+
+### When Static Analysis is INSUFFICIENT
+
+You MUST do runtime verification when:
+- Code involves HTTP/API calls
+- Multiple components share or sync state
+- Async operations affect UI display
+- Data flows from backend to frontend
+- User actions trigger calculations that should happen server-side
+
+For these cases, **reading code is not enough** - you must observe actual behavior through logs, network inspection, or manual testing.
+
+### Key Principle
+
+**Never claim code works based solely on:**
+- "The function exists and looks correct"
+- "TypeScript/linting passes"
+- "The logic seems right"
+
+**Always verify with evidence:**
+- Server logs showing actual calls
+- Network tab showing request/response
+- Manual testing showing correct behavior
+- Console logs confirming code path execution
