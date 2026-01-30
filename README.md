@@ -136,37 +136,73 @@ Visit **http://localhost:3000** to see the demo UI.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Client Agent                             │
-│                    (ChatGPT, Claude, etc.)                      │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Apps SDK MCP Server                         │
-│                        (Port 2091)                              │
-│   ┌─────────────┬─────────────────┬────────────────────────┐    │
-│   │ get-recs    │ add-to-cart     │ checkout               │    │
-│   └─────────────┴─────────────────┴────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Merchant API                               │
-│                        (Port 8000)                              │
-│   ┌─────────────┬─────────────────┬────────────────────────┐    │
-│   │ Products    │ Checkout        │ Orders                 │    │
-│   │ Sessions    │ Promotions      │ Recommendations        │    │
-│   └─────────────┴─────────────────┴────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-          │                    │                    │
-          ▼                    ▼                    ▼
-   ┌────────────┐       ┌────────────┐       ┌────────────┐
-   │ Promotion  │       │ Post-      │       │ Recommend  │
-   │ Agent      │       │ Purchase   │       │ Agent      │
-   │ (8002)     │       │ (8003)     │       │ (8004)     │
-   └────────────┘       └────────────┘       └────────────┘
+```mermaid
+flowchart TB
+    subgraph Client["Client Layer"]
+        CA[🤖 Client Agent]
+    end
+
+    subgraph Integration["Integration Options"]
+        direction LR
+        subgraph SDK["Apps SDK Layer"]
+            MCP["📦 Apps SDK MCP Server<br/>(Port 2091)"]
+            subgraph tools["MCP Tools"]
+                T1[get-recs]
+                T2[add-to-cart]
+                T3[checkout]
+            end
+        end
+
+        subgraph Native["Native ACP Layer"]
+            ACP["🔗 Direct ACP Protocol"]
+            subgraph endpoints["REST Endpoints"]
+                E1["checkout_sessions"]
+                E2["agentic_commerce"]
+                E3["products"]
+            end
+        end
+    end
+
+    subgraph Backend["Backend Services"]
+        MERCHANT["🏪 Merchant API<br/>(Port 8000)"]
+        PSP["💳 PSP Service<br/>(Port 8001)"]
+        
+        subgraph merchant_features["Merchant Features"]
+            M1[Products & Sessions]
+            M2[Checkout & Promotions]
+            M3[Orders & Recommendations]
+        end
+        
+        subgraph psp_features["PSP Features"]
+            P1[Payment Delegation]
+            P2[Vault Tokens]
+            P3[Idempotency]
+        end
+    end
+
+    subgraph Agents["NAT Agents"]
+        PROMO["🎯 Promotion Agent<br/>(Port 8002)"]
+        POST["📨 Post-Purchase Agent<br/>(Port 8003)"]
+        RECS["🔍 Recommendation Agent<br/>(Port 8004)"]
+    end
+
+    CA -->|MCP| MCP
+    CA -->|REST| ACP
+    MCP --> MERCHANT
+    ACP --> MERCHANT
+    MERCHANT --> PSP
+    MERCHANT --> PROMO
+    MERCHANT --> POST
+    MERCHANT --> RECS
+
+    style CA fill:#76b900,color:#000
+    style MCP fill:#1a1a2e,color:#fff
+    style ACP fill:#1a1a2e,color:#fff
+    style MERCHANT fill:#1a1a2e,color:#fff
+    style PSP fill:#1a1a2e,color:#fff
+    style PROMO fill:#2d2d44,color:#fff
+    style POST fill:#2d2d44,color:#fff
+    style RECS fill:#2d2d44,color:#fff
 ```
 
 ## Services
