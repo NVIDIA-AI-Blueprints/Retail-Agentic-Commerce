@@ -54,10 +54,6 @@ export function CheckoutButton({
           </>
         )}
       </button>
-
-      <p className="mt-3 text-center text-xs text-text-tertiary">
-        Secure checkout powered by Agentic Commerce Protocol
-      </p>
     </div>
   );
 }

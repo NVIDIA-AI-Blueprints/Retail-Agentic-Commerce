@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useACPLog, type ACPEvent, type ACPEventType } from "@/hooks/useACPLog";
+import { useCheckoutEvents } from "@/hooks/useCheckoutEvents";
 
 /**
  * Get display info for event types
@@ -161,7 +162,7 @@ function EmptyState() {
 /**
  * Active session view with event timeline (glass style)
  */
-function ActiveSession({ events }: { events: ACPEvent[] }) {
+function ActiveSession({ events, onClear }: { events: ACPEvent[]; onClear: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to top when new events arrive (newest first)
@@ -196,19 +197,35 @@ function ActiveSession({ events }: { events: ACPEvent[] }) {
         >
           ACP Communication
         </h3>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "var(--accent-green)",
-              animation: "glassPulse 1.6s infinite ease-out",
-            }}
-          ></span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
             {events.length} request{events.length !== 1 ? "s" : ""}
           </span>
+          <button
+            onClick={onClear}
+            style={{
+              padding: "4px 10px",
+              fontSize: "11px",
+              fontWeight: "500",
+              color: "var(--text-muted)",
+              background: "var(--block-bg)",
+              border: "1px solid var(--glass-border)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--glass-border)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--block-bg)";
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
+            title="Clear all logs"
+          >
+            Clear
+          </button>
         </div>
       </div>
 
@@ -231,8 +248,25 @@ function ActiveSession({ events }: { events: ACPEvent[] }) {
  * Uses glassmorphic design system
  */
 export function BusinessPanel() {
-  const { state } = useACPLog();
+  const { state, clear } = useACPLog();
   const hasEvents = state.events.length > 0;
+
+  // Subscribe to SSE checkout events from MCP server
+  // This allows the widget to remain isolated (no postMessage)
+  useCheckoutEvents();
+
+  // Clear both local state and server-side event store
+  const handleClear = useCallback(async () => {
+    // Clear local state first for immediate UI feedback
+    clear();
+
+    // Also clear server-side event store (fire and forget, ignore errors)
+    try {
+      await fetch("http://localhost:2091/events", { method: "DELETE" });
+    } catch {
+      // Silently ignore - server may not be running
+    }
+  }, [clear]);
 
   return (
     <section
@@ -248,7 +282,11 @@ export function BusinessPanel() {
       </div>
 
       {/* Content - either empty state or active session */}
-      {state.events.length === 0 ? <EmptyState /> : <ActiveSession events={state.events} />}
+      {state.events.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <ActiveSession events={state.events} onClear={handleClear} />
+      )}
     </section>
   );
 }

@@ -653,11 +653,11 @@ async def checkout(cart_id: str) -> dict:
 - [x] Implement `useRecommendations` hook for widgets
 - [x] Add loading and error states
 
-**Phase 6: Payment Flow Integration**
-- [ ] Connect MCP `checkout` tool to ACP payment flow
-- [ ] Handle multi-item cart processing
-- [ ] Display order confirmation in widget
-- [ ] Log Apps SDK events in Protocol Inspector
+**Phase 6: Payment Flow Integration** ✅
+- [x] Connect MCP `checkout` tool to ACP payment flow
+- [x] Handle multi-item cart processing
+- [x] Display order confirmation in widget
+- [x] Log Apps SDK events in Protocol Inspector
 
 **Phase 7: ngrok Testing**
 - [ ] Document ngrok setup for ChatGPT testing
@@ -698,20 +698,20 @@ async def checkout(cart_id: str) -> dict:
 - [x] Recommendations are contextually relevant (based on session)
 - [x] Loading and error states are handled gracefully
 
-**Communication Bridge**:
-- [ ] `window.openai.callTool()` pattern works from iframe (standalone)
+**Communication Bridge** ✅:
+- [x] `window.openai.callTool()` pattern works from iframe (standalone)
 - [ ] `window.openai.callTool()` works from real ChatGPT (via ngrok)
-- [ ] Parent receives and processes checkout requests
-- [ ] Results are returned to iframe/widget after payment
+- [x] Parent receives and processes checkout requests
+- [x] Results are returned to iframe/widget after payment
 
-**Payment Flow**:
-- [ ] Multi-item cart is processed through ACP
-- [ ] Same PSP delegate_payment → complete flow as native
-- [ ] Order confirmation displays in iframe/widget
+**Payment Flow** ✅:
+- [x] Multi-item cart is processed through ACP
+- [x] Same PSP delegate_payment → complete flow as native
+- [x] Order confirmation displays in iframe/widget
 
-**Protocol Inspector**:
-- [ ] Apps SDK events appear in Merchant Panel
-- [ ] Event flow is traceable from iframe to order completion
+**Protocol Inspector** ✅:
+- [x] Apps SDK events appear in Merchant Panel
+- [x] Event flow is traceable from iframe to order completion
 
 **Deployment & Testing**:
 - [ ] Standalone mode works without ChatGPT connection

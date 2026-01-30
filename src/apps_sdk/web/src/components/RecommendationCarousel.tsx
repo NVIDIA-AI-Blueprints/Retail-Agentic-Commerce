@@ -52,14 +52,14 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
       role="button"
       tabIndex={0}
       aria-label={`View ${product.name} details`}
-      className="group min-w-[220px] max-w-[220px] flex-shrink-0 flex flex-col cursor-pointer overflow-hidden rounded-xl border border-default bg-surface-elevated transition-all hover:border-accent dark:hover:border-accent/70"
+      className="group flex flex-col cursor-pointer overflow-hidden rounded-lg border border-default bg-surface-elevated transition-all hover:border-accent dark:hover:border-accent/70"
     >
       {/* Product Image */}
-      <div className="relative overflow-hidden">
+      <div className="relative aspect-square overflow-hidden">
         <img
           src={getProductImage(product.id)}
           alt={product.name}
-          className="h-60 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
           loading="lazy"
         />
         {/* Subtle overlay */}
@@ -67,29 +67,29 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
       </div>
 
       {/* Product Info */}
-      <div className="flex flex-1 flex-col gap-1 px-3 pt-3 pb-2">
-        <h3 className="text-base font-medium text-text">{product.name}</h3>
-        <div className="flex items-center justify-between text-xs text-text-secondary">
-          <span>
+      <div className="flex flex-1 flex-col gap-0.5 px-2.5 pt-2.5 pb-1.5">
+        <h3 className="text-sm font-medium text-text leading-tight truncate">{product.name}</h3>
+        <div className="flex items-center justify-between text-[11px] text-text-secondary">
+          <span className="truncate">
             {product.variant} - {product.size}
           </span>
-          <span className="flex items-center gap-1">
-            <Star className="h-3 w-3 text-amber-500" strokeWidth={2} fill="currentColor" /> 4.8
+          <span className="flex items-center gap-0.5 flex-shrink-0">
+            <Star className="h-2.5 w-2.5 text-amber-500" strokeWidth={2} fill="currentColor" /> 4.8
           </span>
         </div>
-        <p className="text-base font-semibold text-success">
+        <p className="text-sm font-semibold text-success">
           {formatPrice(product.basePrice)}
         </p>
       </div>
 
       {/* Add to Cart Button */}
-      <div className="px-3 pb-3">
+      <div className="px-2.5 pb-2.5">
         <button
           onClick={handleAddToCart}
-          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-accent/30 bg-transparent px-3 py-2.5 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent/5 active:scale-[0.98] dark:border-accent/40 dark:hover:border-accent/70 dark:hover:bg-accent/10"
+          className="flex w-full items-center justify-center gap-1 rounded-full border border-accent/30 bg-transparent px-2 py-1.5 text-xs font-medium text-accent transition-colors hover:border-accent hover:bg-accent/5 active:scale-[0.98] dark:border-accent/40 dark:hover:border-accent/70 dark:hover:bg-accent/10"
           aria-label={`Add ${product.name} to cart`}
         >
-          <ShoppingCart className="h-4 w-4" strokeWidth={2} />
+          <ShoppingCart className="h-3.5 w-3.5" strokeWidth={2} />
           Add to Cart
         </button>
       </div>
@@ -100,7 +100,7 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
 /**
  * RecommendationCarousel Component
  *
- * Displays a horizontal scrollable carousel with product recommendations.
+ * Displays a responsive grid of product recommendations.
  * Supports light/dark mode theming.
  * - Card click navigates to product detail
  * - Add to Cart button adds to cart directly
@@ -115,22 +115,20 @@ export function RecommendationCarousel({
   }
 
   return (
-    <section className="py-5">
-      <h2 className="mb-4 flex items-center gap-2 px-1 text-lg font-semibold text-text">
+    <section className="py-4">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text">
         <span>Recommended For You</span>
       </h2>
 
-      <div className="-mx-5 overflow-x-auto px-5 scrollbar-none">
-        <div className="flex gap-4 pb-1">
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onAddToCart={onAddToCart}
-              onProductClick={onProductClick}
-            />
-          ))}
-        </div>
+      <div className="grid grid-cols-3 gap-3">
+        {products.map((product) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+            onAddToCart={onAddToCart}
+            onProductClick={onProductClick}
+          />
+        ))}
       </div>
     </section>
   );

@@ -252,3 +252,56 @@ Frontend (from `src/ui/`):
 - Lint: `pnpm lint`
 - Format check: `pnpm format:check`
 - Type check: `pnpm typecheck`
+
+## Code Change Verification (CRITICAL)
+
+**NEVER claim code works without actually testing it.**
+
+When making code changes, especially to API endpoints or integrations, you MUST verify with real tests.
+
+### Verification Process
+
+1. **Test endpoints with curl** (include HTTP status code):
+   ```bash
+   curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://localhost:PORT/endpoint \
+     -H "Content-Type: application/json" \
+     -d '{"test": "data"}'
+   ```
+
+2. **Check server logs** for errors:
+   - Read terminal files in the terminals folder
+   - Look for ERROR, Exception, NameError, ImportError
+   - Verify downstream calls are made (e.g., Merchant API calls)
+
+3. **Rebuild if frontend changes**:
+   ```bash
+   cd src/apps_sdk/web && pnpm build
+   ```
+
+4. **Report verification results** to user:
+   - Actual commands run
+   - HTTP status codes received
+   - Server log evidence
+   - Any errors found and fixed
+
+### Example Verification
+
+```bash
+# Test ACP session creation
+curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://localhost:2091/acp/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"items": [{"id": "prod_1", "quantity": 2}]}'
+# Expected: HTTP_CODE:200 with session ID
+
+# Check server log shows Merchant API call:
+# HTTP Request: POST http://localhost:8000/checkout_sessions "HTTP/1.1 200 OK"
+```
+
+### Red Flags
+
+- **500 Error**: Missing imports, undefined variables
+- **400 Error**: Request format mismatch
+- **Connection Refused**: Service not running
+- **No log output**: Code path not executed
+
+**DO NOT** just read code and say "this should work" - always test and show evidence.

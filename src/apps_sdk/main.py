@@ -6,21 +6,27 @@ Run with:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import os
+from collections import deque
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 import httpx
 import mcp.types as types
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, Field
+from sse_starlette.sse import EventSourceResponse
 from starlette.responses import FileResponse, HTMLResponse, Response
 
 from src.apps_sdk.config import get_apps_sdk_settings
@@ -943,3 +949,578 @@ def health_check() -> dict[str, str]:
         A dictionary with status "ok".
     """
     return {"status": "ok"}
+
+
+# =============================================================================
+# SSE EVENT STREAM FOR PROTOCOL INSPECTOR
+# =============================================================================
+# The Protocol Inspector can subscribe to this endpoint to receive real-time
+# checkout events without requiring the widget to send postMessage.
+
+# Event queue for SSE subscribers (simple in-memory, use Redis for production)
+checkout_events: deque[dict[str, Any]] = deque(maxlen=100)
+event_subscribers: list[asyncio.Queue[dict[str, Any]]] = []
+
+
+def emit_checkout_event(
+    event_type: str,
+    endpoint: str,
+    method: str = "POST",
+    status: str = "success",
+    summary: str | None = None,
+    status_code: int | None = None,
+    session_id: str | None = None,
+    order_id: str | None = None,
+) -> None:
+    """Emit a checkout event to all SSE subscribers.
+
+    Args:
+        event_type: Type of event (session_create, delegate_payment, session_complete, etc.)
+        endpoint: API endpoint called
+        method: HTTP method
+        status: Event status (pending, success, error)
+        summary: Human-readable summary
+        status_code: HTTP status code
+        session_id: Checkout session ID
+        order_id: Order ID (for completed checkouts)
+    """
+    event = {
+        "id": f"evt_{datetime.now().timestamp()}",
+        "type": event_type,
+        "endpoint": endpoint,
+        "method": method,
+        "status": status,
+        "summary": summary,
+        "statusCode": status_code,
+        "sessionId": session_id,
+        "orderId": order_id,
+        "timestamp": datetime.now().isoformat(),
+    }
+    checkout_events.append(event)
+
+    # Notify all subscribers
+    for queue in event_subscribers:
+        with contextlib.suppress(asyncio.QueueFull):
+            queue.put_nowait(event)
+
+
+async def event_generator() -> AsyncGenerator[dict[str, Any], None]:
+    """Generator that yields SSE events."""
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=50)
+    event_subscribers.append(queue)
+    try:
+        # Send recent events on connect
+        for event in list(checkout_events)[-10:]:
+            yield {"event": "checkout", "data": json.dumps(event)}
+
+        # Stream new events
+        while True:
+            event = await queue.get()
+            yield {"event": "checkout", "data": json.dumps(event)}
+    finally:
+        event_subscribers.remove(queue)
+
+
+@app.get("/events", tags=["events"])
+async def checkout_events_stream() -> EventSourceResponse:
+    """SSE endpoint for checkout events.
+
+    The Protocol Inspector can subscribe to this endpoint to receive
+    real-time checkout events without requiring widget postMessage.
+
+    Returns:
+        Server-Sent Events stream of checkout events.
+    """
+    return EventSourceResponse(event_generator())
+
+
+@app.delete("/events", tags=["events"])
+async def clear_checkout_events() -> dict[str, str]:
+    """Clear all stored checkout events.
+
+    This endpoint is useful for resetting the Protocol Inspector
+    during development and demos.
+
+    Returns:
+        Confirmation message.
+    """
+    checkout_events.clear()
+    return {"message": "Checkout events cleared"}
+
+
+# =============================================================================
+# REST API ENDPOINTS FOR WIDGET
+# =============================================================================
+# These endpoints allow the widget to make direct HTTP calls without MCP/JSON-RPC
+
+
+class CartAddRequest(BaseModel):
+    """Request body for adding an item to cart."""
+
+    product_id: str = Field(..., alias="productId")
+    quantity: int = Field(default=1, ge=1)
+    cart_id: str | None = Field(None, alias="cartId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CartCheckoutRequest(BaseModel):
+    """Request body for checkout."""
+
+    cart_id: str = Field(..., alias="cartId")
+    cart_items: list[dict[str, Any]] = Field(..., alias="cartItems")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@app.post("/cart/add", tags=["cart"])
+async def api_add_to_cart(request: CartAddRequest) -> dict[str, Any]:
+    """REST endpoint to add an item to the cart.
+
+    Args:
+        request: Cart add request with productId, quantity, cartId.
+
+    Returns:
+        Updated cart state.
+    """
+    # Emit event for Protocol Inspector
+    emit_checkout_event(
+        event_type="session_update",
+        endpoint="/cart/add",
+        method="POST",
+        status="pending",
+        summary=f"Adding {request.product_id} to cart...",
+    )
+
+    result = await add_to_cart(
+        request.product_id,
+        request.quantity,
+        request.cart_id,
+    )
+
+    # Emit completion event
+    emit_checkout_event(
+        event_type="session_update",
+        endpoint="/cart/add",
+        method="POST",
+        status="success",
+        summary=f"Added {request.quantity}x {request.product_id}",
+        status_code=200,
+    )
+
+    return result
+
+
+class CartUpdateRequest(BaseModel):
+    """Request body for updating cart (quantity changes)."""
+
+    cart_id: str = Field(..., alias="cartId")
+    cart_items: list[dict[str, Any]] = Field(..., alias="cartItems")
+    action: str = Field(default="update")  # "update", "remove", "clear"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ShippingUpdateRequest(BaseModel):
+    """Request body for updating shipping option."""
+
+    cart_id: str = Field(..., alias="cartId")
+    shipping_option_id: str = Field(..., alias="shippingOptionId")
+    shipping_option_name: str = Field(..., alias="shippingOptionName")
+    shipping_price: int = Field(..., alias="shippingPrice")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@app.post("/cart/update", tags=["cart"])
+async def api_update_cart(request: CartUpdateRequest) -> dict[str, Any]:
+    """REST endpoint to update cart (quantity changes, removals).
+
+    Emits events to Protocol Inspector for visibility.
+
+    Args:
+        request: Cart update request with cartId, cartItems, and action.
+
+    Returns:
+        Updated cart state.
+    """
+    from src.apps_sdk.tools.cart import calculate_cart_totals, carts, get_cart_meta
+
+    cart_id = request.cart_id or f"cart_{uuid4().hex[:12]}"
+    item_count = len(request.cart_items)
+
+    # Emit event for Protocol Inspector
+    action_summary = {
+        "update": f"Updating cart ({item_count} items)",
+        "remove": "Removing item from cart",
+        "clear": "Clearing cart",
+    }.get(request.action, "Updating cart")
+
+    emit_checkout_event(
+        event_type="session_update",
+        endpoint="/cart/update",
+        method="POST",
+        status="pending",
+        summary=action_summary,
+        session_id=cart_id,
+    )
+
+    # Sync the cart items to server
+    carts[cart_id] = [
+        {
+            "id": item.get("id"),
+            "name": item.get("name"),
+            "basePrice": item.get("basePrice"),
+            "quantity": item.get("quantity"),
+            "variant": item.get("variant"),
+            "size": item.get("size"),
+        }
+        for item in request.cart_items
+    ]
+
+    totals = calculate_cart_totals(carts[cart_id])
+    total_quantity = sum(item["quantity"] for item in carts[cart_id])
+
+    # Emit completion event
+    emit_checkout_event(
+        event_type="session_update",
+        endpoint="/cart/update",
+        method="POST",
+        status="success",
+        summary=f"Cart updated: {total_quantity} items, ${totals['total'] / 100:.2f}",
+        status_code=200,
+        session_id=cart_id,
+    )
+
+    return {
+        "cartId": cart_id,
+        "items": carts[cart_id],
+        "itemCount": total_quantity,
+        **totals,
+        "_meta": get_cart_meta(cart_id),
+    }
+
+
+@app.post("/cart/shipping", tags=["cart"])
+async def api_update_shipping(request: ShippingUpdateRequest) -> dict[str, Any]:
+    """REST endpoint to update shipping option.
+
+    Emits events to Protocol Inspector for visibility.
+
+    Args:
+        request: Shipping update request.
+
+    Returns:
+        Updated shipping state.
+    """
+    # Emit event for Protocol Inspector
+    emit_checkout_event(
+        event_type="session_update",
+        endpoint="/cart/shipping",
+        method="POST",
+        status="pending",
+        summary=f"Updating shipping to {request.shipping_option_name}...",
+        session_id=request.cart_id,
+    )
+
+    # Format price for display
+    price_display = (
+        "Free"
+        if request.shipping_price == 0
+        else f"${request.shipping_price / 100:.2f}"
+    )
+
+    # Emit completion event
+    emit_checkout_event(
+        event_type="session_update",
+        endpoint="/cart/shipping",
+        method="POST",
+        status="success",
+        summary=f"Shipping: {request.shipping_option_name} ({price_display})",
+        status_code=200,
+        session_id=request.cart_id,
+    )
+
+    return {
+        "cartId": request.cart_id,
+        "shippingOptionId": request.shipping_option_id,
+        "shippingOptionName": request.shipping_option_name,
+        "shippingPrice": request.shipping_price,
+    }
+
+
+# =============================================================================
+# ACP PROXY ENDPOINTS
+# =============================================================================
+# These endpoints proxy requests to the Merchant API and emit SSE events
+# for Protocol Inspector visibility. This allows the widget to make real
+# ACP calls while the MCP server handles event emission.
+
+
+class ACPCreateSessionRequest(BaseModel):
+    """Request to create a checkout session via ACP."""
+
+    items: list[dict[str, Any]] = Field(...)
+    buyer: dict[str, str] | None = Field(None)
+    fulfillment_address: dict[str, str] | None = Field(None, alias="fulfillmentAddress")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ACPUpdateSessionRequest(BaseModel):
+    """Request to update a checkout session via ACP."""
+
+    session_id: str = Field(..., alias="sessionId")
+    items: list[dict[str, Any]] | None = Field(None)
+    fulfillment_option_id: str | None = Field(None, alias="fulfillmentOptionId")
+    fulfillment_address: dict[str, str] | None = Field(None, alias="fulfillmentAddress")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+# Store active sessions for the widget
+active_sessions: dict[str, str] = {}  # cart_id -> session_id
+
+
+@app.post("/acp/sessions", tags=["acp"])
+async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]:
+    """Create a checkout session on the Merchant API.
+
+    Proxies the request to the Merchant API and emits SSE events.
+
+    Args:
+        request: Session creation request with items and optional buyer info.
+
+    Returns:
+        Checkout session response from merchant API.
+    """
+    settings = get_apps_sdk_settings()
+    merchant_api_url = settings.merchant_api_url
+    api_key = settings.api_key
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Build request body
+            body: dict[str, Any] = {"items": request.items}
+            if request.buyer:
+                body["buyer"] = request.buyer
+            if request.fulfillment_address:
+                body["fulfillment_address"] = request.fulfillment_address
+
+            response = await client.post(
+                f"{merchant_api_url}/checkout_sessions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+            )
+
+            if response.status_code == 201:
+                data = response.json()
+                session_id = data.get("id", "")
+
+                # Emit success event
+                emit_checkout_event(
+                    event_type="session_create",
+                    endpoint="/checkout_sessions",
+                    method="POST",
+                    status="success",
+                    summary=f"Session {session_id[-12:]} created",
+                    status_code=201,
+                    session_id=session_id,
+                )
+
+                return data
+            else:
+                error_text = response.text
+                emit_checkout_event(
+                    event_type="session_create",
+                    endpoint="/checkout_sessions",
+                    method="POST",
+                    status="error",
+                    summary=f"Failed: {response.status_code}",
+                    status_code=response.status_code,
+                )
+                raise HTTPException(status_code=response.status_code, detail=error_text)
+
+    except httpx.ConnectError as e:
+        emit_checkout_event(
+            event_type="session_create",
+            endpoint="/checkout_sessions",
+            method="POST",
+            status="error",
+            summary="Connection failed",
+            status_code=503,
+        )
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+
+@app.post("/acp/sessions/{session_id}", tags=["acp"])
+async def acp_update_session(
+    session_id: str, request: ACPUpdateSessionRequest
+) -> dict[str, Any]:
+    """Update a checkout session on the Merchant API.
+
+    Proxies the request to the Merchant API and emits SSE events.
+
+    Args:
+        session_id: The checkout session ID.
+        request: Session update request.
+
+    Returns:
+        Updated checkout session response from merchant API.
+    """
+    settings = get_apps_sdk_settings()
+    merchant_api_url = settings.merchant_api_url
+    api_key = settings.api_key
+
+    # Build update summary
+    update_parts: list[str] = []
+    if request.items:
+        update_parts.append(f"{len(request.items)} items")
+    if request.fulfillment_option_id:
+        update_parts.append("shipping")
+    if request.fulfillment_address:
+        update_parts.append("address")
+    update_summary = ", ".join(update_parts) or "session"
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Build request body (only include non-None fields)
+            body: dict[str, Any] = {}
+            if request.items is not None:
+                body["items"] = request.items
+            if request.fulfillment_option_id is not None:
+                body["fulfillment_option_id"] = request.fulfillment_option_id
+            if request.fulfillment_address is not None:
+                body["fulfillment_address"] = request.fulfillment_address
+
+            response = await client.post(
+                f"{merchant_api_url}/checkout_sessions/{session_id}",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+
+                # Emit success event
+                emit_checkout_event(
+                    event_type="session_update",
+                    endpoint=f"/checkout_sessions/{session_id[-12:]}",
+                    method="POST",
+                    status="success",
+                    summary=f"Updated {update_summary}",
+                    status_code=200,
+                    session_id=session_id,
+                )
+
+                return data
+            else:
+                error_text = response.text
+                emit_checkout_event(
+                    event_type="session_update",
+                    endpoint=f"/checkout_sessions/{session_id[-12:]}",
+                    method="POST",
+                    status="error",
+                    summary=f"Failed: {response.status_code}",
+                    status_code=response.status_code,
+                    session_id=session_id,
+                )
+                raise HTTPException(status_code=response.status_code, detail=error_text)
+
+    except httpx.ConnectError as e:
+        emit_checkout_event(
+            event_type="session_update",
+            endpoint=f"/checkout_sessions/{session_id[-12:]}",
+            method="POST",
+            status="error",
+            summary="Connection failed",
+            status_code=503,
+            session_id=session_id,
+        )
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+
+@app.post("/cart/sync", tags=["cart"])
+async def api_sync_cart(request: CartCheckoutRequest) -> dict[str, Any]:
+    """REST endpoint to sync the widget's cart state with the server.
+
+    This creates/updates the server-side cart to match the widget's cart.
+
+    Args:
+        request: Cart sync request with cartId and cartItems.
+
+    Returns:
+        Synced cart state.
+    """
+    from src.apps_sdk.tools.cart import calculate_cart_totals, carts, get_cart_meta
+
+    cart_id = request.cart_id or f"cart_{uuid4().hex[:12]}"
+
+    # Sync the cart items to server
+    carts[cart_id] = [
+        {
+            "id": item.get("id"),
+            "name": item.get("name"),
+            "basePrice": item.get("basePrice"),
+            "quantity": item.get("quantity"),
+            "variant": item.get("variant"),
+            "size": item.get("size"),
+        }
+        for item in request.cart_items
+    ]
+
+    totals = calculate_cart_totals(carts[cart_id])
+
+    return {
+        "cartId": cart_id,
+        "items": carts[cart_id],
+        "itemCount": sum(item["quantity"] for item in carts[cart_id]),
+        **totals,
+        "_meta": get_cart_meta(cart_id),
+    }
+
+
+@app.post("/cart/checkout", tags=["cart"])
+async def api_checkout(request: CartCheckoutRequest) -> dict[str, Any]:
+    """REST endpoint to process checkout.
+
+    First syncs the cart, then processes checkout through the ACP payment flow.
+
+    Args:
+        request: Checkout request with cartId and cartItems.
+
+    Returns:
+        Checkout result with orderId or error.
+    """
+    from uuid import uuid4
+
+    from src.apps_sdk.tools.cart import carts
+
+    cart_id = request.cart_id or f"cart_{uuid4().hex[:12]}"
+
+    # Sync cart items to server before checkout
+    carts[cart_id] = [
+        {
+            "id": item.get("id"),
+            "name": item.get("name"),
+            "basePrice": item.get("basePrice"),
+            "quantity": item.get("quantity"),
+            "variant": item.get("variant"),
+            "size": item.get("size"),
+        }
+        for item in request.cart_items
+    ]
+
+    logger.info(
+        f"Checkout REST API called for cart {cart_id} with {len(carts[cart_id])} items"
+    )
+
+    # Process checkout
+    result = await checkout(cart_id)
+    return result

@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, AlertCircle } from "lucide-react";
 import { LoyaltyHeader } from "@/components/LoyaltyHeader";
 import { RecommendationCarousel } from "@/components/RecommendationCarousel";
-import { ShoppingCart } from "@/components/ShoppingCart";
-import { CheckoutButton } from "@/components/CheckoutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProductDetailPage } from "@/components/ProductDetailPage";
+import { CheckoutPage } from "@/components/CheckoutPage";
 import { useToolOutput } from "@/hooks";
 import type {
   Product,
@@ -19,7 +17,7 @@ import { calculateCartTotals } from "@/types";
 /**
  * Widget page state for navigation
  */
-type WidgetPage = "browse" | "product_detail";
+type WidgetPage = "browse" | "product_detail" | "checkout";
 
 // Default mock data for standalone mode
 const DEFAULT_USER: MerchantUser = {
@@ -86,6 +84,10 @@ export function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productRecommendations, setProductRecommendations] = useState<Product[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  
+  // Checkout-specific recommendations
+  const [checkoutRecommendations, setCheckoutRecommendations] = useState<Product[]>([]);
+  const [isLoadingCheckoutRecommendations, setIsLoadingCheckoutRecommendations] = useState(false);
 
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -99,6 +101,99 @@ export function App() {
     null
   );
 
+  // ACP session state
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // API base URL - relative in production, localhost in dev
+  const getApiBaseUrl = useCallback(() => {
+    const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
+    return isViteDevServer ? "http://localhost:2091" : "";
+  }, []);
+
+  // Create or update ACP checkout session
+  const syncCheckoutSession = useCallback(
+    async (items: CartItem[], currentSessionId: string | null): Promise<string | null> => {
+      if (items.length === 0) {
+        // No items, no session needed
+        return null;
+      }
+
+      const apiBaseUrl = getApiBaseUrl();
+      const acpItems = items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+      }));
+
+      try {
+        if (currentSessionId) {
+          // Update existing session
+          console.log("[Widget] Updating ACP session:", currentSessionId);
+          const response = await fetch(`${apiBaseUrl}/acp/sessions/${currentSessionId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: currentSessionId,
+              items: acpItems,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            return data.id || currentSessionId;
+          } else {
+            // Session might be invalid, create a new one
+            console.warn("[Widget] Session update failed, creating new session");
+          }
+        }
+
+        // Create new session
+        console.log("[Widget] Creating new ACP session");
+        const response = await fetch(`${apiBaseUrl}/acp/sessions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: acpItems,
+            buyer: {
+              first_name: "John",
+              last_name: "Doe",
+              email: "john@example.com",
+            },
+            fulfillmentAddress: {
+              name: "John Doe",
+              line_one: "123 AI Boulevard",
+              city: "San Francisco",
+              state: "CA",
+              postal_code: "94102",
+              country: "US",
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("[Widget] ACP session created:", data.id);
+          return data.id;
+        }
+      } catch (error) {
+        console.warn("[Widget] Failed to sync ACP session:", error);
+      }
+
+      return currentSessionId;
+    },
+    [getApiBaseUrl]
+  );
+
+  // Notify server of cart updates via ACP
+  const notifyCartUpdate = useCallback(
+    async (items: CartItem[]) => {
+      const newSessionId = await syncCheckoutSession(items, sessionId);
+      if (newSessionId !== sessionId) {
+        setSessionId(newSessionId);
+      }
+    },
+    [sessionId, syncCheckoutSession]
+  );
+
   // Update cart state when items change
   useEffect(() => {
     const newCartState = calculateCartTotals(cartState.cartId || "", cartItems);
@@ -109,53 +204,67 @@ export function App() {
   const handleAddToCart = useCallback((product: Product) => {
     setCartItems((prev) => {
       const existingItem = prev.find((item) => item.id === product.id);
+      let newItems: CartItem[];
       if (existingItem) {
-        return prev.map((item) =>
+        newItems = prev.map((item) =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
+      } else {
+        newItems = [
+          ...prev,
+          {
+            id: product.id,
+            name: product.name,
+            basePrice: product.basePrice,
+            quantity: 1,
+            variant: product.variant,
+            size: product.size,
+          },
+        ];
       }
-      return [
-        ...prev,
-        {
-          id: product.id,
-          name: product.name,
-          basePrice: product.basePrice,
-          quantity: 1,
-          variant: product.variant,
-          size: product.size,
-        },
-      ];
+      // Notify server after state update
+      notifyCartUpdate(newItems);
+      return newItems;
     });
-  }, []);
+  }, [notifyCartUpdate]);
 
   // Update item quantity
   const handleUpdateQuantity = useCallback(
     (productId: string, quantity: number) => {
-      if (quantity <= 0) {
-        setCartItems((prev) => prev.filter((item) => item.id !== productId));
-      } else {
-        setCartItems((prev) =>
-          prev.map((item) =>
+      setCartItems((prev) => {
+        let newItems: CartItem[];
+        if (quantity <= 0) {
+          newItems = prev.filter((item) => item.id !== productId);
+        } else {
+          newItems = prev.map((item) =>
             item.id === productId ? { ...item, quantity } : item
-          )
-        );
-      }
+          );
+        }
+        // Notify server after state update
+        notifyCartUpdate(newItems);
+        return newItems;
+      });
     },
-    []
+    [notifyCartUpdate]
   );
 
   // Remove item from cart
   const handleRemoveItem = useCallback((productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== productId));
-  }, []);
+    setCartItems((prev) => {
+      const newItems = prev.filter((item) => item.id !== productId);
+      notifyCartUpdate(newItems);
+      return newItems;
+    });
+  }, [notifyCartUpdate]);
 
   // Clear cart and result
   const handleClearCart = useCallback(() => {
     setCartItems([]);
     setCheckoutResult(null);
-  }, []);
+    notifyCartUpdate([]);
+  }, [notifyCartUpdate]);
 
   // Navigate to product detail page
   const handleProductClick = useCallback(
@@ -169,6 +278,7 @@ export function App() {
         // Request recommendations from parent via postMessage
         const message = {
           type: "GET_RECOMMENDATIONS",
+          source: "product_detail",
           productId: product.id,
           productName: product.name,
           cartItems: cartItems.map((item) => ({
@@ -191,24 +301,24 @@ export function App() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === "RECOMMENDATIONS_RESULT") {
         console.log("[Widget] Received RECOMMENDATIONS_RESULT:", event.data);
-        setIsLoadingRecommendations(false);
-        if (event.data.recommendations && event.data.recommendations.length > 0) {
-          console.log("[Widget] Processing", event.data.recommendations.length, "recommendations");
-          // Convert recommendations from agent format to Product format
-          // Now uses enriched data from MCP server (real prices, images from merchant API)
-          type EnrichedRec = {
-            productId?: string;
-            product_id?: string;
-            productName?: string;
-            product_name?: string;
-            price?: number;
-            sku?: string;
-            image_url?: string;
-            stock_count?: number;
-            rank: number;
-          };
-          const products: Product[] = event.data.recommendations.map(
-            (rec: EnrichedRec) => ({
+        const source = event.data.source || "product_detail";
+        
+        // Convert recommendations from agent format to Product format
+        // Now uses enriched data from MCP server (real prices, images from merchant API)
+        type EnrichedRec = {
+          productId?: string;
+          product_id?: string;
+          productName?: string;
+          product_name?: string;
+          price?: number;
+          sku?: string;
+          image_url?: string;
+          stock_count?: number;
+          rank: number;
+        };
+        
+        const products: Product[] = event.data.recommendations?.length > 0
+          ? event.data.recommendations.map((rec: EnrichedRec) => ({
               id: rec.productId ?? rec.product_id ?? `prod_${Date.now()}`,
               sku: rec.sku ?? `SKU-${rec.productId ?? rec.product_id}`,
               name: rec.productName ?? rec.product_name ?? "Product",
@@ -217,12 +327,18 @@ export function App() {
               variant: "Default",
               size: "One Size",
               imageUrl: rec.image_url,
-            })
-          );
-          console.log("[Widget] Mapped products:", products);
-          setProductRecommendations(products);
+            }))
+          : [];
+        
+        console.log(`[Widget] Mapped ${products.length} products for ${source}`);
+        
+        // Route to appropriate state based on source
+        if (source === "checkout") {
+          setIsLoadingCheckoutRecommendations(false);
+          setCheckoutRecommendations(products);
         } else {
-          console.log("[Widget] No recommendations in message or empty array");
+          setIsLoadingRecommendations(false);
+          setProductRecommendations(products);
         }
       }
     };
@@ -238,75 +354,124 @@ export function App() {
     setProductRecommendations([]);
   }, []);
 
+  // Navigate to checkout page and request recommendations based on cart
+  const handleCartClick = useCallback(() => {
+    setCurrentPage("checkout");
+    
+    // Request recommendations based on cart items
+    if (cartItems.length > 0) {
+      setCheckoutRecommendations([]);
+      setIsLoadingCheckoutRecommendations(true);
+      
+      try {
+        // Use first cart item as the "current product" context for recommendations
+        const primaryItem = cartItems[0];
+        const message = {
+          type: "GET_RECOMMENDATIONS",
+          source: "checkout",
+          productId: primaryItem.id,
+          productName: primaryItem.name,
+          cartItems: cartItems.map((item) => ({
+            productId: item.id,
+            name: item.name,
+            price: item.basePrice,
+          })),
+        };
+        console.log("[Widget] Requesting checkout recommendations:", message);
+        window.parent.postMessage(message, "*");
+      } catch (error) {
+        console.error("[Widget] Failed to request checkout recommendations:", error);
+        setIsLoadingCheckoutRecommendations(false);
+      }
+    }
+  }, [cartItems]);
+
   // Add to cart with quantity (for product detail page)
   const handleAddToCartWithQuantity = useCallback(
     (product: Product, quantity: number) => {
       setCartItems((prev) => {
         const existingItem = prev.find((item) => item.id === product.id);
+        let newItems: CartItem[];
         if (existingItem) {
-          return prev.map((item) =>
+          newItems = prev.map((item) =>
             item.id === product.id
               ? { ...item, quantity: item.quantity + quantity }
               : item
           );
+        } else {
+          newItems = [
+            ...prev,
+            {
+              id: product.id,
+              name: product.name,
+              basePrice: product.basePrice,
+              quantity,
+              variant: product.variant,
+              size: product.size,
+            },
+          ];
         }
-        return [
-          ...prev,
-          {
-            id: product.id,
-            name: product.name,
-            basePrice: product.basePrice,
-            quantity,
-            variant: product.variant,
-            size: product.size,
-          },
-        ];
+        // Notify server after state update
+        notifyCartUpdate(newItems);
+        return newItems;
       });
     },
-    []
+    [notifyCartUpdate]
   );
 
-  // Handle checkout
+  // Handle checkout - makes real API calls to the MCP server
+  // Widget is fully isolated - no postMessage communication with parent
   const handleCheckout = useCallback(async () => {
     if (cartItems.length === 0) return;
 
     setIsCheckingOut(true);
     setCheckoutResult(null);
 
+    // Determine the API base URL
+    // In production (served from MCP server), use relative URL
+    // In development (Vite dev server), use localhost:2091
+    const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
+    const apiBaseUrl = isViteDevServer ? "http://localhost:2091" : "";
+    const cartId = cartState.cartId || `cart_${Date.now().toString(36)}`;
+
     try {
-      // Try to use window.openai.callTool if available
-      if (window.openai?.callTool) {
-        const response = await window.openai.callTool("checkout", {
-          cartId: cartState.cartId,
+      // Make real HTTP call to the MCP server's REST API
+      // The MCP server handles the full ACP flow and emits SSE events
+      // that the Protocol Inspector can subscribe to independently
+      console.log("[Checkout] Calling checkout REST API...", { cartId, itemCount: cartItems.length });
+      
+      const response = await fetch(`${apiBaseUrl}/cart/checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cartId,
           cartItems: cartItems,
-          subtotal: cartState.subtotal,
-          total: cartState.total,
-        });
+        }),
+      });
 
-        const result = JSON.parse(response.result) as CheckoutResult;
-        setCheckoutResult(result);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Checkout] API error:", response.status, errorText);
+        throw new Error(`Checkout failed: ${response.status}`);
+      }
 
-        if (result.success) {
-          setCartItems([]);
-        }
-      } else {
-        // Simulated checkout for standalone mode
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        const orderId = `order_${Date.now().toString(36).toUpperCase()}`;
-        setCheckoutResult({
-          success: true,
-          status: "confirmed",
-          orderId,
-          message: "Order placed successfully!",
-        });
+      const result = await response.json() as CheckoutResult;
+      console.log("[Checkout] API response:", result);
+      
+      setCheckoutResult(result);
+
+      if (result.success) {
         setCartItems([]);
       }
     } catch (error) {
+      console.error("[Checkout] Error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Checkout failed - is the MCP server running?";
       setCheckoutResult({
         success: false,
         status: "failed",
-        error:
-          error instanceof Error ? error.message : "Checkout failed",
+        error: errorMessage,
       });
     } finally {
       setIsCheckingOut(false);
@@ -321,10 +486,41 @@ export function App() {
           product={selectedProduct}
           recommendations={productRecommendations}
           isLoadingRecommendations={isLoadingRecommendations}
+          cartItemCount={cartState.itemCount}
           onBack={handleBackToBrowse}
           onAddToCart={handleAddToCartWithQuantity}
           onProductClick={handleProductClick}
           onQuickAdd={handleAddToCart}
+          onCartClick={handleCartClick}
+        />
+      </div>
+    );
+  }
+
+  // Render checkout page
+  if (currentPage === "checkout") {
+    // Use checkout recommendations if available, fall back to browse recommendations
+    const displayRecommendations = checkoutRecommendations.length > 0 
+      ? checkoutRecommendations 
+      : browseRecommendations;
+    
+    return (
+      <div className="min-h-screen bg-surface transition-colors">
+        <CheckoutPage
+          cartItems={cartItems}
+          cartState={cartState}
+          recommendations={displayRecommendations}
+          isLoadingRecommendations={isLoadingCheckoutRecommendations}
+          isProcessing={isCheckingOut}
+          checkoutResult={checkoutResult}
+          sessionId={sessionId}
+          onBack={handleBackToBrowse}
+          onUpdateQuantity={handleUpdateQuantity}
+          onRemoveItem={handleRemoveItem}
+          onCheckout={handleCheckout}
+          onProductClick={handleProductClick}
+          onQuickAdd={handleAddToCart}
+          onClearResult={handleClearCart}
         />
       </div>
     );
@@ -338,76 +534,20 @@ export function App() {
         <ThemeToggle />
       </div>
 
-      {/* Loyalty Header */}
-      <LoyaltyHeader user={user} />
+      {/* Loyalty Header with Cart Icon */}
+      <LoyaltyHeader
+        user={user}
+        cartItemCount={cartState.itemCount}
+        onCartClick={handleCartClick}
+      />
 
-      {/* Main Content */}
+      {/* Main Content - Only show recommendations */}
       <div className="px-5 pb-6">
-        {/* Success Message */}
-        {checkoutResult?.success && (
-          <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle className="h-8 w-8 text-success" strokeWidth={1.5} />
-            </div>
-            <h3 className="mb-2 text-xl font-semibold text-text">
-              Order Placed Successfully!
-            </h3>
-            <p className="mb-6 text-sm text-text-secondary">
-              Order ID: {checkoutResult.orderId}
-            </p>
-            <button
-              onClick={handleClearCart}
-              className="rounded-full bg-success px-6 py-3 font-medium text-white transition-colors hover:bg-success-hover active:scale-[0.98]"
-            >
-              Continue Shopping
-            </button>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {checkoutResult && !checkoutResult.success && (
-          <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10 dark:bg-red-500/20">
-              <AlertCircle className="h-8 w-8 text-red-500" strokeWidth={1.5} />
-            </div>
-            <p className="mb-6 text-sm text-text-secondary">
-              {checkoutResult.error || "Checkout failed"}
-            </p>
-            <button
-              onClick={() => setCheckoutResult(null)}
-              className="rounded-full bg-red-500/10 px-6 py-3 font-medium text-red-500 transition-colors hover:bg-red-500/20 active:scale-[0.98] dark:bg-red-500/20 dark:hover:bg-red-500/30"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Normal Shopping View */}
-        {!checkoutResult?.success && (
-          <>
-            {/* Recommendations */}
-            <RecommendationCarousel
-              products={browseRecommendations}
-              onAddToCart={handleAddToCart}
-              onProductClick={handleProductClick}
-            />
-
-            {/* Shopping Cart */}
-            <ShoppingCart
-              items={cartItems}
-              cartState={cartState}
-              onUpdateQuantity={handleUpdateQuantity}
-              onRemoveItem={handleRemoveItem}
-            />
-
-            {/* Checkout Button */}
-            <CheckoutButton
-              cartState={cartState}
-              isProcessing={isCheckingOut}
-              onCheckout={handleCheckout}
-            />
-          </>
-        )}
+        <RecommendationCarousel
+          products={browseRecommendations}
+          onAddToCart={handleAddToCart}
+          onProductClick={handleProductClick}
+        />
       </div>
     </div>
   );

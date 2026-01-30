@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { ArrowLeft, Minus, Plus, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Minus, Plus, ShoppingCart, ShoppingBag } from "lucide-react";
 import type { Product } from "@/types";
 import { formatPrice, getProductImage } from "@/types";
 import { RecommendationSkeleton } from "@/components/RecommendationSkeleton";
@@ -8,10 +8,12 @@ interface ProductDetailPageProps {
   product: Product;
   recommendations: Product[];
   isLoadingRecommendations: boolean;
+  cartItemCount?: number;
   onBack: () => void;
   onAddToCart: (product: Product, quantity: number) => void;
   onProductClick: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
+  onCartClick?: () => void;
 }
 
 /**
@@ -39,7 +41,7 @@ function RecommendationCard({
   return (
     <article
       onClick={() => onProductClick(product)}
-      className="group min-w-[140px] max-w-[140px] flex-shrink-0 cursor-pointer overflow-hidden rounded-xl border border-default bg-surface-elevated transition-all hover:border-accent dark:hover:border-accent/70"
+      className="group flex flex-col cursor-pointer overflow-hidden rounded-lg border border-default bg-surface-elevated transition-all hover:border-accent dark:hover:border-accent/70"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -51,18 +53,18 @@ function RecommendationCard({
       aria-label={`View ${product.name} details`}
     >
       {/* Product Image */}
-      <div className="relative overflow-hidden">
+      <div className="relative aspect-square overflow-hidden">
         <img
           src={getProductImage(product.id)}
           alt={product.name}
-          className="h-[100px] w-full object-cover transition-transform duration-200 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
           loading="lazy"
         />
       </div>
 
       {/* Product Info */}
-      <div className="flex flex-col gap-1 p-2">
-        <h4 className="truncate text-xs font-medium text-text">{product.name}</h4>
+      <div className="flex flex-col gap-0.5 px-2 pt-2 pb-1.5">
+        <h4 className="truncate text-xs font-medium text-text leading-tight">{product.name}</h4>
         <p className="text-xs font-semibold text-success">{formatPrice(product.basePrice)}</p>
       </div>
 
@@ -95,10 +97,12 @@ export function ProductDetailPage({
   product,
   recommendations,
   isLoadingRecommendations,
+  cartItemCount = 0,
   onBack,
   onAddToCart,
   onProductClick,
   onQuickAdd,
+  onCartClick,
 }: ProductDetailPageProps) {
   const [quantity, setQuantity] = useState(1);
 
@@ -117,7 +121,7 @@ export function ProductDetailPage({
 
   return (
     <div className="flex flex-col">
-      {/* Header with back button */}
+      {/* Header with back button and cart icon */}
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-default bg-surface px-4 py-3">
         <button
           onClick={onBack}
@@ -127,16 +131,32 @@ export function ProductDetailPage({
           <ArrowLeft className="h-5 w-5 text-text" strokeWidth={2} />
         </button>
         <h1 className="flex-1 truncate text-base font-semibold text-text">{product.name}</h1>
+        
+        {/* Cart Icon with Badge */}
+        {onCartClick && (
+          <button
+            onClick={onCartClick}
+            className="relative flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 transition-colors hover:bg-accent/20 dark:bg-accent/20 dark:hover:bg-accent/30"
+            aria-label={`Shopping cart with ${cartItemCount} items`}
+          >
+            <ShoppingBag className="h-5 w-5 text-accent" strokeWidth={2} />
+            {cartItemCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-xs font-bold text-white shadow-sm">
+                {cartItemCount > 9 ? "9+" : cartItemCount}
+              </span>
+            )}
+          </button>
+        )}
       </header>
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto">
         {/* Product Image */}
-        <div className="relative">
+        <div className="relative bg-neutral-100 dark:bg-neutral-800">
           <img
             src={getProductImage(product.id)}
             alt={product.name}
-            className="h-64 w-full object-cover"
+            className="mx-auto h-56 w-auto object-contain"
           />
         </div>
 
@@ -194,7 +214,7 @@ export function ProductDetailPage({
 
           {/* Recommendations */}
           {!isLoadingRecommendations && recommendations.length > 0 && (
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+            <div className="grid grid-cols-3 gap-3">
               {recommendations.map((rec) => (
                 <RecommendationCard
                   key={rec.id}

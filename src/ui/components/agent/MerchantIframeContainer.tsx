@@ -182,7 +182,9 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
       productId: string;
       productName: string;
       cartItems: Array<{ productId: string; name: string; price: number }>;
+      source?: string;
     }) => {
+      const source = data.source || "product_detail";
       // Record start time for minimum delay calculation
       const startTime = Date.now();
 
@@ -197,11 +199,12 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
       const agentEventId = logAgentCall("recommendation", inputSignals);
 
       // Log to ACP protocol inspector
+      const contextLabel = source === "checkout" ? "cart checkout" : data.productName;
       const acpEventId = logEvent(
         "session_update",
         "POST",
         "/api/mcp (tools/call: get-recommendations)",
-        `Getting recommendations for ${data.productName}...`
+        `Getting recommendations for ${contextLabel}...`
       );
 
       /**
@@ -280,9 +283,10 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
         // Ensure minimum delay for UX before sending result
         await waitForMinDelay();
 
-        // Send result back to iframe
+        // Send result back to iframe with source for routing
         const messageToSend = {
           type: "RECOMMENDATIONS_RESULT",
+          source,
           recommendations: rawRecommendations,
           userIntent,
           pipelineTrace: rawPipelineTrace,
@@ -303,10 +307,11 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
         // Ensure minimum delay for UX before sending error
         await waitForMinDelay();
 
-        // Send error back to iframe
+        // Send error back to iframe with source for routing
         iframeRef.current?.contentWindow?.postMessage(
           {
             type: "RECOMMENDATIONS_RESULT",
+            source,
             recommendations: [],
             error: errorMessage,
           },
@@ -329,31 +334,34 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
 
       // Handle recommendation request from widget
       if (message.type === "GET_RECOMMENDATIONS") {
-        handleRecommendationRequest({
+        const requestData: {
+          productId: string;
+          productName: string;
+          cartItems: Array<{ productId: string; name: string; price: number }>;
+          source?: string;
+        } = {
           productId: message.productId as string,
           productName: message.productName as string,
           cartItems:
             (message.cartItems as Array<{ productId: string; name: string; price: number }>) ?? [],
-        });
+        };
+        if (message.source) {
+          requestData.source = message.source as string;
+        }
+        handleRecommendationRequest(requestData);
         return;
       }
 
-      // Listen for checkout completion notification from the widget
+      // Listen for checkout completion notification from the widget (optional)
+      // Note: The widget is isolated and doesn't send postMessage for checkout events.
+      // Instead, the Protocol Inspector subscribes to SSE events from the MCP server.
       if (message.type === "CHECKOUT_COMPLETE" && message.orderId) {
-        const eventId = logEvent(
-          "session_update",
-          "POST",
-          "/checkout_sessions/complete",
-          "Processing checkout..."
-        );
-        completeEvent(eventId, "success", `Order completed: ${message.orderId}`, 200);
-
         if (onCheckoutComplete) {
           onCheckoutComplete(message.orderId as string);
         }
       }
     },
-    [logEvent, completeEvent, onCheckoutComplete, handleRecommendationRequest]
+    [onCheckoutComplete, handleRecommendationRequest]
   );
 
   /**

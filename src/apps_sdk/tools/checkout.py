@@ -1,13 +1,15 @@
 """
 Checkout tool for the MCP server.
 
-Processes checkout through the ACP payment flow.
+Processes checkout through the ACP payment flow with PSP delegation.
+Emits SSE events for Protocol Inspector integration.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import httpx
@@ -15,15 +17,52 @@ import httpx
 from src.apps_sdk.config import get_apps_sdk_settings
 from src.apps_sdk.tools.cart import calculate_cart_totals, carts
 
+if TYPE_CHECKING:
+    pass
+
 logger = logging.getLogger(__name__)
+
+
+def _emit_event(
+    event_type: str,
+    endpoint: str,
+    method: str = "POST",
+    status: str = "success",
+    summary: str | None = None,
+    status_code: int | None = None,
+    session_id: str | None = None,
+    order_id: str | None = None,
+) -> None:
+    """Emit checkout event to SSE subscribers.
+
+    Lazy import to avoid circular dependency.
+    """
+    try:
+        from src.apps_sdk.main import emit_checkout_event
+
+        emit_checkout_event(
+            event_type=event_type,
+            endpoint=endpoint,
+            method=method,
+            status=status,
+            summary=summary,
+            status_code=status_code,
+            session_id=session_id,
+            order_id=order_id,
+        )
+    except ImportError:
+        # Module not loaded yet, skip event emission
+        pass
 
 
 async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
     """
-    Process checkout through the ACP payment flow.
+    Process checkout through the ACP payment flow with PSP delegation.
 
-    This calls the merchant API to create a checkout session,
-    delegate payment to the PSP, and complete the order.
+    Flow:
+    1. Create checkout session on merchant API
+    2. Delegate payment to PSP → get vault token
+    3. Complete checkout with vault token
 
     Falls back to simulated checkout if the API is unavailable.
 
@@ -41,7 +80,9 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
     """
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
+    psp_api_url = settings.psp_api_url
     api_key = settings.api_key
+    psp_api_key = settings.psp_api_key
 
     cart_items = carts.get(cart_id, [])
     if not cart_items:
@@ -56,18 +97,19 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
     totals = calculate_cart_totals(cart_items)
     item_count = sum(item["quantity"] for item in cart_items)
 
-    # Build line items for ACP session
-    line_items = [
-        {
-            "item": {"id": item["id"], "quantity": item["quantity"]},
-            "base_amount": item["basePrice"] * item["quantity"],
-        }
-        for item in cart_items
-    ]
+    # Build items for ACP session (only id and quantity needed)
+    items = [{"id": item["id"], "quantity": item["quantity"]} for item in cart_items]
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            # Create checkout session
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Step 1: Create checkout session on merchant API
+            logger.info(f"Creating checkout session for cart {cart_id}")
+            _emit_event(
+                "session_create",
+                "/checkout_sessions",
+                status="pending",
+                summary=f"Creating session for {item_count} item(s)",
+            )
             session_response = await client.post(
                 f"{merchant_api_url}/checkout_sessions",
                 headers={
@@ -75,13 +117,15 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "line_items": line_items,
+                    "items": items,
                     "buyer": {
+                        "first_name": "John",
+                        "last_name": "Doe",
                         "email": "john@example.com",
-                        "name": "John Doe",
                     },
                     "fulfillment_address": {
-                        "street_address": "123 Main St",
+                        "name": "John Doe",
+                        "line_one": "123 Main St",
                         "city": "San Francisco",
                         "state": "CA",
                         "postal_code": "94102",
@@ -90,69 +134,231 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                 },
             )
 
-            if session_response.status_code == 201:
-                session_data = session_response.json()
-                session_id = session_data.get("id")
+            if session_response.status_code != 201:
+                logger.warning(
+                    f"Failed to create checkout session: {session_response.status_code}"
+                )
+                raise Exception("Failed to create checkout session")
 
-                # Complete checkout
-                complete_response = await client.post(
-                    f"{merchant_api_url}/checkout_sessions/{session_id}/complete",
+            session_data = session_response.json()
+            session_id = session_data.get("id")
+            logger.info(f"Created checkout session: {session_id}")
+            _emit_event(
+                "session_create",
+                "/checkout_sessions",
+                status="success",
+                summary=f"Session {session_id} created",
+                status_code=201,
+                session_id=session_id,
+            )
+
+            # Get the first available fulfillment option
+            fulfillment_options = session_data.get("fulfillment_options", [])
+            selected_option_id = None
+            if fulfillment_options:
+                selected_option_id = fulfillment_options[0].get("id")
+
+            # Step 2: Update checkout session to select shipping option
+            if selected_option_id:
+                logger.info(
+                    f"Updating session {session_id} with fulfillment option {selected_option_id}"
+                )
+                update_response = await client.post(
+                    f"{merchant_api_url}/checkout_sessions/{session_id}",
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                     },
                     json={
-                        "payment_details": {
-                            "card_number": "4242424242424242",
-                            "expiry_month": "12",
-                            "expiry_year": "2025",
-                            "cvc": "123",
-                        },
+                        "fulfillment_option_id": selected_option_id,
+                    },
+                )
+
+                if update_response.status_code != 200:
+                    logger.warning(
+                        f"Failed to update checkout session: {update_response.status_code} - {update_response.text}"
+                    )
+                    # Continue anyway - session might still be completable
+                else:
+                    session_data = update_response.json()
+                    logger.info(
+                        f"Session status after update: {session_data.get('status')}"
+                    )
+
+            # Step 3: Delegate payment to PSP to get vault token (need session total)
+            logger.info(f"Delegating payment to PSP for session {session_id}")
+            _emit_event(
+                "delegate_payment",
+                "/agentic_commerce/delegate_payment",
+                status="pending",
+                summary="Delegating payment to PSP...",
+                session_id=session_id,
+            )
+            idempotency_key = f"checkout_{cart_id}_{uuid4().hex[:8]}"
+            expires_at = datetime.now(UTC) + timedelta(hours=1)
+
+            delegate_response = await client.post(
+                f"{psp_api_url}/agentic_commerce/delegate_payment",
+                headers={
+                    "Authorization": f"Bearer {psp_api_key}",
+                    "Content-Type": "application/json",
+                    "Idempotency-Key": idempotency_key,
+                },
+                json={
+                    "payment_method": {
+                        "type": "card",
+                        "card_number_type": "fpan",
+                        "virtual": False,
+                        "number": "4242424242424242",
+                        "exp_month": "12",
+                        "exp_year": "2027",
+                        "display_card_funding_type": "credit",
+                        "display_last4": "4242",
+                    },
+                    "allowance": {
+                        "reason": "one_time",
+                        "max_amount": totals["total"],
+                        "currency": "USD",
+                        "checkout_session_id": session_id,
+                        "merchant_id": "merchant_acp_demo",
+                        "expires_at": expires_at.isoformat(),
+                    },
+                    "risk_signals": [
+                        {
+                            "type": "card_testing",
+                            "action": "authorized",
+                        }
+                    ],
+                    "billing_address": {
+                        "name": "John Doe",
+                        "line_one": "123 Main St",
+                        "city": "San Francisco",
+                        "state": "CA",
+                        "country": "US",
+                        "postal_code": "94102",
+                    },
+                },
+            )
+
+            if delegate_response.status_code not in (200, 201):
+                logger.warning(
+                    f"Failed to delegate payment: {delegate_response.status_code} - {delegate_response.text}"
+                )
+                raise Exception("Failed to delegate payment to PSP")
+
+            delegate_data = delegate_response.json()
+            vault_token_id = delegate_data.get("id")
+            logger.info(f"Received vault token: {vault_token_id}")
+            _emit_event(
+                "delegate_payment",
+                "/agentic_commerce/delegate_payment",
+                status="success",
+                summary=f"Vault token {vault_token_id} received",
+                status_code=201,
+                session_id=session_id,
+            )
+
+            # Step 4: Complete checkout with vault token
+            logger.info(f"Completing checkout session {session_id} with vault token")
+            _emit_event(
+                "session_complete",
+                f"/checkout_sessions/{session_id}/complete",
+                status="pending",
+                summary="Completing checkout...",
+                session_id=session_id,
+            )
+            complete_response = await client.post(
+                f"{merchant_api_url}/checkout_sessions/{session_id}/complete",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "payment_data": {
+                        "token": vault_token_id,
+                        "provider": "stripe",
                         "billing_address": {
-                            "street_address": "123 Main St",
+                            "name": "John Doe",
+                            "line_one": "123 Main St",
                             "city": "San Francisco",
                             "state": "CA",
                             "postal_code": "94102",
                             "country": "US",
                         },
                     },
+                },
+            )
+
+            if complete_response.status_code == 200:
+                result = complete_response.json()
+                order = result.get("order", {})
+                order_id = order.get("id", f"order_{uuid4().hex[:8].upper()}")
+
+                # Clear cart after successful checkout
+                carts[cart_id] = []
+
+                logger.info(f"Checkout completed successfully: {order_id}")
+                _emit_event(
+                    "session_complete",
+                    f"/checkout_sessions/{session_id}/complete",
+                    status="success",
+                    summary=f"Order {order_id} confirmed",
+                    status_code=200,
+                    session_id=session_id,
+                    order_id=order_id,
                 )
+                return {
+                    "success": True,
+                    "status": "confirmed",
+                    "orderId": order_id,
+                    "message": "Order placed successfully!",
+                    "total": totals["total"],
+                    "itemCount": item_count,
+                    "orderUrl": order.get("permalink_url"),
+                }
+            else:
+                logger.error(
+                    f"Failed to complete checkout: {complete_response.status_code} - {complete_response.text}"
+                )
+                _emit_event(
+                    "session_complete",
+                    f"/checkout_sessions/{session_id}/complete",
+                    status="error",
+                    summary=f"Checkout failed: {complete_response.status_code}",
+                    status_code=complete_response.status_code,
+                    session_id=session_id,
+                )
+                return {
+                    "success": False,
+                    "status": "failed",
+                    "error": f"Checkout completion failed: {complete_response.status_code}",
+                    "message": "Failed to complete checkout",
+                }
 
-                if complete_response.status_code == 200:
-                    result = complete_response.json()
-                    order = result.get("order", {})
+    except httpx.ConnectError as e:
+        logger.warning(f"Connection error during checkout: {e}")
+        logger.info("Falling back to simulated checkout")
 
-                    # Clear cart after successful checkout
-                    carts[cart_id] = []
+        # Simulated checkout fallback when API is unavailable
+        order_id = f"order_{uuid4().hex[:8].upper()}"
+        carts[cart_id] = []  # Clear cart
 
-                    return {
-                        "success": True,
-                        "status": "confirmed",
-                        "orderId": order.get("id", f"order_{uuid4().hex[:8].upper()}"),
-                        "message": "Order placed successfully!",
-                        "total": totals["total"],
-                        "itemCount": item_count,
-                        "orderUrl": order.get("permalink_url"),
-                    }
-
+        return {
+            "success": True,
+            "status": "confirmed",
+            "orderId": order_id,
+            "message": "Order placed successfully! (simulated)",
+            "total": totals["total"],
+            "itemCount": item_count,
+        }
     except Exception as e:
-        # Log error but fall through to simulated checkout
-        logger.warning(f"ACP checkout error: {e}")
-
-    # Simulated checkout for development
-    order_id = f"order_{uuid4().hex[:8].upper()}"
-
-    # Clear cart
-    carts[cart_id] = []
-
-    return {
-        "success": True,
-        "status": "confirmed",
-        "orderId": order_id,
-        "message": "Order placed successfully!",
-        "total": totals["total"],
-        "itemCount": item_count,
-    }
+        logger.error(f"ACP checkout error: {e}")
+        return {
+            "success": False,
+            "status": "failed",
+            "error": str(e),
+            "message": f"Checkout failed: {e}",
+        }
 
 
 async def checkout(cart_id: str) -> dict[str, Any]:
