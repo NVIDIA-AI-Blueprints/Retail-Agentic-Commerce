@@ -308,16 +308,35 @@ export function calculateCartTotals(
 }
 
 /**
+ * Get the base path for widget assets based on deployment context.
+ * Supports three deployment modes:
+ * 1. Vite dev server (localhost:3001/3002): Root path "/"
+ * 2. Apps SDK server direct (localhost:2091): "/widget/"
+ * 3. Docker via nginx (/apps-sdk/ path): "/apps-sdk/widget/"
+ */
+export function getWidgetAssetBasePath(): string {
+  const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
+  const isAppsSdkPath = window.location.pathname.startsWith("/apps-sdk/");
+
+  if (isViteDevServer) {
+    // Local Vite dev server - images served from root
+    return "";
+  } else if (isAppsSdkPath) {
+    // Docker via nginx - images under /apps-sdk/widget/
+    return "/apps-sdk/widget";
+  } else {
+    // Direct Apps SDK server (localhost:2091) - images under /widget/
+    return "/widget";
+  }
+}
+
+/**
  * Get product image URL based on product ID
  * Images are named after product IDs: prod_1.jpeg, prod_2.jpeg, etc.
- * In production, images are served from /widget/ path by the Apps SDK server.
- * In development (Vite dev server), images are served from root path.
+ * Automatically detects deployment context (local dev, direct, or Docker via nginx).
  */
 export function getProductImage(productId?: string): string {
-  // Detect if running in production (served from Apps SDK server)
-  // vs development (Vite dev server on localhost:3001)
-  const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
-  const basePath = isViteDevServer ? "" : "/widget";
+  const basePath = getWidgetAssetBasePath();
 
   if (productId && productId.startsWith("prod_")) {
     return `${basePath}/${productId}.jpeg`;

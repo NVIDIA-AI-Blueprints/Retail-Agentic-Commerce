@@ -1,0 +1,47 @@
+# Dependencies
+node_modules
+.venv
+__pycache__
+*.pyc
+*.pyo
+
+# Build outputs
+.next
+dist
+build
+*.egg-info
+
+# Git and IDE
+.git
+.gitignore
+.cursor
+.vscode
+.idea
+
+# Documentation
+docs
+
+# Tests
+tests
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Environment and secrets
+.env
+.env.*
+!env.example
+*.db
+
+# Misc
+.DS_Store
+*.log
+*.tmp
+coverage
+.nyc_output
+
+# Docker files we don't need in context
+Dockerfile*
+docker-compose*.yml
+!docker-compose.yml

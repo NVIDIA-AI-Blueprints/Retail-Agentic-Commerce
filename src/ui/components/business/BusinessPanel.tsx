@@ -5,6 +5,11 @@ import { useACPLog, type ACPEvent, type ACPEventType } from "@/hooks/useACPLog";
 import { useCheckoutEvents } from "@/hooks/useCheckoutEvents";
 
 /**
+ * MCP Server base URL - uses nginx proxy in Docker, direct in development
+ */
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "http://localhost:2091";
+
+/**
  * Get display info for event types
  */
 function getEventTypeInfo(type: ACPEventType): {
@@ -271,7 +276,7 @@ export function BusinessPanel() {
 
     // Also clear server-side event store (fire and forget, ignore errors)
     try {
-      await fetch("http://localhost:2091/events", { method: "DELETE" });
+      await fetch(`${MCP_SERVER_URL}/events`, { method: "DELETE" });
     } catch {
       // Silently ignore - server may not be running
     }

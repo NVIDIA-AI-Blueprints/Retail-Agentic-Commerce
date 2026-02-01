@@ -15,10 +15,19 @@ interface MerchantIframeContainerProps {
 }
 
 /**
- * Fallback URL for development when MCP server is not running.
- * Uses the Vite dev server directly (port may vary if 3001 is in use).
+ * MCP Server base URL - uses nginx proxy in Docker, direct in development
  */
-const VITE_DEV_URL = "http://localhost:3001";
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "http://localhost:2091";
+
+/**
+ * Fallback URL when MCP tool discovery fails.
+ * In Docker: uses nginx-proxied Apps SDK widget
+ * In dev: uses Vite dev server directly
+ */
+const FALLBACK_WIDGET_URL =
+  MCP_SERVER_URL === "/apps-sdk"
+    ? "/apps-sdk/widget/merchant-app.html" // Docker via nginx
+    : "http://localhost:3001"; // Local Vite dev server
 
 /**
  * Loading animation delay in milliseconds.
@@ -121,9 +130,9 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
       const errorMessage = error instanceof Error ? error.message : "MCP tool call failed";
 
       // Complete the original event with error, include fallback info in the message
-      completeEvent(eventId, "error", `${errorMessage} → Fallback: ${VITE_DEV_URL}`, 500);
+      completeEvent(eventId, "error", `${errorMessage} → Fallback: ${FALLBACK_WIDGET_URL}`, 500);
 
-      setIframeSrc(VITE_DEV_URL);
+      setIframeSrc(FALLBACK_WIDGET_URL);
       setMcpStatus("error");
     }
   }, [logEvent, completeEvent, getWidgetUrl]);
@@ -167,8 +176,8 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
    * Handle iframe error - fallback to Vite dev server
    */
   const handleIframeError = useCallback(() => {
-    if (iframeSrc && iframeSrc !== VITE_DEV_URL) {
-      setIframeSrc(VITE_DEV_URL);
+    if (iframeSrc && iframeSrc !== FALLBACK_WIDGET_URL) {
+      setIframeSrc(FALLBACK_WIDGET_URL);
     }
   }, [iframeSrc]);
 

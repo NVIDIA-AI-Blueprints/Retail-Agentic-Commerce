@@ -56,7 +56,7 @@ def verify_api_key(
         )
 
     # Validate API key against configured value
-    if not settings.api_key:
+    if not settings.merchant_api_key:
         # No API key configured - reject all requests in production
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -67,7 +67,7 @@ def verify_api_key(
             },
         )
 
-    if api_key != settings.api_key:
+    if api_key != settings.merchant_api_key:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

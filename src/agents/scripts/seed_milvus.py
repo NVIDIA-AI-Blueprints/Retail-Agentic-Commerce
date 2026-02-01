@@ -154,7 +154,11 @@ def seed_products(collection: Any):
     # Create text for embedding - combine name + description + attributes
     embedding_texts = []
     for product in PRODUCTS:
-        text = f"{product['name']}. {product['description']} Category: {product['category']}. Attributes: {', '.join(product['attributes'])}"
+        attrs = ", ".join(product["attributes"])
+        text = (
+            f"{product['name']}. {product['description']} "
+            f"Category: {product['category']}. Attributes: {attrs}"
+        )
         embedding_texts.append(text)
 
     print(f"  Prepared {len(embedding_texts)} product texts for embedding")
@@ -213,9 +217,9 @@ def verify_collection(collection: Any):
     print(f"\n  Test query: '{test_query}'")
     print("  Top 5 results:")
     for i, hit in enumerate(results[0]):
-        print(
-            f"    {i + 1}. {hit.entity.get('name')} ({hit.entity.get('category')}) - score: {hit.score:.4f}"
-        )
+        name = hit.entity.get("name")
+        category = hit.entity.get("category")
+        print(f"    {i + 1}. {name} ({category}) - score: {hit.score:.4f}")
 
     return True
 

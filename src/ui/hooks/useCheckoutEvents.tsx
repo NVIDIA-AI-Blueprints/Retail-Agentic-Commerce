@@ -57,15 +57,20 @@ function mapEventType(type: string): ACPEventType {
 }
 
 /**
+ * MCP Server base URL - uses nginx proxy in Docker, direct in development
+ */
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "http://localhost:2091";
+
+/**
  * Hook to subscribe to checkout events from the MCP server via SSE.
  *
  * This allows the Protocol Inspector to display real-time checkout events
  * without requiring the widget to send postMessage. The widget remains
  * fully isolated.
  *
- * @param mcpServerUrl - Base URL of the MCP server (default: http://localhost:2091)
+ * @param mcpServerUrl - Base URL of the MCP server
  */
-export function useCheckoutEvents(mcpServerUrl = "http://localhost:2091") {
+export function useCheckoutEvents(mcpServerUrl = MCP_SERVER_URL) {
   const { logEvent, completeEvent } = useACPLog();
   const { addAgentEvent } = useAgentActivityLog();
   const eventSourceRef = useRef<EventSource | null>(null);

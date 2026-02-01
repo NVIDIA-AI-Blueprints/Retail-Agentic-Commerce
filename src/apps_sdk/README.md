@@ -175,8 +175,8 @@ Settings are managed via environment variables or `.env` file:
 | `MERCHANT_API_URL` | `http://localhost:8000` | Merchant API URL |
 | `PSP_API_URL` | `http://localhost:8001` | PSP service URL |
 | `ARAG_AGENT_URL` | `http://localhost:8004` | Recommendation agent URL |
-| `API_KEY` | `your-api-key` | Merchant API key |
-| `PSP_API_KEY` | `psp-api-key-12345` | PSP API key |
+| `MERCHANT_API_KEY` | `merchant-api-key-12345` | Merchant API authentication key |
+| `PSP_API_KEY` | `psp-api-key-12345` | PSP API authentication key |
 
 ## Widget: window.openai Bridge
 

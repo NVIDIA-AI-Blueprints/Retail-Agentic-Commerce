@@ -1350,7 +1350,7 @@ async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]
 
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
-    api_key = settings.api_key
+    merchant_api_key = settings.merchant_api_key
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -1364,7 +1364,7 @@ async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]
             response = await client.post(
                 f"{merchant_api_url}/checkout_sessions",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "Authorization": f"Bearer {merchant_api_key}",
                     "Content-Type": "application/json",
                 },
                 json=body,
@@ -1449,7 +1449,7 @@ async def acp_update_session(
     """
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
-    api_key = settings.api_key
+    merchant_api_key = settings.merchant_api_key
 
     # Build update summary
     update_parts: list[str] = []
@@ -1475,7 +1475,7 @@ async def acp_update_session(
             response = await client.post(
                 f"{merchant_api_url}/checkout_sessions/{session_id}",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "Authorization": f"Bearer {merchant_api_key}",
                     "Content-Type": "application/json",
                 },
                 json=body,

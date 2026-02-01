@@ -1,6 +1,6 @@
 """Checkout session API routes implementing the Agentic Checkout Protocol."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel import Session
 
 from src.merchant.api.dependencies import verify_api_key
@@ -24,6 +24,7 @@ from src.merchant.services.checkout import (
     get_checkout_session,
     update_checkout_session,
 )
+from src.merchant.services.post_purchase_webhook import trigger_post_purchase_flow
 
 router = APIRouter(
     prefix="/checkout_sessions",
@@ -212,13 +213,18 @@ async def update_checkout(
 def complete_checkout(
     session_id: str,
     request: CompleteCheckoutRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
 ) -> CheckoutSessionResponse:
     """Complete a checkout session with payment.
 
+    After successful completion, triggers the post-purchase agent flow
+    as a background task (per ACP spec - Merchant sends webhook to Client).
+
     Args:
         session_id: Checkout session ID.
         request: CompleteCheckoutRequest with payment data.
+        background_tasks: FastAPI background tasks for post-purchase flow.
         db: Database session from dependency injection.
 
     Returns:
@@ -228,9 +234,36 @@ def complete_checkout(
         HTTPException: 404 if session not found, 405 if invalid state.
     """
     try:
-        return complete_checkout_session(
+        response = complete_checkout_session(
             db, session_id, request.payment_data, request.buyer
         )
+
+        # Trigger post-purchase agent and webhook delivery (ACP architecture)
+        # This runs as a background task so it doesn't block the checkout response
+        if response.order is not None:
+            # Extract customer name (use buyer from request or response)
+            customer_name = "Customer"
+            if request.buyer and request.buyer.first_name:
+                customer_name = request.buyer.first_name
+            elif response.buyer and response.buyer.first_name:
+                customer_name = response.buyer.first_name
+
+            # Extract product name from first line item
+            product_name = "your order"
+            if response.line_items:
+                product_name = response.line_items[0].name or "your item"
+
+            # Queue the post-purchase flow as a background task
+            background_tasks.add_task(
+                trigger_post_purchase_flow,
+                checkout_session_id=session_id,
+                order_id=response.order.id,
+                customer_name=customer_name,
+                product_name=product_name,
+                language="en",  # Could be extracted from buyer preferences
+            )
+
+        return response
     except (SessionNotFoundError, InvalidStateTransitionError) as e:
         raise _handle_service_error(e) from e
 
