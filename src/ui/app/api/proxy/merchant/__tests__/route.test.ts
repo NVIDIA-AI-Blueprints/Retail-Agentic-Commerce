@@ -14,7 +14,7 @@ beforeAll(async () => {
   // Set env vars BEFORE dynamic import
   process.env.MERCHANT_API_URL = "http://localhost:8000";
   process.env.MERCHANT_API_KEY = "test-api-key";
-  
+
   // Dynamic import AFTER env is configured
   const routeModule = await import("../[...path]/route");
   GET = routeModule.GET;
@@ -44,10 +44,10 @@ describe("Merchant Proxy Route", () => {
     it("rejects path traversal attempts", async () => {
       const request = new NextRequest("http://localhost/api/proxy/merchant/../../../etc/passwd");
       const params = { params: Promise.resolve({ path: ["..", "..", "..", "etc", "passwd"] }) };
-      
+
       const response = await GET(request, params);
       expect(response.status).toBe(400);
-      
+
       const data = await response.json();
       expect(data.error).toBe("Invalid path");
     });
@@ -55,7 +55,7 @@ describe("Merchant Proxy Route", () => {
     it("rejects protocol injection with colon", async () => {
       const request = new NextRequest("http://localhost/api/proxy/merchant/http:/evil.com");
       const params = { params: Promise.resolve({ path: ["http:", "evil.com"] }) };
-      
+
       const response = await GET(request, params);
       expect(response.status).toBe(400);
     });
@@ -63,22 +63,24 @@ describe("Merchant Proxy Route", () => {
     it("rejects protocol-relative URLs", async () => {
       const request = new NextRequest("http://localhost/api/proxy/merchant//evil.com/path");
       const params = { params: Promise.resolve({ path: ["//evil.com", "path"] }) };
-      
+
       const response = await GET(request, params);
       expect(response.status).toBe(400);
     });
 
     it("allows valid path segments", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response('{"status":"ok"}', { 
+        new Response('{"status":"ok"}', {
           status: 200,
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         })
       );
-      
-      const request = new NextRequest("http://localhost/api/proxy/merchant/checkout_sessions/cs_123");
+
+      const request = new NextRequest(
+        "http://localhost/api/proxy/merchant/checkout_sessions/cs_123"
+      );
       const params = { params: Promise.resolve({ path: ["checkout_sessions", "cs_123"] }) };
-      
+
       const response = await GET(request, params);
       expect(response.status).toBe(200);
     });
@@ -87,35 +89,35 @@ describe("Merchant Proxy Route", () => {
   describe("Header Forwarding", () => {
     it("forwards allowed headers and injects server-side auth", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response('{}', { status: 200 })
+        new Response("{}", { status: 200 })
       );
-      
+
       const request = new NextRequest("http://localhost/api/proxy/merchant/checkout_sessions", {
         headers: {
           "Request-Id": "req_123",
           "Idempotency-Key": "idem_456",
           "API-Version": "2026-01-16",
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          Accept: "application/json",
           // These should be stripped/replaced
-          "Authorization": "Bearer client-key-should-be-stripped",
+          Authorization: "Bearer client-key-should-be-stripped",
           "X-API-Key": "should-be-ignored",
         },
       });
       const params = { params: Promise.resolve({ path: ["checkout_sessions"] }) };
-      
+
       await GET(request, params);
-      
+
       const fetchCall = getFetchCall();
       const headers = fetchCall[1].headers as Headers;
-      
+
       // Allowed headers should be forwarded
       expect(headers.get("Request-Id")).toBe("req_123");
       expect(headers.get("Idempotency-Key")).toBe("idem_456");
       expect(headers.get("API-Version")).toBe("2026-01-16");
       expect(headers.get("Content-Type")).toBe("application/json");
       expect(headers.get("Accept")).toBe("application/json");
-      
+
       // Server-side auth should be injected
       expect(headers.get("Authorization")).toBe("Bearer test-api-key");
     });
@@ -124,35 +126,35 @@ describe("Merchant Proxy Route", () => {
   describe("Query Parameter Preservation", () => {
     it("preserves query parameters in upstream URL", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response('{}', { status: 200 })
+        new Response("{}", { status: 200 })
       );
-      
+
       const request = new NextRequest(
         "http://localhost/api/proxy/merchant/products?limit=10&offset=5"
       );
       const params = { params: Promise.resolve({ path: ["products"] }) };
-      
+
       await GET(request, params);
-      
+
       const fetchCall = getFetchCall();
       const url = fetchCall[0] as string;
-      
+
       expect(url).toContain("?limit=10&offset=5");
     });
 
     it("handles requests without query parameters", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response('{}', { status: 200 })
+        new Response("{}", { status: 200 })
       );
-      
+
       const request = new NextRequest("http://localhost/api/proxy/merchant/health");
       const params = { params: Promise.resolve({ path: ["health"] }) };
-      
+
       await GET(request, params);
-      
+
       const fetchCall = getFetchCall();
       const url = fetchCall[0] as string;
-      
+
       expect(url).toBe("http://localhost:8000/health");
     });
   });
@@ -160,9 +162,9 @@ describe("Merchant Proxy Route", () => {
   describe("Request Body Handling", () => {
     it("forwards request body as ArrayBuffer for POST", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response('{}', { status: 200 })
+        new Response("{}", { status: 200 })
       );
-      
+
       const body = JSON.stringify({ test: "data" });
       const request = new NextRequest("http://localhost/api/proxy/merchant/checkout_sessions", {
         method: "POST",
@@ -170,9 +172,9 @@ describe("Merchant Proxy Route", () => {
         headers: { "Content-Type": "application/json" },
       });
       const params = { params: Promise.resolve({ path: ["checkout_sessions"] }) };
-      
+
       await POST(request, params);
-      
+
       const fetchCall = getFetchCall();
       expect(fetchCall[1].method).toBe("POST");
       expect(fetchCall[1].body).toBeInstanceOf(ArrayBuffer);
@@ -180,14 +182,14 @@ describe("Merchant Proxy Route", () => {
 
     it("does not forward body for GET requests", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response('{}', { status: 200 })
+        new Response("{}", { status: 200 })
       );
-      
+
       const request = new NextRequest("http://localhost/api/proxy/merchant/checkout_sessions");
       const params = { params: Promise.resolve({ path: ["checkout_sessions"] }) };
-      
+
       await GET(request, params);
-      
+
       const fetchCall = getFetchCall();
       expect(fetchCall[1].body).toBeNull();
     });
@@ -196,17 +198,17 @@ describe("Merchant Proxy Route", () => {
   describe("Empty Path Handling", () => {
     it("proxies to upstream root when path is empty", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response('{}', { status: 200 })
+        new Response("{}", { status: 200 })
       );
-      
+
       const request = new NextRequest("http://localhost/api/proxy/merchant");
       const params = { params: Promise.resolve({ path: [] }) };
-      
+
       await GET(request, params);
-      
+
       const fetchCall = getFetchCall();
       const url = fetchCall[0] as string;
-      
+
       // Empty path should proxy to root
       expect(url).toBe("http://localhost:8000/");
     });
@@ -215,7 +217,7 @@ describe("Merchant Proxy Route", () => {
   describe("OPTIONS Handler", () => {
     it("returns 204 without proxying upstream", async () => {
       const response = await OPTIONS();
-      
+
       expect(response.status).toBe(204);
       expect(global.fetch).not.toHaveBeenCalled();
     });
@@ -225,22 +227,22 @@ describe("Merchant Proxy Route", () => {
     it("forwards upstream response status and body", async () => {
       const upstreamBody = JSON.stringify({ id: "cs_123", status: "created" });
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response(upstreamBody, { 
+        new Response(upstreamBody, {
           status: 201,
           statusText: "Created",
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         })
       );
-      
+
       const request = new NextRequest("http://localhost/api/proxy/merchant/checkout_sessions", {
         method: "POST",
         body: "{}",
         headers: { "Content-Type": "application/json" },
       });
       const params = { params: Promise.resolve({ path: ["checkout_sessions"] }) };
-      
+
       const response = await POST(request, params);
-      
+
       expect(response.status).toBe(201);
       const data = await response.json();
       expect(data.id).toBe("cs_123");
@@ -248,17 +250,19 @@ describe("Merchant Proxy Route", () => {
 
     it("forwards upstream error responses", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response(JSON.stringify({ error: "Not found" }), { 
+        new Response(JSON.stringify({ error: "Not found" }), {
           status: 404,
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         })
       );
-      
-      const request = new NextRequest("http://localhost/api/proxy/merchant/checkout_sessions/invalid");
+
+      const request = new NextRequest(
+        "http://localhost/api/proxy/merchant/checkout_sessions/invalid"
+      );
       const params = { params: Promise.resolve({ path: ["checkout_sessions", "invalid"] }) };
-      
+
       const response = await GET(request, params);
-      
+
       expect(response.status).toBe(404);
     });
   });
@@ -266,12 +270,12 @@ describe("Merchant Proxy Route", () => {
   describe("Error Handling", () => {
     it("returns 502 on fetch error", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Connection refused"));
-      
+
       const request = new NextRequest("http://localhost/api/proxy/merchant/health");
       const params = { params: Promise.resolve({ path: ["health"] }) };
-      
+
       const response = await GET(request, params);
-      
+
       expect(response.status).toBe(502);
       const data = await response.json();
       expect(data.error).toBe("Upstream request failed");

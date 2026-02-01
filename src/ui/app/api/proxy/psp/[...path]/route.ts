@@ -40,11 +40,7 @@ const FORWARD_HEADERS = ["request-id", "idempotency-key", "api-version", "conten
  */
 function validatePathSegments(segments: string[]): boolean {
   for (const segment of segments) {
-    if (
-      segment.includes("..") ||
-      segment.includes(":") ||
-      segment.startsWith("//")
-    ) {
+    if (segment.includes("..") || segment.includes(":") || segment.startsWith("//")) {
       return false;
     }
   }
@@ -59,9 +55,7 @@ function buildUpstreamUrl(baseUrl: string, segments: string[], searchParams: str
   const url = new URL(baseUrl);
   // Preserve base path from baseUrl, then append segments
   const basePath = url.pathname.replace(/\/+$/, ""); // Remove trailing slashes
-  const segmentPath = segments.length > 0 
-    ? "/" + segments.map(encodeURIComponent).join("/")
-    : "";
+  const segmentPath = segments.length > 0 ? "/" + segments.map(encodeURIComponent).join("/") : "";
   url.pathname = basePath + segmentPath;
   // Preserve query string from original request
   url.search = searchParams;
@@ -73,7 +67,7 @@ function buildUpstreamUrl(baseUrl: string, segments: string[], searchParams: str
  */
 function buildUpstreamHeaders(request: NextRequest): Headers {
   const headers = new Headers();
-  
+
   // Forward allowed headers
   for (const name of FORWARD_HEADERS) {
     const value = request.headers.get(name);
@@ -81,10 +75,10 @@ function buildUpstreamHeaders(request: NextRequest): Headers {
       headers.set(name, value);
     }
   }
-  
+
   // Inject server-side auth
   headers.set("Authorization", `Bearer ${PSP_API_KEY}`);
-  
+
   return headers;
 }
 
@@ -105,41 +99,34 @@ async function proxyRequest(
   }
 
   const { path: pathSegments = [] } = await params;
-  
+
   // SSRF protection: validate path segments
   if (!validatePathSegments(pathSegments)) {
     console.error("[PSPProxy] Invalid path segments:", pathSegments);
-    return NextResponse.json(
-      { error: "Invalid path" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
-  
-  const upstreamUrl = buildUpstreamUrl(
-    PSP_API_URL,
-    pathSegments,
-    request.nextUrl.search
-  );
-  
+
+  const upstreamUrl = buildUpstreamUrl(PSP_API_URL, pathSegments, request.nextUrl.search);
+
   const upstreamHeaders = buildUpstreamHeaders(request);
-  
+
   // Forward request body for methods that have one
   let body: ArrayBuffer | null = null;
   if (!["GET", "HEAD"].includes(request.method)) {
     body = await request.arrayBuffer();
   }
-  
+
   try {
     const response = await fetch(upstreamUrl.toString(), {
       method: request.method,
       headers: upstreamHeaders,
       body: body,
     });
-    
+
     // Forward response with status and headers
     const responseBody = await response.arrayBuffer();
     const responseHeaders = new Headers();
-    
+
     // Forward safe response headers
     for (const [key, value] of response.headers.entries()) {
       // Skip hop-by-hop headers
@@ -147,7 +134,7 @@ async function proxyRequest(
         responseHeaders.set(key, value);
       }
     }
-    
+
     return new NextResponse(responseBody, {
       status: response.status,
       statusText: response.statusText,
@@ -155,10 +142,7 @@ async function proxyRequest(
     });
   } catch (error) {
     console.error("[PSPProxy] Fetch error:", error);
-    return NextResponse.json(
-      { error: "Upstream request failed" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Upstream request failed" }, { status: 502 });
   }
 }
 
