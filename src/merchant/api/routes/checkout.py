@@ -24,6 +24,7 @@ from src.merchant.services.checkout import (
     get_checkout_session,
     update_checkout_session,
 )
+from src.merchant.services.post_purchase import OrderItem
 from src.merchant.services.post_purchase_webhook import trigger_post_purchase_flow
 
 router = APIRouter(
@@ -248,15 +249,10 @@ def complete_checkout(
             elif response.buyer and response.buyer.first_name:
                 customer_name = response.buyer.first_name
 
-            items = []
+            items: list[OrderItem] = []
             for line_item in response.line_items or []:
                 item_name = line_item.name or line_item.item.id
-                items.append(
-                    {
-                        "name": item_name,
-                        "quantity": line_item.item.quantity,
-                    }
-                )
+                items.append({"name": item_name, "quantity": line_item.item.quantity})
 
             if not items:
                 items = [{"name": "your order", "quantity": 1}]
