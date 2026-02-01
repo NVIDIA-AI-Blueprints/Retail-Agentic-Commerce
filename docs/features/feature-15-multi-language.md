@@ -85,7 +85,10 @@ POST /api/agents/post-purchase
   "order": {
     "order_id": "order_123",
     "customer_name": "Juan",
-    "product_name": "Camiseta Clásica",
+    "items": [
+      { "name": "Camiseta Clásica", "quantity": 1 },
+      { "name": "Sudadera Logo", "quantity": 2 }
+    ],
     "tracking_url": null,
     "estimated_delivery": "2026-01-29T00:00:00Z"
   },

@@ -29,6 +29,7 @@ checkout completion, so it doesn't block the checkout response.
 import logging
 
 from src.merchant.services.post_purchase import (
+    OrderItem,
     ShippingMessageRequest,
     ShippingStatus,
     SupportedLanguage,
@@ -43,7 +44,7 @@ async def trigger_post_purchase_flow(
     checkout_session_id: str,
     order_id: str,
     customer_name: str,
-    product_name: str,
+    items: list[OrderItem],
     language: str = "en",
 ) -> None:
     """Trigger the post-purchase agent and webhook delivery flow.
@@ -57,7 +58,7 @@ async def trigger_post_purchase_flow(
         checkout_session_id: The checkout session ID
         order_id: The order ID
         customer_name: Customer's first name for personalization
-        product_name: Product name for the message
+        items: Items included in the order
         language: Preferred language (en, es, fr)
     """
     logger.info(
@@ -83,7 +84,7 @@ async def trigger_post_purchase_flow(
         "order": {
             "order_id": order_id,
             "customer_name": customer_name,
-            "product_name": product_name,
+            "items": items,
             "tracking_url": f"https://track.nvshop.demo/orders/{order_id}",
             "estimated_delivery": None,  # Could be calculated based on shipping option
         },

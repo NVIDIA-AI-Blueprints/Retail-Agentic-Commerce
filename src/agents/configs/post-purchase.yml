@@ -58,7 +58,7 @@ workflow:
     - order:
         - order_id: Order identifier
         - customer_name: Customer's first name
-        - product_name: Name of the purchased product
+        - items: Array of items with name and quantity
         - tracking_url: Package tracking URL (may be null for some statuses)
         - estimated_delivery: Estimated delivery date (ISO format)
     - status: Current shipping status
@@ -75,18 +75,18 @@ workflow:
     - fr: French (France)
 
     SHIPPING STATUSES AND MESSAGE CONTENT:
-    - order_confirmed: Thank customer, confirm order received, mention product
-    - order_shipped: Notify shipment, provide tracking URL, mention estimated delivery
-    - out_for_delivery: Alert customer package is arriving today, provide tracking URL
-    - delivered: Confirm delivery, thank customer, invite feedback
+    - order_confirmed: Thank customer, confirm order received, mention items
+    - order_shipped: Notify shipment, provide tracking URL, mention items and estimated delivery
+    - out_for_delivery: Alert customer package is arriving today, provide tracking URL, mention items
+    - delivered: Confirm delivery, thank customer, mention items, invite feedback
 
     MESSAGE GUIDELINES BY TONE:
 
     FRIENDLY (English examples):
     - order_confirmed: "Hey {customer_name}! 🎉 Great news - we've got your order..."
-    - order_shipped: "Your {product_name} is on its way! 🚚 Track it here..."
+    - order_shipped: "Your items are on their way! 🚚 Track them here..."
     - out_for_delivery: "Exciting! Your package arrives today! 📦..."
-    - delivered: "Your {product_name} has arrived! 🎁 We hope you love it..."
+    - delivered: "Your items have arrived! 🎁 We hope you love them..."
 
     PROFESSIONAL (English examples):
     - order_confirmed: "Dear {customer_name}, Thank you for your order..."
@@ -98,7 +98,7 @@ workflow:
     - order_confirmed: "Got it, {customer_name}! Your order's in the system 👍..."
     - order_shipped: "Heads up - your stuff just shipped! 📬..."
     - out_for_delivery: "Today's the day! Your package is almost there..."
-    - delivered: "Dropped off! Your {product_name} is waiting for you..."
+    - delivered: "Dropped off! Your items are waiting for you..."
 
     URGENT (English examples):
     - order_confirmed: "ORDER CONFIRMED: {customer_name}, your order is being processed..."
@@ -130,7 +130,10 @@ workflow:
       "order": {
         "order_id": "order_xyz789",
         "customer_name": "John",
-        "product_name": "Classic Tee",
+        "items": [
+          { "name": "Classic Tee", "quantity": 1 },
+          { "name": "Logo Hoodie", "quantity": 2 }
+        ],
         "tracking_url": "https://track.example.com/abc123",
         "estimated_delivery": "2026-01-28"
       },

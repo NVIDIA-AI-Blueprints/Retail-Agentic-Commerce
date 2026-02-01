@@ -243,7 +243,10 @@ export interface BrandPersona {
 export interface OrderContext {
   order_id: string;
   customer_name: string;
-  product_name: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+  }>;
   tracking_url: string | null;
   estimated_delivery: string;
 }

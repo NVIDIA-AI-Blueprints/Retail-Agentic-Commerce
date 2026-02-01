@@ -89,9 +89,16 @@ class OrderContext(TypedDict):
 
     order_id: str  # Order identifier
     customer_name: str  # Customer's first name
-    product_name: str  # Name of the purchased product
+    items: list["OrderItem"]  # Items purchased
     tracking_url: str | None  # Package tracking URL (may be null)
     estimated_delivery: str | None  # Estimated delivery date (ISO format)
+
+
+class OrderItem(TypedDict):
+    """Item info for post-purchase messaging."""
+
+    name: str
+    quantity: int
 
 
 class ShippingMessageRequest(TypedDict):
@@ -246,58 +253,64 @@ FALLBACK_TEMPLATES: dict[str, dict[str, dict[str, str]]] = {
     "en": {
         ShippingStatus.ORDER_CONFIRMED.value: {
             "subject": "Order Confirmed",
-            "message": "Thank you for your order, {customer_name}! Your {product_name} order has been confirmed.\n\n- {company_name}",
+            "message": "Thank you for your order, {customer_name}! Your {items} order has been confirmed.\n\n- {company_name}",
         },
         ShippingStatus.ORDER_SHIPPED.value: {
             "subject": "Your Order Has Shipped",
-            "message": "Hi {customer_name}, your {product_name} is on its way!\n\nTrack your package: {tracking_url}\n\n- {company_name}",
+            "message": "Hi {customer_name}, your {items} is on its way!\n\nTrack your package: {tracking_url}\n\n- {company_name}",
         },
         ShippingStatus.OUT_FOR_DELIVERY.value: {
             "subject": "Out for Delivery",
-            "message": "Hi {customer_name}, your {product_name} will arrive today!\n\nTrack your package: {tracking_url}\n\n- {company_name}",
+            "message": "Hi {customer_name}, your {items} will arrive today!\n\nTrack your package: {tracking_url}\n\n- {company_name}",
         },
         ShippingStatus.DELIVERED.value: {
             "subject": "Your Order Has Been Delivered",
-            "message": "Hi {customer_name}, your {product_name} has been delivered! We hope you enjoy it.\n\n- {company_name}",
+            "message": "Hi {customer_name}, your {items} has been delivered! We hope you enjoy it.\n\n- {company_name}",
         },
     },
     "es": {
         ShippingStatus.ORDER_CONFIRMED.value: {
             "subject": "Pedido Confirmado",
-            "message": "¡Gracias por tu pedido, {customer_name}! Tu pedido de {product_name} ha sido confirmado.\n\n- {company_name}",
+            "message": "¡Gracias por tu pedido, {customer_name}! Tu pedido de {items} ha sido confirmado.\n\n- {company_name}",
         },
         ShippingStatus.ORDER_SHIPPED.value: {
             "subject": "Tu Pedido Ha Sido Enviado",
-            "message": "Hola {customer_name}, tu {product_name} está en camino.\n\nRastrear paquete: {tracking_url}\n\n- {company_name}",
+            "message": "Hola {customer_name}, tu {items} está en camino.\n\nRastrear paquete: {tracking_url}\n\n- {company_name}",
         },
         ShippingStatus.OUT_FOR_DELIVERY.value: {
             "subject": "En Reparto",
-            "message": "Hola {customer_name}, tu {product_name} llegará hoy.\n\nRastrear paquete: {tracking_url}\n\n- {company_name}",
+            "message": "Hola {customer_name}, tu {items} llegará hoy.\n\nRastrear paquete: {tracking_url}\n\n- {company_name}",
         },
         ShippingStatus.DELIVERED.value: {
             "subject": "Tu Pedido Ha Sido Entregado",
-            "message": "Hola {customer_name}, tu {product_name} ha sido entregado. ¡Esperamos que lo disfrutes!\n\n- {company_name}",
+            "message": "Hola {customer_name}, tu {items} ha sido entregado. ¡Esperamos que lo disfrutes!\n\n- {company_name}",
         },
     },
     "fr": {
         ShippingStatus.ORDER_CONFIRMED.value: {
             "subject": "Commande Confirmée",
-            "message": "Merci pour votre commande, {customer_name} ! Votre commande de {product_name} a été confirmée.\n\n- {company_name}",
+            "message": "Merci pour votre commande, {customer_name} ! Votre commande de {items} a été confirmée.\n\n- {company_name}",
         },
         ShippingStatus.ORDER_SHIPPED.value: {
             "subject": "Votre Commande a été Expédiée",
-            "message": "Bonjour {customer_name}, votre {product_name} est en route !\n\nSuivre le colis : {tracking_url}\n\n- {company_name}",
+            "message": "Bonjour {customer_name}, votre {items} est en route !\n\nSuivre le colis : {tracking_url}\n\n- {company_name}",
         },
         ShippingStatus.OUT_FOR_DELIVERY.value: {
             "subject": "En Cours de Livraison",
-            "message": "Bonjour {customer_name}, votre {product_name} arrivera aujourd'hui !\n\nSuivre le colis : {tracking_url}\n\n- {company_name}",
+            "message": "Bonjour {customer_name}, votre {items} arrivera aujourd'hui !\n\nSuivre le colis : {tracking_url}\n\n- {company_name}",
         },
         ShippingStatus.DELIVERED.value: {
             "subject": "Votre Commande a été Livrée",
-            "message": "Bonjour {customer_name}, votre {product_name} a été livré ! Nous espérons qu'il vous plaira.\n\n- {company_name}",
+            "message": "Bonjour {customer_name}, votre {items} a été livré ! Nous espérons qu'il vous plaira.\n\n- {company_name}",
         },
     },
 }
+
+
+def format_order_items(items: list[OrderItem]) -> str:
+    if not items:
+        return ""
+    return ", ".join(f"{item['name']} (x{item['quantity']})" for item in items)
 
 
 def get_fallback_message(
@@ -323,9 +336,10 @@ def get_fallback_message(
     )
 
     # Format template with order data
+    items_text = format_order_items(order.get("items", []))
     format_data = {
         "customer_name": order["customer_name"],
-        "product_name": order["product_name"],
+        "items": items_text or "your order",
         "tracking_url": order.get("tracking_url") or "",
         "company_name": persona["company_name"],
     }
@@ -347,7 +361,7 @@ def get_fallback_message(
 def build_message_request(
     order_id: str,
     customer_name: str,
-    product_name: str,
+    items: list[OrderItem],
     status: ShippingStatus,
     company_name: str = "Acme T-Shirts",
     tone: MessageTone = MessageTone.FRIENDLY,
@@ -362,7 +376,7 @@ def build_message_request(
     Args:
         order_id: Order identifier.
         customer_name: Customer's first name.
-        product_name: Name of the purchased product.
+        items: Items included in the order.
         status: Current shipping status.
         company_name: Retailer's name.
         tone: Message tone.
@@ -382,7 +396,7 @@ def build_message_request(
         order=OrderContext(
             order_id=order_id,
             customer_name=customer_name,
-            product_name=product_name,
+            items=items,
             tracking_url=tracking_url,
             estimated_delivery=estimated_delivery,
         ),

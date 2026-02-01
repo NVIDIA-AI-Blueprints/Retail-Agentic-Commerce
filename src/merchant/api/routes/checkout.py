@@ -248,10 +248,18 @@ def complete_checkout(
             elif response.buyer and response.buyer.first_name:
                 customer_name = response.buyer.first_name
 
-            # Extract product name from first line item
-            product_name = "your order"
-            if response.line_items:
-                product_name = response.line_items[0].name or "your item"
+            items = []
+            for line_item in response.line_items or []:
+                item_name = line_item.name or line_item.item.id
+                items.append(
+                    {
+                        "name": item_name,
+                        "quantity": line_item.item.quantity,
+                    }
+                )
+
+            if not items:
+                items = [{"name": "your order", "quantity": 1}]
 
             # Queue the post-purchase flow as a background task
             background_tasks.add_task(
@@ -259,7 +267,7 @@ def complete_checkout(
                 checkout_session_id=session_id,
                 order_id=response.order.id,
                 customer_name=customer_name,
-                product_name=product_name,
+                items=items,
                 language="en",  # Could be extracted from buyer preferences
             )
 
