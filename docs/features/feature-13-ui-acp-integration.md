@@ -393,8 +393,8 @@ If session status is `authentication_required`:
   - [x] Display real order data from API response
   - [x] Show order ID and `permalink_url` for order tracking
 - [x] Add environment configuration
-  - [x] `NEXT_PUBLIC_API_URL` for merchant backend
-  - [x] `NEXT_PUBLIC_PSP_URL` for PSP endpoints
+  - [x] Server-side `MERCHANT_API_URL` and `PSP_API_URL` for proxy routes
+  - [x] Server-side `MERCHANT_API_KEY` and `PSP_API_KEY` (never exposed to browser)
   - [x] `NEXT_PUBLIC_API_VERSION` for version header
 - [x] Implement error handling UI
   - [x] Network error states with retry

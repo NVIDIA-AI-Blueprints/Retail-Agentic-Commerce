@@ -186,10 +186,14 @@ Three-panel layout (Feature 10):
 
 Environment (`src/ui/.env.local`):
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_PSP_URL=http://localhost:8001
-NEXT_PUBLIC_API_KEY=your-api-key
-NEXT_PUBLIC_PSP_API_KEY=psp-api-key-12345
+# Server-side only (used by proxy routes, NOT exposed to browser)
+MERCHANT_API_URL=http://localhost:8000
+MERCHANT_API_KEY=test-api-key
+PSP_API_URL=http://localhost:8001
+PSP_API_KEY=psp-api-key-12345
+
+# Client-side (safe to expose)
+NEXT_PUBLIC_API_VERSION=2026-01-16
 ```
 
 ## Quality Gates

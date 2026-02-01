@@ -109,8 +109,12 @@ services:
     expose:
       - "3000"
     environment:
-      # Server-side environment variables for Next.js API routes
-      # Note: NEXT_PUBLIC_* vars are baked in at build time (see Dockerfile)
+      # Server-side URLs (internal Docker network) - used by proxy routes
+      - MERCHANT_API_URL=http://merchant:8000
+      - PSP_API_URL=http://psp:8001
+      # Server-side API keys (NOT exposed to browser) - used by proxy routes
+      - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
+      - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}
       # Webhook secret must match merchant's WEBHOOK_SECRET for signature verification
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-whsec_demo_secret}
     networks:

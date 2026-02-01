@@ -32,12 +32,8 @@ COPY --from=deps /app/kui-foundations-react-external ./kui-foundations-react-ext
 COPY src/ui ./
 
 # Set build-time environment variables
-# NEXT_PUBLIC_ vars are embedded at build time in Next.js
+# Note: API keys are handled server-side via proxy routes (never exposed to browser)
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=/api
-ENV NEXT_PUBLIC_PSP_URL=/psp
-ENV NEXT_PUBLIC_MERCHANT_API_KEY=test-api-key
-ENV NEXT_PUBLIC_PSP_API_KEY=psp-api-key-12345
 ENV NEXT_PUBLIC_MCP_SERVER_URL=/apps-sdk
 
 # Build the application

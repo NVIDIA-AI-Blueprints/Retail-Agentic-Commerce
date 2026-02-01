@@ -15,11 +15,28 @@ import type {
   APIError,
 } from "@/types";
 
-// Environment configuration
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const PSP_URL = process.env.NEXT_PUBLIC_PSP_URL || "http://localhost:8001";
-const MERCHANT_API_KEY = process.env.NEXT_PUBLIC_MERCHANT_API_KEY || "";
-const PSP_API_KEY = process.env.NEXT_PUBLIC_PSP_API_KEY || "";
+// =============================================================================
+// Environment Configuration
+// =============================================================================
+
+// Environment detection
+const isServer = typeof window === "undefined";
+
+// URL configuration
+// - Client-side: always uses /api/proxy/* paths (keys handled server-side)
+// - Server-side: uses direct URLs for server components/actions
+const API_URL = isServer
+  ? (process.env.MERCHANT_API_URL || "http://localhost:8000")
+  : "/api/proxy/merchant";
+
+const PSP_URL = isServer
+  ? (process.env.PSP_API_URL || "http://localhost:8001")
+  : "/api/proxy/psp";
+
+// API keys: only used server-side (proxy routes handle client auth)
+const MERCHANT_API_KEY = isServer ? (process.env.MERCHANT_API_KEY || "") : "";
+const PSP_API_KEY = isServer ? (process.env.PSP_API_KEY || "") : "";
+
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || "2026-01-16";
 
 /**
@@ -53,11 +70,12 @@ function getBaseHeaders(): HeadersInit {
 
 /**
  * Headers for merchant API requests
+ * Authorization is only included server-side; client requests go through proxy
  */
 function getMerchantHeaders(idempotencyKey?: string): HeadersInit {
   const headers: HeadersInit = {
     ...getBaseHeaders(),
-    Authorization: `Bearer ${MERCHANT_API_KEY}`,
+    ...(MERCHANT_API_KEY ? { Authorization: `Bearer ${MERCHANT_API_KEY}` } : {}),
   };
 
   if (idempotencyKey) {
@@ -69,11 +87,12 @@ function getMerchantHeaders(idempotencyKey?: string): HeadersInit {
 
 /**
  * Headers for PSP API requests
+ * Authorization is only included server-side; client requests go through proxy
  */
 function getPSPHeaders(idempotencyKey: string): HeadersInit {
   return {
     ...getBaseHeaders(),
-    Authorization: `Bearer ${PSP_API_KEY}`,
+    ...(PSP_API_KEY ? { Authorization: `Bearer ${PSP_API_KEY}` } : {}),
     "Idempotency-Key": idempotencyKey,
   };
 }
