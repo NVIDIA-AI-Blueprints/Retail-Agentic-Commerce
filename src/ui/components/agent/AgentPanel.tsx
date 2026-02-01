@@ -13,6 +13,7 @@ import { MerchantIframeContainer } from "./MerchantIframeContainer";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
 import { useACPLog } from "@/hooks/useACPLog";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
+import { WEBHOOK_NOTIFICATION_EVENT } from "@/components/WebhookToAgentActivityBridge";
 import { mockProducts, mockChatMessages } from "@/data/mock-data";
 import { getErrorMessage, getSuggestedAction } from "@/lib/errors";
 import { Close } from "@/components/icons";
@@ -86,6 +87,136 @@ function PaymentModal({ isOpen, onClose, children }: PaymentModalProps) {
         </button>
         {children}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Loading skeleton for checkout card
+ */
+/**
+ * Webhook notification banner - displays post-purchase updates inside the Client Agent panel
+ * Simulates the buyer receiving notifications from the merchant
+ */
+function WebhookNotificationBanner({
+  notification,
+  onDismiss,
+}: {
+  notification: {
+    subject: string;
+    message: string;
+    status: string;
+    orderId: string;
+  };
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="webhook-notification-banner">
+      <div className="notification-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
+      </div>
+      <div className="notification-content">
+        <div className="notification-subject">{notification.subject}</div>
+        <div className="notification-message">{notification.message}</div>
+        <div className="notification-meta">
+          Order: {notification.orderId.slice(0, 12)}... • {notification.status.replace(/_/g, " ")}
+        </div>
+      </div>
+      <button className="notification-close" onClick={onDismiss} aria-label="Dismiss notification">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+
+      <style jsx>{`
+        .webhook-notification-banner {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          margin: 0 24px 16px 24px;
+          padding: 14px 16px;
+          background: linear-gradient(135deg, rgba(118, 185, 0, 0.12), rgba(118, 185, 0, 0.06));
+          border: 1px solid rgba(118, 185, 0, 0.25);
+          border-radius: 12px;
+          animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-12px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .notification-icon {
+          flex-shrink: 0;
+          width: 20px;
+          height: 20px;
+          color: #76b900;
+          margin-top: 2px;
+        }
+
+        .notification-icon svg {
+          width: 100%;
+          height: 100%;
+        }
+
+        .notification-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .notification-subject {
+          font-size: 13px;
+          font-weight: 600;
+          color: #76b900;
+          margin-bottom: 4px;
+          line-height: 1.3;
+        }
+
+        .notification-message {
+          font-size: 12px;
+          color: rgba(255, 255, 255, 0.8);
+          line-height: 1.5;
+          white-space: pre-wrap;
+          margin-bottom: 6px;
+        }
+
+        .notification-meta {
+          font-size: 10px;
+          color: rgba(255, 255, 255, 0.45);
+          text-transform: capitalize;
+        }
+
+        .notification-close {
+          flex-shrink: 0;
+          width: 18px;
+          height: 18px;
+          padding: 0;
+          border: none;
+          background: transparent;
+          color: rgba(255, 255, 255, 0.4);
+          cursor: pointer;
+          transition: color 0.2s;
+        }
+
+        .notification-close:hover {
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .notification-close svg {
+          width: 100%;
+          height: 100%;
+        }
+      `}</style>
     </div>
   );
 }
@@ -228,13 +359,35 @@ function getSessionShipping(totals: { type: string; amount: number }[]): number 
 const INTRO_TEXT =
   "Here are some great T-shirts you can shop now — from everyday basics to stylish branded tees and value packs 👕👇🏼";
 
+// Notification state type
+interface WebhookNotification {
+  id: string;
+  subject: string;
+  message: string;
+  status: string;
+  orderId: string;
+}
+
 export function AgentPanel() {
   const [messages] = useState<ChatMessageType[]>(mockChatMessages);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
   const [activeMode, setActiveMode] = useState<CheckoutMode>("native");
+  const [notification, setNotification] = useState<WebhookNotification | null>(null);
   const acpLog = useACPLog();
   const agentActivityLog = useAgentActivityLog();
+
+  // Listen for webhook notifications from the bridge component
+  useEffect(() => {
+    const handleNotification = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setNotification(detail);
+    };
+    window.addEventListener(WEBHOOK_NOTIFICATION_EVENT, handleNotification);
+    return () => window.removeEventListener(WEBHOOK_NOTIFICATION_EVENT, handleNotification);
+  }, []);
+
+  const dismissNotification = useCallback(() => setNotification(null), []);
   const {
     context,
     selectProduct,
@@ -304,6 +457,8 @@ export function AgentPanel() {
       // Clear both panels when switching modes to start fresh
       acpLog.clear();
       agentActivityLog.clear();
+      // Clear any post-purchase notification when switching tabs
+      setNotification(null);
       // Reset native checkout flow when switching modes
       if (mode === "apps-sdk") {
         reset();
@@ -442,6 +597,11 @@ export function AgentPanel() {
 
       {/* Mode Tab Switcher */}
       <ModeTabSwitcher activeMode={activeMode} onModeChange={handleModeChange} />
+
+      {/* Webhook Notification Banner - shows post-purchase updates from merchant */}
+      {notification && (
+        <WebhookNotificationBanner notification={notification} onDismiss={dismissNotification} />
+      )}
 
       {/* Native ACP Mode Content */}
       {activeMode === "native" && (

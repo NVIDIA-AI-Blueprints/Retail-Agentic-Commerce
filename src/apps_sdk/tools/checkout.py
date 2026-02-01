@@ -87,7 +87,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
     psp_api_url = settings.psp_api_url
-    api_key = settings.api_key
+    merchant_api_key = settings.merchant_api_key
     psp_api_key = settings.psp_api_key
 
     cart_items = carts.get(cart_id, [])
@@ -122,7 +122,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
             session_response = await client.post(
                 f"{merchant_api_url}/checkout_sessions",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "Authorization": f"Bearer {merchant_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
@@ -176,7 +176,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                 update_response = await client.post(
                     f"{merchant_api_url}/checkout_sessions/{session_id}",
                     headers={
-                        "Authorization": f"Bearer {api_key}",
+                        "Authorization": f"Bearer {merchant_api_key}",
                         "Content-Type": "application/json",
                     },
                     json={
@@ -287,7 +287,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
             complete_response = await client.post(
                 f"{merchant_api_url}/checkout_sessions/{session_id}/complete",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "Authorization": f"Bearer {merchant_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={

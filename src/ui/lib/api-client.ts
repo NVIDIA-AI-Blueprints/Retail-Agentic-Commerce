@@ -18,7 +18,7 @@ import type {
 // Environment configuration
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const PSP_URL = process.env.NEXT_PUBLIC_PSP_URL || "http://localhost:8001";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
+const MERCHANT_API_KEY = process.env.NEXT_PUBLIC_MERCHANT_API_KEY || "";
 const PSP_API_KEY = process.env.NEXT_PUBLIC_PSP_API_KEY || "";
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || "2026-01-16";
 
@@ -57,7 +57,7 @@ function getBaseHeaders(): HeadersInit {
 function getMerchantHeaders(idempotencyKey?: string): HeadersInit {
   const headers: HeadersInit = {
     ...getBaseHeaders(),
-    Authorization: `Bearer ${API_KEY}`,
+    Authorization: `Bearer ${MERCHANT_API_KEY}`,
   };
 
   if (idempotencyKey) {

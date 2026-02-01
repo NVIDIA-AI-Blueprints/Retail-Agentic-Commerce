@@ -30,8 +30,8 @@ class AppsSdkSettings(BaseSettings):
     psp_api_url: str = "http://localhost:8001"
     arag_agent_url: str = "http://localhost:8004"
 
-    # API keys
-    api_key: str = "your-api-key"
+    # API keys for calling merchant and PSP services
+    merchant_api_key: str = "merchant-api-key-12345"
     psp_api_key: str = "psp-api-key-12345"
 
 

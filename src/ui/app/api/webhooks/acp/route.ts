@@ -21,9 +21,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { webhookEmitter } from "@/lib/webhook-emitter";
 
-// In-memory store for webhook events (in production, use Redis/database)
-// Accessed via GET endpoint - not exported to avoid Next.js route handler restrictions
+// In-memory store for webhook events (kept for backward compatibility with GET endpoint)
+// Primary delivery is now via SSE push - no polling required
 const webhookEvents: WebhookEvent[] = [];
 
 // Types based on ACP spec
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
       data: payload.data,
     };
 
-    // Store event (in production, persist to database)
+    // Store event (kept for backward compatibility with GET endpoint)
     webhookEvents.push(event);
 
     // Keep only last 100 events in memory
@@ -156,7 +157,11 @@ export async function POST(request: NextRequest) {
       webhookEvents.shift();
     }
 
-    console.log(`[Webhook] Received event: ${event.type}`, {
+    // Emit event to SSE subscribers for real-time push delivery
+    // This is the production-like approach: push immediately, no polling
+    webhookEmitter.emitWebhook(event);
+
+    console.log(`[Webhook] Received and pushed event: ${event.type}`, {
       id: event.id,
       checkout_session_id: payload.data.checkout_session_id,
     });

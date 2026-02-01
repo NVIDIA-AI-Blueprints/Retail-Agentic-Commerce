@@ -4,6 +4,7 @@ import { Navbar, PanelDivider } from "@/components/layout";
 import { AgentPanel } from "@/components/agent";
 import { BusinessPanel } from "@/components/business";
 import { AgentActivityPanel } from "@/components/agent-activity";
+import { WebhookToAgentActivityBridge } from "@/components/WebhookToAgentActivityBridge";
 import { ACPLogProvider } from "@/hooks/useACPLog";
 import { AgentActivityLogProvider } from "@/hooks/useAgentActivityLog";
 import { Nebula } from "@/kui-foundations-react-external/nebula";
@@ -18,6 +19,7 @@ export default function Home() {
   return (
     <ACPLogProvider>
       <AgentActivityLogProvider>
+        <WebhookToAgentActivityBridge />
         <div className="min-h-screen h-screen bg-surface-base relative overflow-hidden">
           {/* Nebula Background */}
           <div

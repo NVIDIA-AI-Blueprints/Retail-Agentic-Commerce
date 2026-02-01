@@ -21,16 +21,16 @@ def setup_test_environment() -> Generator[None, None, None]:
     """Set up test environment variables and clean up after tests.
 
     This fixture runs automatically for all tests to ensure:
-    - API_KEY environment variable is set for authenticated requests
+    - MERCHANT_API_KEY environment variable is set for authenticated requests
     - Settings cache is cleared to pick up the new environment variable
     - Idempotency store is cleared between tests
     """
     # Clear settings cache before setting environment variable
     get_settings.cache_clear()
 
-    # Set up test API key
-    original_api_key = os.environ.get("API_KEY")
-    os.environ["API_KEY"] = TEST_API_KEY
+    # Set up test API key (config expects MERCHANT_API_KEY)
+    original_api_key = os.environ.get("MERCHANT_API_KEY")
+    os.environ["MERCHANT_API_KEY"] = TEST_API_KEY
 
     # Clear cache again to pick up the new value
     get_settings.cache_clear()
@@ -41,9 +41,9 @@ def setup_test_environment() -> Generator[None, None, None]:
     reset_idempotency_store()
     get_settings.cache_clear()
     if original_api_key is not None:
-        os.environ["API_KEY"] = original_api_key
-    elif "API_KEY" in os.environ:
-        del os.environ["API_KEY"]
+        os.environ["MERCHANT_API_KEY"] = original_api_key
+    elif "MERCHANT_API_KEY" in os.environ:
+        del os.environ["MERCHANT_API_KEY"]
     get_settings.cache_clear()
 
 

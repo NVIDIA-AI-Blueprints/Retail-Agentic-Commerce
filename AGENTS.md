@@ -19,6 +19,94 @@ Read this top to bottom once per session. Prefer:
 2. Quick Map (where to look first)
 3. Commands (how to run and verify)
 
+## Documentation-First Development (CRITICAL)
+
+**ALWAYS read and follow documentation BEFORE implementing features, making modifications, or reviewing code.**
+
+This project implements the Agentic Commerce Protocol (ACP). The architecture and data flows are defined in specifications that MUST be followed. Do not make assumptions about how components should interact.
+
+### Mandatory Documentation Review
+
+Before ANY work, read the relevant documentation:
+
+| Task Type | Required Reading |
+|-----------|------------------|
+| ACP endpoints/flows | `docs/specs/acp-spec.md` |
+| Feature implementation | `docs/features/feature-XX-*.md` |
+| System architecture | `docs/architecture.md` |
+| Agent integration | `src/agents/README.md` |
+| Apps SDK | `docs/specs/apps-sdk-spec.md` |
+
+### The Documentation-First Checklist
+
+Before writing or modifying code:
+
+- [ ] **Read the specification** - What does the documentation say this component should do?
+- [ ] **Identify the caller** - WHO should call this endpoint/function? (UI? Merchant? PSP?)
+- [ ] **Trace the data flow** - WHERE does data originate and WHERE does it go?
+- [ ] **Check existing implementation** - Does the current code match the specification?
+- [ ] **Ask if uncertain** - If the spec is unclear, ASK the user before proceeding
+
+### Never Make Assumptions
+
+**WRONG approach:**
+- "The UI is calling this endpoint, so it must be correct"
+- "This error is a deployment issue, let me add a workaround"
+- "The code exists, so it must be wired up correctly"
+
+**CORRECT approach:**
+- "Let me check the ACP spec to see WHO should call this endpoint"
+- "Let me verify this implementation matches the documented architecture"
+- "The service exists but is it actually called? Let me trace the flow"
+
+### Ask Clarifying Questions
+
+When documentation is ambiguous or you're uncertain, ASK before implementing:
+
+1. "The spec says X, but the code does Y. Which is correct?"
+2. "I see this service exists but isn't called. Should I integrate it?"
+3. "The architecture shows Merchant → Client flow, but the code has Client → Client. Is this intentional?"
+
+### Real Example: Webhook Architecture Mistake
+
+This project had a bug where the UI was calling its own webhook endpoint instead of the merchant calling it:
+
+**What the ACP spec says (docs/specs/acp-spec.md, line 948):**
+> "Merchants send webhook events to OpenAI for order lifecycle updates"
+
+**What Feature 11 docs show (docs/features/feature-11-webhook-integration.md):**
+```
+Merchant Backend                    Client Agent (UI)
+      │                                   │
+      │  POST /api/webhooks/acp           │
+      │ ─────────────────────────────────▶│
+```
+
+**What the code was doing (WRONG):**
+```
+UI calls /api/agents/post-purchase → UI calls /api/webhooks/acp (itself)
+```
+
+**The mistake:** Instead of reading the documentation to understand the correct architecture, the error was treated as a "deployment configuration issue" and workarounds were attempted (skipping signature verification). The documentation clearly showed the correct flow, but it wasn't consulted.
+
+**The lesson:** When something doesn't work, FIRST check if the implementation matches the documented architecture. Don't assume the code is correct and try to "fix" symptoms.
+
+### Architecture Verification Questions
+
+When debugging issues, ask these questions IN ORDER:
+
+1. **What does the documentation say should happen?**
+2. **Does the current implementation match the documentation?**
+3. **If not, is the documentation wrong or the code wrong?**
+4. **Only after confirming architecture is correct:** Is this a configuration/deployment issue?
+
+### Key Principle
+
+**The documentation is the source of truth.** If the code doesn't match the documentation:
+- The code is likely wrong (fix the code)
+- OR the documentation needs updating (discuss with user first)
+- NEVER assume the code is right and work around it
+
 ## Project Overview
 
 Agentic Commerce Protocol (ACP) reference implementation:

@@ -1,98 +1,194 @@
-# Infrastructure for ARAG Recommendation Agent
-# See src/agents/README.md for full documentation
+# Agentic Commerce Platform - Application Services
+#
+# Usage:
+#   Full Docker deployment (start infrastructure first):
+#     docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
+#
+#   Application services only (infrastructure already running):
+#     docker compose up -d
+#
+# For local development with just infrastructure:
+#   docker compose -f docker-compose.infra.yml up -d
+#   Then run services locally (uvicorn, pnpm dev, etc.)
 
 services:
-  # etcd - Metadata storage for Milvus
-  milvus-etcd:
-    image: quay.io/coreos/etcd:v3.5.5
-    container_name: milvus-etcd
-    environment:
-      - ETCD_AUTO_COMPACTION_MODE=revision
-      - ETCD_AUTO_COMPACTION_RETENTION=1000
-      - ETCD_QUOTA_BACKEND_BYTES=4294967296
-      - ETCD_SNAPSHOT_COUNT=50000
-    volumes:
-      - etcd_data:/etcd
-    command: etcd -listen-client-urls=http://0.0.0.0:2379 -advertise-client-urls=http://milvus-etcd:2379 --data-dir /etcd
-    healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - milvus-network
-
-  # MinIO - Object storage for Milvus
-  milvus-minio:
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
-    container_name: milvus-minio
-    environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-    volumes:
-      - minio_data:/minio_data
-    command: minio server /minio_data --console-address ":9001"
+  # =============================================================================
+  # NGINX REVERSE PROXY
+  # =============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: acp-nginx
     ports:
-      - "9001:9001"  # MinIO Console (optional, for debugging)
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - milvus-network
-
-  # Milvus Standalone - Vector database
-  milvus-standalone:
-    image: milvusdb/milvus:v2.4.0
-    container_name: milvus-standalone
-    command: ["milvus", "run", "standalone"]
-    ports:
-      - "19530:19530"  # Milvus gRPC port
-      - "9091:9091"    # Milvus metrics/health port
-    environment:
-      ETCD_ENDPOINTS: milvus-etcd:2379
-      MINIO_ADDRESS: milvus-minio:9000
+      - "80:80"
     volumes:
-      - milvus_data:/var/lib/milvus
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      milvus-etcd:
+      ui:
+        condition: service_started
+      merchant:
         condition: service_healthy
-      milvus-minio:
+      psp:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      apps-sdk:
+        condition: service_healthy
     networks:
-      - milvus-network
+      - acp-network
+    restart: unless-stopped
 
-  # Phoenix - LLM Observability and Tracing
-  phoenix:
-    image: arizephoenix/phoenix:latest
-    container_name: phoenix
-    ports:
-      - "6006:6006"   # Phoenix UI and OTLP HTTP collector
-      - "4317:4317"   # OTLP gRPC collector
+  # =============================================================================
+  # APPLICATION SERVICES
+  # =============================================================================
+  
+  # Merchant API (Port 8000)
+  merchant:
+    build:
+      context: .
+      dockerfile: src/merchant/Dockerfile
+    container_name: acp-merchant
+    expose:
+      - "8000"
     environment:
-      - PHOENIX_WORKING_DIR=/mnt/data
+      - DATABASE_URL=sqlite:////data/agentic_commerce.db
+      # Authentication key for clients calling merchant API
+      - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
+      # Agent URLs for promotion and post-purchase flows
+      - PROMOTION_AGENT_URL=http://promotion-agent:8002
+      - POST_PURCHASE_AGENT_URL=http://post-purchase-agent:8003
+      - RECOMMENDATION_AGENT_URL=http://recommendation-agent:8004
+      # Webhook delivery to client agent
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://ui:3000/api/webhooks/acp}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-whsec_demo_secret}
     volumes:
-      - phoenix_data:/mnt/data
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006/')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - acp-data:/data
     networks:
-      - milvus-network
+      - acp-network
+      - acp-infra-network
+    restart: unless-stopped
 
+  # PSP Service (Port 8001)
+  psp:
+    build:
+      context: .
+      dockerfile: src/payment/Dockerfile
+    container_name: acp-psp
+    expose:
+      - "8001"
+    environment:
+      - DATABASE_URL=sqlite:////data/agentic_commerce.db
+      - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}
+    volumes:
+      - acp-data:/data
+    networks:
+      - acp-network
+    restart: unless-stopped
+
+  # Apps SDK MCP Server (Port 2091)
+  apps-sdk:
+    build:
+      context: .
+      dockerfile: src/apps_sdk/Dockerfile
+    container_name: acp-apps-sdk
+    expose:
+      - "2091"
+    environment:
+      - MERCHANT_API_URL=http://merchant:8000
+      - PSP_API_URL=http://psp:8001
+      - RECOMMENDATION_AGENT_URL=http://recommendation-agent:8004
+      - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
+      - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}
+    networks:
+      - acp-network
+    restart: unless-stopped
+
+  # Frontend UI (Port 3000)
+  ui:
+    build:
+      context: .
+      dockerfile: src/ui/Dockerfile
+    container_name: acp-ui
+    expose:
+      - "3000"
+    environment:
+      # Server-side environment variables for Next.js API routes
+      # Note: NEXT_PUBLIC_* vars are baked in at build time (see Dockerfile)
+      # Webhook secret must match merchant's WEBHOOK_SECRET for signature verification
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-whsec_demo_secret}
+    networks:
+      - acp-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # NAT AGENTS (all share the same base image)
+  # =============================================================================
+
+  # Promotion Agent (Port 8002) - Builds the shared agent image
+  promotion-agent:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
+    image: acp-agents:latest
+    container_name: acp-promotion-agent
+    command: nat serve --config_file configs/promotion.yml --host 0.0.0.0 --port 8002
+    expose:
+      - "8002"
+    environment:
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+    networks:
+      - acp-network
+      - acp-infra-network
+    restart: unless-stopped
+
+  # Post-Purchase Agent (Port 8003) - Uses shared image
+  post-purchase-agent:
+    image: acp-agents:latest
+    container_name: acp-post-purchase-agent
+    command: nat serve --config_file configs/post-purchase.yml --host 0.0.0.0 --port 8003
+    expose:
+      - "8003"
+    environment:
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+    depends_on:
+      promotion-agent:
+        condition: service_started
+    networks:
+      - acp-network
+      - acp-infra-network
+    restart: unless-stopped
+
+  # Recommendation Agent (Port 8004) - Uses shared image, requires Milvus
+  recommendation-agent:
+    image: acp-agents:latest
+    container_name: acp-recommendation-agent
+    command: nat serve --config_file configs/recommendation-ultrafast.yml --host 0.0.0.0 --port 8004
+    expose:
+      - "8004"
+    environment:
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - MILVUS_URI=http://milvus-standalone:19530
+      - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+    depends_on:
+      promotion-agent:
+        condition: service_started
+    networks:
+      - acp-network
+      - acp-infra-network
+    restart: unless-stopped
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
 networks:
-  milvus-network:
+  acp-network:
     driver: bridge
+  # External network created by docker-compose.infra.yml
+  acp-infra-network:
+    external: true
 
+# =============================================================================
+# VOLUMES
+# =============================================================================
 volumes:
-  etcd_data:
-  minio_data:
-  milvus_data:
-  phoenix_data:
+  acp-data:
+    name: acp-data

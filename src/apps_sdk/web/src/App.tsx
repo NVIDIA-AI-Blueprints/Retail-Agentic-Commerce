@@ -106,10 +106,21 @@ export function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [acpSession, setAcpSession] = useState<ACPSessionResponse | null>(null);
 
-  // API base URL - relative in production, localhost in dev
+  // API base URL - handles dev server, Docker (via nginx), and direct access
   const getApiBaseUrl = useCallback(() => {
     const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
-    return isViteDevServer ? "http://localhost:2091" : "";
+    const isAppsSdkPath = window.location.pathname.startsWith("/apps-sdk/");
+    
+    if (isViteDevServer) {
+      // Local dev with Vite - call Apps SDK directly
+      return "http://localhost:2091";
+    } else if (isAppsSdkPath) {
+      // Running via nginx proxy - use relative path to apps-sdk
+      return "/apps-sdk";
+    } else {
+      // Fallback - assume running directly on Apps SDK server
+      return "";
+    }
   }, []);
 
   // Create or update ACP checkout session
@@ -479,11 +490,8 @@ export function App() {
     setIsCheckingOut(true);
     setCheckoutResult(null);
 
-    // Determine the API base URL
-    // In production (served from MCP server), use relative URL
-    // In development (Vite dev server), use localhost:2091
-    const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
-    const apiBaseUrl = isViteDevServer ? "http://localhost:2091" : "";
+    // Use the same API base URL logic as session management
+    const apiBaseUrl = getApiBaseUrl();
     const cartId = cartState.cartId || `cart_${Date.now().toString(36)}`;
 
     try {

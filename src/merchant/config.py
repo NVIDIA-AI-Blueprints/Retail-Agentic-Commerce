@@ -23,20 +23,21 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./agentic_commerce.db"
 
-    # NIM Configuration
-    nim_endpoint: str = "https://integrate.api.nvidia.com/v1"
-    nim_api_key: str = ""
+    # Webhook Configuration (Merchant → Client Agent)
+    # Default to localhost for local development; Docker overrides via environment
+    webhook_url: str = "http://localhost:3000/api/webhooks/acp"
+    webhook_secret: str = "whsec_demo_secret"
 
-    # Webhook Configuration
-    webhook_url: str = ""
-    webhook_secret: str = ""
-
-    # API Security
-    api_key: str = ""
+    # Merchant API Security (for client authentication)
+    merchant_api_key: str = ""
 
     # Promotion Agent Configuration
     promotion_agent_url: str = "http://localhost:8002"
     promotion_agent_timeout: float = 10.0  # seconds (NFR-LAT target)
+
+    # Post-Purchase Agent Configuration
+    post_purchase_agent_url: str = "http://localhost:8003"
+    post_purchase_agent_timeout: float = 15.0  # seconds
 
 
 @lru_cache

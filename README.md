@@ -240,21 +240,132 @@ docs/
 └── specs/             # Protocol specs
 ```
 
-## Optional: Milvus Setup
+## Docker Deployment
 
-The Recommendation Agent requires Milvus for vector search. Start it before running the agent:
+The project uses two Docker Compose files:
+- **`docker-compose.infra.yml`**: Infrastructure (Milvus, Phoenix) - can run standalone for local development
+- **`docker-compose.yml`**: Application services (Merchant, PSP, Agents, UI)
+
+### Prerequisites
+
+- Docker 24+
+- Docker Compose v2
+- NVIDIA API key (for AI agents)
+
+### Quick Start (Full Docker Deployment)
+
+1. **Configure environment:**
+
+   ```bash
+   cp env.example .env
+   # Edit .env and add your NVIDIA_API_KEY
+   ```
+
+2. **Start all services:**
+
+   ```bash
+   # Start infrastructure first, then application services
+   docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
+   ```
+
+   This starts all services including:
+   - nginx (reverse proxy on port 80)
+   - Merchant API, PSP, Apps SDK
+   - NAT Agents (Promotion, Post-Purchase, Recommendation)
+   - Milvus (vector database) and Phoenix (observability)
+
+3. **Verify services:**
+
+   ```bash
+   curl http://localhost/api/health      # Merchant API
+   curl http://localhost/psp/health      # PSP Service
+   curl http://localhost/apps-sdk/health # Apps SDK
+   ```
+
+4. **Access the UI** at **http://localhost**
+
+### Service Routes
+
+| Route | Service | Description |
+|-------|---------|-------------|
+| `/` | UI | Demo frontend |
+| `/api/*` | Merchant API | ACP checkout, products, orders |
+| `/psp/*` | PSP Service | Payment delegation |
+| `/apps-sdk/*` | Apps SDK | MCP server for AI agents |
+
+### Infrastructure Endpoints
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Milvus | 19530 | Vector database gRPC |
+| Milvus Health | 9091 | Health check endpoint |
+| Phoenix | 6006 | LLM tracing UI |
+| MinIO Console | 9001 | Object storage UI |
+
+### Monitoring
 
 ```bash
-# Start Milvus (from project root)
-docker compose up -d
+docker compose ps                    # Service status
+docker compose logs -f merchant      # Follow merchant logs
+docker compose logs nginx            # Check nginx routing
+```
 
-# Verify Milvus is running
-curl -s http://localhost:9091/healthz
+### Stopping Services
 
-# Seed the product catalog (from agents env)
+```bash
+# Stop application services only
+docker compose down
+
+# Stop everything (infrastructure + application)
+docker compose -f docker-compose.infra.yml -f docker-compose.yml down
+
+# Stop and remove volumes
+docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
+```
+
+### Building Images
+
+To rebuild images after code changes:
+
+```bash
+docker compose build                 # Rebuild all
+docker compose build merchant        # Rebuild specific service
+docker compose up -d                 # Restart with new images
+```
+
+## Local Development with Infrastructure
+
+For local development, you can run just the infrastructure (Milvus + Phoenix) in Docker while running application services locally. This is useful for debugging and faster iteration.
+
+### 1. Start Infrastructure
+
+```bash
+# Start Milvus and Phoenix
+docker compose -f docker-compose.infra.yml up -d
+
+# Verify services are running
+curl -s http://localhost:9091/healthz   # Milvus health
+curl -s http://localhost:6006/          # Phoenix UI
+```
+
+### 2. Seed the Vector Database
+
+The Recommendation Agent requires product embeddings in Milvus:
+
+```bash
 cd src/agents
 source .venv/bin/activate
 uv run python scripts/seed_milvus.py
+```
+
+### 3. Run Services Locally
+
+Now start the application services in separate terminals (see [Quick Start](#quick-start) above).
+
+### 4. Stop Infrastructure
+
+```bash
+docker compose -f docker-compose.infra.yml down
 ```
 
 ## Contributing
