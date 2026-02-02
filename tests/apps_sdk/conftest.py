@@ -10,37 +10,37 @@ from fastapi.testclient import TestClient
 from src.apps_sdk.main import app
 from src.apps_sdk.tools.cart import carts
 
-# Mock products that match the expected schema from merchant API
+# Mock products that match the normalized schema from find_product (camelCase)
 MOCK_PRODUCTS: dict[str, dict[str, Any]] = {
     "prod_1": {
         "id": "prod_1",
         "sku": "TS-001",
         "name": "Classic White Tee",
-        "base_price": 2500,
-        "stock_count": 100,
+        "basePrice": 2500,
+        "stockCount": 100,
         "category": "tops",
         "description": "A classic white t-shirt",
-        "image_url": "/prod_1.jpeg",
+        "imageUrl": "/prod_1.jpeg",
     },
     "prod_2": {
         "id": "prod_2",
         "sku": "TS-002",
         "name": "Navy Blue Polo",
-        "base_price": 3500,
-        "stock_count": 50,
+        "basePrice": 3500,
+        "stockCount": 50,
         "category": "tops",
         "description": "A navy blue polo shirt",
-        "image_url": "/prod_2.jpeg",
+        "imageUrl": "/prod_2.jpeg",
     },
     "prod_3": {
         "id": "prod_3",
         "sku": "TS-003",
         "name": "Black Hoodie",
-        "base_price": 4500,
-        "stock_count": 30,
+        "basePrice": 4500,
+        "stockCount": 30,
         "category": "outerwear",
         "description": "A comfortable black hoodie",
-        "image_url": "/prod_3.jpeg",
+        "imageUrl": "/prod_3.jpeg",
     },
 }
 

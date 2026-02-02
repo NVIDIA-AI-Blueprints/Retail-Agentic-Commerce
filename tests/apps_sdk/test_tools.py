@@ -146,16 +146,37 @@ class TestSearchProducts:
 
     @pytest.mark.asyncio
     async def test_search_filters_by_similarity_threshold(self) -> None:
-        """Search filters out results below the similarity threshold."""
-        with patch(
-            "src.apps_sdk.tools.recommendations.call_search_agent",
-            new=AsyncMock(
-                return_value={
-                    "results": [
-                        {"product_id": "prod_1", "score": 0.1},
-                        {"product_id": "prod_2", "score": 5.0},
-                    ]
-                }
+        """Search filters out results below the similarity threshold.
+
+        Score is converted to similarity via 1/(1+score):
+        - prod_1 score=0.1 -> similarity=0.909 (passes min 0.35)
+        - prod_2 score=5.0 -> similarity=0.167 (filtered out)
+        """
+        mock_product = {
+            "id": "prod_1",
+            "sku": "TS-001",
+            "name": "Classic White Tee",
+            "basePrice": 2500,
+            "stockCount": 100,
+            "category": "tops",
+            "description": "A classic white t-shirt",
+            "imageUrl": "/prod_1.jpeg",
+        }
+        with (
+            patch(
+                "src.apps_sdk.tools.recommendations.call_search_agent",
+                new=AsyncMock(
+                    return_value={
+                        "results": [
+                            {"product_id": "prod_1", "score": 0.1},
+                            {"product_id": "prod_2", "score": 5.0},
+                        ]
+                    }
+                ),
+            ),
+            patch(
+                "src.apps_sdk.tools.recommendations._fetch_product_from_merchant",
+                new=AsyncMock(return_value=mock_product),
             ),
         ):
             result = await search_products(query="tee", limit=3)
