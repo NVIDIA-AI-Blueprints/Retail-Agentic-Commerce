@@ -42,7 +42,7 @@ from src.apps_sdk.tools import (
 settings = get_apps_sdk_settings()
 
 # Agent URLs
-RECOMMENDATION_AGENT_URL = settings.arag_agent_url
+RECOMMENDATION_AGENT_URL = settings.recommendation_agent_url
 SEARCH_AGENT_URL = settings.search_agent_url
 
 # Configure logging

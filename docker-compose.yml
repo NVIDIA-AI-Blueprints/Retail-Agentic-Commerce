@@ -17,7 +17,7 @@ services:
   # =============================================================================
   nginx:
     image: nginx:alpine
-    container_name: acp-nginx
+    container_name: nginx
     ports:
       - "80:80"
     volumes:
@@ -44,7 +44,7 @@ services:
     build:
       context: .
       dockerfile: src/merchant/Dockerfile
-    container_name: acp-merchant
+    container_name: merchant
     expose:
       - "8000"
     environment:
@@ -70,7 +70,7 @@ services:
     build:
       context: .
       dockerfile: src/payment/Dockerfile
-    container_name: acp-psp
+    container_name: psp
     expose:
       - "8001"
     environment:
@@ -87,13 +87,14 @@ services:
     build:
       context: .
       dockerfile: src/apps_sdk/Dockerfile
-    container_name: acp-apps-sdk
+    container_name: apps-sdk
     expose:
       - "2091"
     environment:
       - MERCHANT_API_URL=http://merchant:8000
       - PSP_API_URL=http://psp:8001
       - RECOMMENDATION_AGENT_URL=http://recommendation-agent:8004
+      - SEARCH_AGENT_URL=http://search-agent:8005
       - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
       - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}
     networks:
@@ -105,7 +106,7 @@ services:
     build:
       context: .
       dockerfile: src/ui/Dockerfile
-    container_name: acp-ui
+    container_name: ui
     expose:
       - "3000"
     environment:
@@ -130,8 +131,8 @@ services:
     build:
       context: .
       dockerfile: src/agents/Dockerfile
-    image: acp-agents:latest
-    container_name: acp-promotion-agent
+    image: nat-agents:latest
+    container_name: nat-promotion-agent
     command: nat serve --config_file configs/promotion.yml --host 0.0.0.0 --port 8002
     expose:
       - "8002"
@@ -145,8 +146,8 @@ services:
 
   # Post-Purchase Agent (Port 8003) - Uses shared image
   post-purchase-agent:
-    image: acp-agents:latest
-    container_name: acp-post-purchase-agent
+    image: nat-agents:latest
+    container_name: nat-post-purchase-agent
     command: nat serve --config_file configs/post-purchase.yml --host 0.0.0.0 --port 8003
     expose:
       - "8003"
@@ -163,11 +164,30 @@ services:
 
   # Recommendation Agent (Port 8004) - Uses shared image, requires Milvus
   recommendation-agent:
-    image: acp-agents:latest
-    container_name: acp-recommendation-agent
+    image: nat-agents:latest
+    container_name: nat-recommendation-agent
     command: nat serve --config_file configs/recommendation-ultrafast.yml --host 0.0.0.0 --port 8004
     expose:
       - "8004"
+    environment:
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - MILVUS_URI=http://milvus-standalone:19530
+      - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+    depends_on:
+      promotion-agent:
+        condition: service_started
+    networks:
+      - acp-network
+      - acp-infra-network
+    restart: unless-stopped
+
+  # Search Agent (Port 8005) - Uses shared image, requires Milvus for RAG
+  search-agent:
+    image: nat-agents:latest
+    container_name: nat-search-agent
+    command: nat serve --config_file configs/search.yml --host 0.0.0.0 --port 8005
+    expose:
+      - "8005"
     environment:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - MILVUS_URI=http://milvus-standalone:19530

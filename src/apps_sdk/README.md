@@ -174,7 +174,7 @@ Settings are managed via environment variables or `.env` file:
 | `MCP_SERVER_PORT` | `2091` | Server port |
 | `MERCHANT_API_URL` | `http://localhost:8000` | Merchant API URL |
 | `PSP_API_URL` | `http://localhost:8001` | PSP service URL |
-| `ARAG_AGENT_URL` | `http://localhost:8004` | Recommendation agent URL |
+| `RECOMMENDATION_AGENT_URL` | `http://localhost:8004` | Recommendation agent URL |
 | `MERCHANT_API_KEY` | `merchant-api-key-12345` | Merchant API authentication key |
 | `PSP_API_KEY` | `psp-api-key-12345` | PSP API authentication key |
 

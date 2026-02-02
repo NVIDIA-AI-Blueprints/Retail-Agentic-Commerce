@@ -63,7 +63,7 @@ export function WebhookToAgentActivityBridge() {
       }
     }
 
-    if (event.type !== "shipping_update" || event.data.type !== "shipping_update") return;
+    if (event.type !== "shipping_update") return;
 
     const shippingData = event.data as ShippingUpdateData;
 

@@ -47,23 +47,17 @@ export interface ShippingUpdateData {
  * Global webhook event emitter singleton.
  * Uses Node.js EventEmitter for simplicity.
  *
+ * IMPORTANT: Uses globalThis to ensure true singleton across Next.js App Router
+ * API routes, which can have separate module instances due to code splitting.
+ *
  * Note: In a production multi-instance setup, you'd use Redis Pub/Sub
  * or a similar distributed messaging system.
  */
 class WebhookEventEmitter extends EventEmitter {
-  private static instance: WebhookEventEmitter;
-
-  private constructor() {
+  constructor() {
     super();
     // Increase max listeners to avoid warnings with many SSE connections
     this.setMaxListeners(100);
-  }
-
-  static getInstance(): WebhookEventEmitter {
-    if (!WebhookEventEmitter.instance) {
-      WebhookEventEmitter.instance = new WebhookEventEmitter();
-    }
-    return WebhookEventEmitter.instance;
   }
 
   /**
@@ -85,5 +79,15 @@ class WebhookEventEmitter extends EventEmitter {
   }
 }
 
-// Export the singleton instance
-export const webhookEmitter = WebhookEventEmitter.getInstance();
+// Use Symbol.for to get a global key that persists across module instances
+const WEBHOOK_EMITTER_KEY = Symbol.for("acp.webhook-emitter");
+
+// Type augmentation for globalThis
+const globalForWebhook = globalThis as typeof globalThis & {
+  [WEBHOOK_EMITTER_KEY]?: WebhookEventEmitter;
+};
+
+// Export the singleton instance using globalThis for true global singleton
+// This ensures the same instance is shared across all Next.js API routes
+export const webhookEmitter =
+  globalForWebhook[WEBHOOK_EMITTER_KEY] ?? (globalForWebhook[WEBHOOK_EMITTER_KEY] = new WebhookEventEmitter());

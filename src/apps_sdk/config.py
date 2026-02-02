@@ -28,7 +28,7 @@ class AppsSdkSettings(BaseSettings):
     # Backend URLs
     merchant_api_url: str = "http://localhost:8000"
     psp_api_url: str = "http://localhost:8001"
-    arag_agent_url: str = "http://localhost:8004"
+    recommendation_agent_url: str = "http://localhost:8004"
     search_agent_url: str = "http://localhost:8005"
 
     # Search tuning
