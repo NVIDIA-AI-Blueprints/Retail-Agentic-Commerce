@@ -249,7 +249,8 @@ docs/
 
 ## Docker Deployment
 
-The project uses two Docker Compose files:
+The project uses three Docker Compose files:
+- **`docker-compose-nim.yml`**: NVIDIA NIM microservices (Nemotron LLM and Embedding models) - start first!
 - **`docker-compose.infra.yml`**: Infrastructure (Milvus, Phoenix) - can run standalone for local development
 - **`docker-compose.yml`**: Application services (Merchant, PSP, Agents, UI)
 
@@ -257,6 +258,7 @@ The project uses two Docker Compose files:
 
 - Docker 24+
 - Docker Compose v2
+- NVIDIA GPU(s) with sufficient VRAM (for local NIMs)
 - NVIDIA API key (for AI agents)
 
 ### Quick Start (Full Docker Deployment)
@@ -268,10 +270,15 @@ The project uses two Docker Compose files:
    # Edit .env and add your NVIDIA_API_KEY
    ```
 
-2. **Start all services:**
+2. **Start NVIDIA NIMs first (downloads large models - 15-30+ min):**
 
    ```bash
-   # Start infrastructure first, then application services
+   docker compose -f docker-compose-nim.yml up -d
+   ```
+
+3. **Start infrastructure and application services:**
+
+   ```bash
    docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
    ```
 
@@ -280,8 +287,16 @@ The project uses two Docker Compose files:
    - Merchant API, PSP, Apps SDK
    - NAT Agents (Promotion, Post-Purchase, Recommendation, Search)
    - Milvus (vector database) and Phoenix (observability)
+   - **milvus-seeder** (automatically seeds product embeddings)
 
-3. **Verify services:**
+4. **Verify NIM health** (wait for models to load):
+
+   ```bash
+   curl http://localhost:8010/v1/health/ready  # Nemotron Nano LLM
+   curl http://localhost:8011/v1/health/ready  # Embedding Model
+   ```
+
+5. **Verify application services:**
 
    ```bash
    curl http://localhost/api/health      # Merchant API
@@ -289,7 +304,7 @@ The project uses two Docker Compose files:
    curl http://localhost/apps-sdk/health # Apps SDK
    ```
 
-4. **Access the UI** at **http://localhost**
+6. **Access the UI** at **http://localhost**
 
 ### Service Routes
 
@@ -299,6 +314,13 @@ The project uses two Docker Compose files:
 | `/api/*` | Merchant API | ACP checkout, products, orders |
 | `/psp/*` | PSP Service | Payment delegation |
 | `/apps-sdk/*` | Apps SDK | MCP server for AI agents |
+
+### NIM Endpoints
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Nemotron Nano LLM | 8010 | LLM inference (nvidia/nemotron-3-nano) |
+| Embedding Model | 8011 | Text embeddings (nv-embedqa-e5-v5) |
 
 ### Infrastructure Endpoints
 
@@ -323,11 +345,13 @@ docker compose logs nginx            # Check nginx routing
 # Stop application services only
 docker compose down
 
-# Stop everything (infrastructure + application)
+# Stop everything (infrastructure + application + NIMs)
 docker compose -f docker-compose.infra.yml -f docker-compose.yml down
+docker compose -f docker-compose-nim.yml down
 
-# Stop and remove volumes
+# Stop and remove volumes (full cleanup)
 docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
+docker compose -f docker-compose-nim.yml down -v
 ```
 
 ### Building Images
@@ -357,13 +381,21 @@ curl -s http://localhost:6006/          # Phoenix UI
 
 ### 2. Seed the Vector Database
 
-The Recommendation Agent requires product embeddings in Milvus:
+The Recommendation and Search agents require product embeddings in Milvus.
+
+> **Note**: In Docker deployment, seeding is **automatic** via the `milvus-seeder` container.
+> Manual seeding is only required for local development.
 
 ```bash
 cd src/agents
 source .venv/bin/activate
 uv run python scripts/seed_milvus.py
 ```
+
+The seeder script:
+- Waits for Milvus to be ready (with retry logic)
+- Skips seeding if data already exists
+- Supports both NVIDIA API Catalog and local NIM for embeddings
 
 ### 3. Run Services Locally
 
@@ -375,33 +407,7 @@ Now start the application services in separate terminals (see [Quick Start](#qui
 docker compose -f docker-compose.infra.yml down
 ```
 
-## Contributing
 
-We welcome contributions! Here's how to get started:
-
-1. **Fork** the repository
-2. **Create a branch** for your feature (`git checkout -b feature/amazing-feature`)
-3. **Make your changes** following our code standards
-4. **Run tests** to ensure nothing is broken
-5. **Submit a Pull Request**
-
-### Code Standards
-
-```bash
-# Backend (Python)
-ruff check src/ tests/
-ruff format src/ tests/
-pyright src/
-pytest tests/ -v
-
-# Frontend (TypeScript)
-cd src/ui
-pnpm lint
-pnpm typecheck
-pnpm test:run
-```
-
-See [AGENTS.md](AGENTS.md) for detailed development guidelines.
 
 ## Documentation
 

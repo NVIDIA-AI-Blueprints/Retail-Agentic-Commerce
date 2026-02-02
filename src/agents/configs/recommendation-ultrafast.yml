@@ -28,11 +28,15 @@ general:
 
 # =============================================================================
 # EMBEDDERS - Semantic embeddings for product search
+# Endpoint and model can be configured via environment variables:
+# - NIM_EMBED_BASE_URL: Public endpoint (default) or local NIM URL
+# - NIM_EMBED_MODEL_NAME: Embedding model name
 # =============================================================================
 embedders:
   product_embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    base_url: ${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
     truncate: "END"
 
 # =============================================================================
@@ -57,11 +61,15 @@ functions:
 
 # =============================================================================
 # LLM PROVIDERS
+# Model and endpoint can be configured via environment variables:
+# - NIM_LLM_BASE_URL: Public endpoint (default) or local NIM URL
+# - NIM_LLM_MODEL_NAME: Public model name (default) or local NIM model name
 # =============================================================================
 llms:
   fast_llm:
     _type: nim
-    model_name: nvidia/nemotron-3-nano-30b-a3b
+    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
     temperature: 0.3
     max_tokens: 512
     chat_template_kwargs:

@@ -26,8 +26,12 @@ COPY src/agents/configs ./configs
 # Copy scripts (for seeding Milvus, etc.)
 COPY src/agents/scripts ./scripts
 
+# Copy shared data (product catalog for Milvus seeder)
+COPY src/data ./src/data
+
 # No default CMD - set via docker-compose command for each agent
 # Examples:
 # - nat serve --config_file configs/promotion.yml --port 8002
 # - nat serve --config_file configs/post-purchase.yml --port 8003
 # - nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
+# - python scripts/seed_milvus.py (for Milvus seeder)

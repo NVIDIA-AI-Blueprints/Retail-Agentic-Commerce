@@ -5,47 +5,200 @@ Seed Milvus Vector Database with Product Catalog Embeddings
 This script creates the product_catalog collection in Milvus and populates it
 with product embeddings generated using NVIDIA's NV-EmbedQA-E5-v5 model.
 
-Usage:
+Features:
+- Skip-if-exists: Won't re-seed if collection already has data
+- Retry logic: Waits for Milvus to be ready with exponential backoff
+- Flexible endpoints: Supports NVIDIA API Catalog or local NIM
+
+Usage (local development):
     cd src/agents
     source .venv/bin/activate
     python scripts/seed_milvus.py
 
-Requirements:
-    - Milvus running at localhost:19530 (docker compose up -d)
-    - NVIDIA_API_KEY environment variable set
-    - pymilvus installed (pip install pymilvus)
+Usage (Docker):
+    docker compose run --rm milvus-seeder
+
+Environment Variables:
+    NVIDIA_API_KEY      - Required for NVIDIA API Catalog (public endpoint)
+    MILVUS_URI          - Milvus connection URI (default: http://localhost:19530)
+    FORCE_RESEED        - Set to "true" to force re-seeding even if data exists
+
+    NIM Deployment Configuration (consistent with NAT agent configs):
+    NIM_EMBED_BASE_URL  - Embedding API base URL
+                          Public (default): https://integrate.api.nvidia.com/v1
+                          Local NIM example: http://embedqa:8000/v1
+    NIM_EMBED_MODEL_NAME - Embedding model name (default: nvidia/nv-embedqa-e5-v5)
+
+    Legacy (backward compatibility):
+    EMBED_API_URL       - Full embedding endpoint URL (overrides NIM_EMBED_BASE_URL)
 """
 
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 import httpx
 
-# Add project root to path for shared imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Handle imports for both local development and Docker container
+# In Docker: /app/src/data/product_catalog.py
+# Locally: {project_root}/src/data/product_catalog.py
+try:
+    # Try Docker path first
+    sys.path.insert(0, "/app")
+    from src.data.product_catalog import PRODUCTS
+except ImportError:
+    # Fall back to local development path
+    project_root = Path(__file__).parent.parent.parent.parent
+    sys.path.insert(0, str(project_root))
+    from src.data.product_catalog import PRODUCTS
 
-from src.data.product_catalog import PRODUCTS
-
-# Check for required environment variable
-NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
-if not NVIDIA_API_KEY:
-    print("ERROR: NVIDIA_API_KEY environment variable is required")
-    print("Set it with: export NVIDIA_API_KEY=nvapi-xxx")
-    sys.exit(1)
-
+# Configuration from environment
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
 MILVUS_URI = os.environ.get("MILVUS_URI", "http://localhost:19530")
+FORCE_RESEED = os.environ.get("FORCE_RESEED", "false").lower() == "true"
+
+# Embedding configuration - uses same env vars as NAT agent configs for consistency
+# NIM_EMBED_BASE_URL: Public endpoint (default) or local NIM URL
+# NIM_EMBED_MODEL_NAME: Embedding model name (same for both public and local)
 COLLECTION_NAME = "product_catalog"
-EMBEDDING_MODEL = "nvidia/nv-embedqa-e5-v5"
+DEFAULT_EMBED_BASE_URL = "https://integrate.api.nvidia.com/v1"
+DEFAULT_EMBED_MODEL = "nvidia/nv-embedqa-e5-v5"
+
+# Get embedding endpoint from NIM_EMBED_BASE_URL (consistent with NAT configs)
+# Falls back to legacy EMBED_API_URL for backward compatibility
+NIM_EMBED_BASE_URL = os.environ.get("NIM_EMBED_BASE_URL", DEFAULT_EMBED_BASE_URL)
+EMBEDDING_MODEL = os.environ.get("NIM_EMBED_MODEL_NAME", DEFAULT_EMBED_MODEL)
 EMBEDDING_DIM = 1024  # NV-EmbedQA-E5-v5 dimension
-NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/embeddings"
+
+# Build the full embedding API URL
+# If legacy EMBED_API_URL is set, use it directly for backward compatibility
+# Otherwise, construct from NIM_EMBED_BASE_URL
+legacy_embed_url = os.environ.get("EMBED_API_URL")
+if legacy_embed_url:
+    EMBED_API_URL = legacy_embed_url
+else:
+    EMBED_API_URL = f"{NIM_EMBED_BASE_URL}/embeddings"
+
+# Retry configuration
+MAX_RETRIES = 30  # Max attempts to connect to Milvus
+RETRY_DELAY_BASE = 2  # Base delay in seconds (exponential backoff)
+RETRY_DELAY_MAX = 30  # Maximum delay between retries
+
+
+def wait_for_milvus() -> bool:
+    """
+    Wait for Milvus to be ready with exponential backoff.
+    
+    Returns:
+        True if Milvus is ready, False if max retries exceeded
+    """
+    from pymilvus import connections
+    from pymilvus.exceptions import MilvusException
+    
+    # Parse URI for host/port
+    uri = MILVUS_URI.replace("http://", "").replace("https://", "")
+    host, port = uri.split(":")
+    
+    print(f"\nWaiting for Milvus at {MILVUS_URI}...")
+    
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            connections.connect(alias="default", host=host, port=port)
+            print(f"  Connected to Milvus (attempt {attempt})")
+            return True
+        except MilvusException as e:
+            delay = min(RETRY_DELAY_BASE * (1.5 ** (attempt - 1)), RETRY_DELAY_MAX)
+            print(f"  Attempt {attempt}/{MAX_RETRIES}: Milvus not ready - {e}")
+            print(f"  Retrying in {delay:.1f}s...")
+            time.sleep(delay)
+        except Exception as e:
+            delay = min(RETRY_DELAY_BASE * (1.5 ** (attempt - 1)), RETRY_DELAY_MAX)
+            print(f"  Attempt {attempt}/{MAX_RETRIES}: Connection error - {e}")
+            print(f"  Retrying in {delay:.1f}s...")
+            time.sleep(delay)
+    
+    print(f"\nERROR: Failed to connect to Milvus after {MAX_RETRIES} attempts")
+    return False
+
+
+def check_collection_exists_with_data() -> bool:
+    """
+    Check if the collection exists and has data.
+    
+    Returns:
+        True if collection exists and has data, False otherwise
+    """
+    from pymilvus import Collection, utility
+    
+    if not utility.has_collection(COLLECTION_NAME):
+        print(f"  Collection '{COLLECTION_NAME}' does not exist")
+        return False
+    
+    collection = Collection(COLLECTION_NAME)
+    collection.load()
+    count = collection.num_entities
+    
+    if count > 0:
+        print(f"  Collection '{COLLECTION_NAME}' exists with {count} entities")
+        return True
+    
+    print(f"  Collection '{COLLECTION_NAME}' exists but is empty")
+    return False
+
+
+def is_using_public_endpoint() -> bool:
+    """Check if using the public NVIDIA API Catalog endpoint."""
+    return NIM_EMBED_BASE_URL == DEFAULT_EMBED_BASE_URL
+
+
+def wait_for_embedding_service() -> bool:
+    """
+    Wait for the embedding service to be ready.
+    
+    Returns:
+        True if service is ready, False otherwise
+    """
+    # For NVIDIA API Catalog, assume it's always ready
+    if is_using_public_endpoint():
+        if not NVIDIA_API_KEY:
+            print("\nERROR: NVIDIA_API_KEY environment variable is required")
+            print("Set it with: export NVIDIA_API_KEY=nvapi-xxx")
+            return False
+        print(f"\nUsing NVIDIA API Catalog for embeddings")
+        return True
+    
+    # For local NIM, wait for health endpoint
+    print(f"\nWaiting for embedding service at {EMBED_API_URL}...")
+    
+    # Extract base URL for health check
+    base_url = EMBED_API_URL.rsplit("/", 1)[0]  # Remove /embeddings
+    health_url = f"{base_url}/health/ready"
+    
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(health_url)
+                if response.status_code == 200:
+                    print(f"  Embedding service ready (attempt {attempt})")
+                    return True
+        except Exception as e:
+            pass
+        
+        delay = min(RETRY_DELAY_BASE * (1.5 ** (attempt - 1)), RETRY_DELAY_MAX)
+        print(f"  Attempt {attempt}/{MAX_RETRIES}: Embedding service not ready")
+        print(f"  Retrying in {delay:.1f}s...")
+        time.sleep(delay)
+    
+    print(f"\nERROR: Embedding service not ready after {MAX_RETRIES} attempts")
+    return False
 
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:
     """
-    Generate embeddings using NVIDIA NIM API.
+    Generate embeddings using NVIDIA NIM API (hosted or local).
 
     Args:
         texts: List of text strings to embed
@@ -56,9 +209,12 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
     print(f"  Generating embeddings for {len(texts)} texts...")
 
     headers = {
-        "Authorization": f"Bearer {NVIDIA_API_KEY}",
         "Content-Type": "application/json",
     }
+    
+    # Add auth header for NVIDIA API Catalog
+    if NVIDIA_API_KEY:
+        headers["Authorization"] = f"Bearer {NVIDIA_API_KEY}"
 
     payload = {
         "input": texts,
@@ -68,8 +224,8 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
         "truncate": "END",
     }
 
-    with httpx.Client(timeout=60.0) as client:
-        response = client.post(NIM_ENDPOINT, headers=headers, json=payload)
+    with httpx.Client(timeout=120.0) as client:
+        response = client.post(EMBED_API_URL, headers=headers, json=payload)
         response.raise_for_status()
 
     result = response.json()
@@ -86,18 +242,8 @@ def create_milvus_collection():
         CollectionSchema,
         DataType,
         FieldSchema,
-        connections,
         utility,
     )
-
-    print(f"\n1. Connecting to Milvus at {MILVUS_URI}...")
-
-    # Parse URI for host/port
-    uri = MILVUS_URI.replace("http://", "").replace("https://", "")
-    host, port = uri.split(":")
-
-    connections.connect(alias="default", host=host, port=port)
-    print("  Connected successfully")
 
     # Drop existing collection if exists
     if utility.has_collection(COLLECTION_NAME):
@@ -233,30 +379,48 @@ def main():
     print(f"  Milvus URI: {MILVUS_URI}")
     print(f"  Collection: {COLLECTION_NAME}")
     print(f"  Embedding Model: {EMBEDDING_MODEL}")
+    print(f"  Embedding Base URL: {NIM_EMBED_BASE_URL}")
+    print(f"  Embedding Endpoint: {EMBED_API_URL}")
     print(f"  Embedding Dimension: {EMBEDDING_DIM}")
+    print(f"  Using Public API: {is_using_public_endpoint()}")
     print(f"  Products to seed: {len(PRODUCTS)}")
+    print(f"  Force reseed: {FORCE_RESEED}")
 
     try:
-        # Create collection
+        # Step 1: Wait for Milvus to be ready
+        print("\n1. Connecting to Milvus...")
+        if not wait_for_milvus():
+            sys.exit(1)
+        
+        # Step 2: Check if already seeded (skip-if-exists)
+        if not FORCE_RESEED and check_collection_exists_with_data():
+            print("\n" + "=" * 60)
+            print("SKIPPED: Collection already seeded with data")
+            print("Set FORCE_RESEED=true to force re-seeding")
+            print("=" * 60)
+            sys.exit(0)
+        
+        # Step 3: Wait for embedding service
+        if not wait_for_embedding_service():
+            sys.exit(1)
+        
+        # Step 4: Create collection
         collection = create_milvus_collection()
 
-        # Seed products with embeddings
+        # Step 5: Seed products with embeddings
         count = seed_products(collection)
 
-        # Verify with test query
+        # Step 6: Verify with test query
         verify_collection(collection)
 
         print("\n" + "=" * 60)
         print(f"SUCCESS: Seeded {count} products into Milvus")
         print("=" * 60)
-        print("\nThe recommendation agent can now retrieve real products!")
-        print("Start the agent with:")
-        print("  nat serve --config_file configs/recommendation.yml --port 8004")
+        print("\nThe recommendation and search agents can now retrieve products!")
 
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
-
         traceback.print_exc()
         sys.exit(1)
 
