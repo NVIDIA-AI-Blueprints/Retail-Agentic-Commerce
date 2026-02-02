@@ -1133,6 +1133,7 @@ class CartCheckoutRequest(BaseModel):
 
     cart_id: str = Field(..., alias="cartId")
     cart_items: list[dict[str, Any]] = Field(..., alias="cartItems")
+    customer_name: str | None = Field(None, alias="customerName")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -1611,9 +1612,9 @@ async def api_checkout(request: CartCheckoutRequest) -> dict[str, Any]:
     ]
 
     logger.info(
-        f"Checkout REST API called for cart {cart_id} with {len(carts[cart_id])} items"
+        f"Checkout REST API called for cart {cart_id} with {len(carts[cart_id])} items, customer: {request.customer_name}"
     )
 
-    # Process checkout
-    result = await checkout(cart_id)
+    # Process checkout with customer name for personalized post-purchase messages
+    result = await checkout(cart_id, customer_name=request.customer_name)
     return result

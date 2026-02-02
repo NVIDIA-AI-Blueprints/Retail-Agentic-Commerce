@@ -242,9 +242,23 @@ def complete_checkout(
         # Trigger post-purchase agent and webhook delivery (ACP architecture)
         # This runs as a background task so it doesn't block the checkout response
         if response.order is not None:
-            # Extract customer name (use buyer from request or response)
+            # Extract customer name from multiple sources (in priority order):
+            # 1. billing_address.name from payment_data (user's actual input)
+            # 2. buyer.first_name from request
+            # 3. buyer.first_name from session response
             customer_name = "Customer"
-            if request.buyer and request.buyer.first_name:
+            billing_name = None
+            if (
+                request.payment_data
+                and request.payment_data.billing_address
+                and request.payment_data.billing_address.name
+            ):
+                # Extract first name from billing address (e.g., "John Doe" -> "John")
+                billing_name = request.payment_data.billing_address.name.strip()
+                name_parts = billing_name.split()
+                if name_parts:
+                    customer_name = name_parts[0]
+            elif request.buyer and request.buyer.first_name:
                 customer_name = request.buyer.first_name
             elif response.buyer and response.buyer.first_name:
                 customer_name = response.buyer.first_name

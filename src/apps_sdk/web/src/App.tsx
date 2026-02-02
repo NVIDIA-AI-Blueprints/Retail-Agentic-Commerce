@@ -495,7 +495,7 @@ export function App() {
 
   // Handle checkout - makes real API calls to the MCP server
   // Widget is fully isolated - no postMessage communication with parent
-  const handleCheckout = useCallback(async () => {
+  const handleCheckout = useCallback(async (paymentFormData?: { fullName: string; address: string; city: string; zipCode: string }) => {
     if (cartItems.length === 0) return;
 
     setIsCheckingOut(true);
@@ -505,11 +505,14 @@ export function App() {
     const apiBaseUrl = getApiBaseUrl();
     const cartId = cartState.cartId || `cart_${Date.now().toString(36)}`;
 
+    // Extract customer name from form data for personalized post-purchase messages
+    const customerName = paymentFormData?.fullName || "Customer";
+
     try {
       // Make real HTTP call to the MCP server's REST API
       // The MCP server handles the full ACP flow and emits SSE events
       // that the Protocol Inspector can subscribe to independently
-      console.log("[Checkout] Calling checkout REST API...", { cartId, itemCount: cartItems.length });
+      console.log("[Checkout] Calling checkout REST API...", { cartId, itemCount: cartItems.length, customerName });
       
       const response = await fetch(`${apiBaseUrl}/cart/checkout`, {
         method: "POST",
@@ -519,6 +522,7 @@ export function App() {
         body: JSON.stringify({
           cartId,
           cartItems: cartItems,
+          customerName: customerName,
         }),
       });
 

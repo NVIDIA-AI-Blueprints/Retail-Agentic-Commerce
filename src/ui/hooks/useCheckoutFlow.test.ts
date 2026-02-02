@@ -415,6 +415,57 @@ describe("useCheckoutFlow", () => {
       );
     });
 
+    it("passes billing_address.name from form to completeCheckout for post-purchase personalization", async () => {
+      // Use a DIFFERENT name than defaults to catch bugs where defaults are used
+      const customBillingAddress = {
+        fullName: "Antonio Martinez",
+        address: "456 Test Ave, Los Angeles, CA 90001",
+        preferredLanguage: "en" as const,
+      };
+
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+      vi.mocked(apiClient.delegatePayment).mockResolvedValueOnce(mockVaultToken);
+      vi.mocked(apiClient.completeCheckout).mockResolvedValueOnce(mockCompletedSession);
+
+      const { result } = renderHook(() => useCheckoutFlow());
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      // Set payment info and custom billing address with non-default name
+      act(() => {
+        result.current.setPaymentInfo(mockPaymentInfo);
+        result.current.setBillingAddress(customBillingAddress);
+      });
+
+      await act(async () => {
+        await result.current.submitPayment();
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("confirmation");
+      });
+
+      // Verify that billing_address.name is passed with the user's actual name
+      // The backend extracts the first name from billing_address.name for post-purchase messages
+      expect(apiClient.completeCheckout).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          payment_data: expect.objectContaining({
+            billing_address: expect.objectContaining({
+              name: "Antonio Martinez",
+            }),
+          }),
+        })
+      );
+    });
+
     it("stores vault token after delegation", async () => {
       vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
       vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);

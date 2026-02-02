@@ -61,7 +61,9 @@ def _emit_event(
         pass
 
 
-async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
+async def process_acp_checkout(
+    cart_id: str, customer_name: str | None = None
+) -> dict[str, Any]:
     """
     Process checkout through the ACP payment flow with PSP delegation.
 
@@ -74,6 +76,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
 
     Args:
         cart_id: The cart ID to checkout.
+        customer_name: Customer's full name for personalized messages.
 
     Returns:
         Dictionary with checkout result including:
@@ -84,6 +87,11 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
         - total: Order total in cents
         - itemCount: Number of items in order
     """
+    # Parse customer name into first and last name for API calls
+    name_parts = (customer_name or "Customer").strip().split(maxsplit=1)
+    first_name = name_parts[0] if name_parts else "Customer"
+    last_name = name_parts[1] if len(name_parts) > 1 else ""
+    full_name = customer_name or "Customer"
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
     psp_api_url = settings.psp_api_url
@@ -128,12 +136,12 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                 json={
                     "items": items,
                     "buyer": {
-                        "first_name": "John",
-                        "last_name": "Doe",
-                        "email": "john@example.com",
+                        "first_name": first_name,
+                        "last_name": last_name or None,
+                        "email": "customer@example.com",
                     },
                     "fulfillment_address": {
-                        "name": "John Doe",
+                        "name": full_name,
                         "line_one": "123 Main St",
                         "city": "San Francisco",
                         "state": "CA",
@@ -243,7 +251,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                         }
                     ],
                     "billing_address": {
-                        "name": "John Doe",
+                        "name": full_name,
                         "line_one": "123 Main St",
                         "city": "San Francisco",
                         "state": "CA",
@@ -295,7 +303,7 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
                         "token": vault_token_id,
                         "provider": "stripe",
                         "billing_address": {
-                            "name": "John Doe",
+                            "name": full_name,
                             "line_one": "123 Main St",
                             "city": "San Francisco",
                             "state": "CA",
@@ -380,17 +388,18 @@ async def process_acp_checkout(cart_id: str) -> dict[str, Any]:
         }
 
 
-async def checkout(cart_id: str) -> dict[str, Any]:
+async def checkout(cart_id: str, customer_name: str | None = None) -> dict[str, Any]:
     """
     Process checkout using ACP payment flow.
 
     Args:
         cart_id: The cart ID to checkout.
+        customer_name: Customer's full name for personalized messages.
 
     Returns:
         Checkout result with order ID or error.
     """
-    result = await process_acp_checkout(cart_id)
+    result = await process_acp_checkout(cart_id, customer_name=customer_name)
 
     return {
         **result,

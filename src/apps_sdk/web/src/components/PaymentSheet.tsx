@@ -2,12 +2,19 @@ import { useState, useCallback, useEffect } from "react";
 import { X, CreditCard, MapPin, Lock } from "lucide-react";
 import { formatPrice } from "@/types";
 
+export interface PaymentFormData {
+  fullName: string;
+  address: string;
+  city: string;
+  zipCode: string;
+}
+
 interface PaymentSheetProps {
   isOpen: boolean;
   isProcessing: boolean;
   total: number;
   onClose: () => void;
-  onPay: () => void;
+  onPay: (formData: PaymentFormData) => void;
 }
 
 /**
@@ -98,9 +105,15 @@ export function PaymentSheet({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      onPay();
+      // Pass the form data (name, address) to the checkout handler
+      onPay({
+        fullName: formData.fullName,
+        address: formData.address,
+        city: formData.city,
+        zipCode: formData.zipCode,
+      });
     },
-    [onPay]
+    [onPay, formData]
   );
 
   // Handle backdrop click

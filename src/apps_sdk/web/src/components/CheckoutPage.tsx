@@ -15,7 +15,7 @@ import {
 import type { CartItem, CartState, Product, CheckoutResult } from "@/types";
 import { formatPrice, getProductImage } from "@/types";
 import { RecommendationSkeleton } from "@/components/RecommendationSkeleton";
-import { PaymentSheet } from "@/components/PaymentSheet";
+import { PaymentSheet, type PaymentFormData } from "@/components/PaymentSheet";
 
 /**
  * Delivery option configuration
@@ -61,7 +61,7 @@ interface CheckoutPageProps {
   onBack: () => void;
   onUpdateQuantity: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
-  onCheckout: () => void;
+  onCheckout: (formData?: PaymentFormData) => void;
   onProductClick: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
   onClearResult: () => void;
@@ -296,9 +296,9 @@ export function CheckoutPage({
     }
   }, [isProcessing]);
 
-  // Handle payment completion - calls the backend
-  const handlePay = useCallback(() => {
-    onCheckout();
+  // Handle payment completion - calls the backend with form data for personalization
+  const handlePay = useCallback((formData: PaymentFormData) => {
+    onCheckout(formData);
   }, [onCheckout]);
 
   // Close payment sheet when checkout result comes back
