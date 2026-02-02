@@ -115,7 +115,9 @@ async def _fetch_product_from_merchant(product_id: str) -> dict[str, Any] | None
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{MERCHANT_API_URL}/products/{product_id}")
             if response.status_code != 200:
-                logger.debug(f"Product {product_id} not found in merchant API: {response.status_code}")
+                logger.debug(
+                    f"Product {product_id} not found in merchant API: {response.status_code}"
+                )
                 return None
             product = response.json()
             return {
@@ -242,7 +244,9 @@ async def search_products(
             if similarity >= SEARCH_MIN_SIMILARITY:
                 filtered_items.append(item)
         if has_scores:
-            logger.info(f"Applied similarity filter (min={SEARCH_MIN_SIMILARITY}): {len(agent_items)} -> {len(filtered_items)}")
+            logger.info(
+                f"Applied similarity filter (min={SEARCH_MIN_SIMILARITY}): {len(agent_items)} -> {len(filtered_items)}"
+            )
             agent_items = filtered_items
 
     results: list[dict[str, Any]] = []
@@ -256,7 +260,9 @@ async def search_products(
         if enriched:
             results.append(enriched)
         else:
-            logger.debug(f"Product {product_id} returned by agent not found in merchant database (skipping)")
+            logger.debug(
+                f"Product {product_id} returned by agent not found in merchant database (skipping)"
+            )
 
     if len(results) > limit:
         results = results[:limit]

@@ -250,18 +250,8 @@ class TestAddToCart:
     @pytest.mark.asyncio
     async def test_cart_totals_calculated_correctly(self) -> None:
         """Cart totals (subtotal, tax, shipping, total) are calculated."""
-        mock_product = {
-            "id": "prod_1",
-            "name": "Test Product",
-            "base_price": 2500,
-            "stock_count": 10,
-            "category": "tops",
-        }
-        with patch(
-            "src.apps_sdk.tools.cart.find_product",
-            new=AsyncMock(return_value=mock_product),
-        ):
-            result = await add_to_cart(product_id="prod_1", quantity=2)
+        # Mock product from conftest has base_price=2500
+        result = await add_to_cart(product_id="prod_1", quantity=2)
 
         expected_subtotal = 2500 * 2  # mock product price * quantity
 
