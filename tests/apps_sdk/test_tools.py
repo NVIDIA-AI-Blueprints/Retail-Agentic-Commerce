@@ -22,10 +22,7 @@ from src.apps_sdk.tools.cart import (
     update_cart_quantity,
 )
 from src.apps_sdk.tools.checkout import checkout
-from src.apps_sdk.tools.recommendations import (
-    CATALOG_PRODUCTS,
-    search_products,
-)
+from src.apps_sdk.tools.recommendations import search_products
 
 # =============================================================================
 # SEARCH PRODUCTS TESTS (Entry Point MCP Tool)
@@ -103,9 +100,7 @@ class TestSearchProducts:
     @pytest.mark.asyncio
     async def test_search_max_limit_is_50(self) -> None:
         """Search clamps limit to maximum of 50."""
-        items = [
-            {"product_id": CATALOG_PRODUCTS[0]["id"], "score": 0.4} for _ in range(60)
-        ]
+        items = [{"product_id": "prod_1", "score": 0.4} for _ in range(60)]
         with patch(
             "src.apps_sdk.tools.recommendations.call_search_agent",
             new=AsyncMock(return_value={"results": items}),
@@ -255,10 +250,20 @@ class TestAddToCart:
     @pytest.mark.asyncio
     async def test_cart_totals_calculated_correctly(self) -> None:
         """Cart totals (subtotal, tax, shipping, total) are calculated."""
-        result = await add_to_cart(product_id="prod_1", quantity=2)
+        mock_product = {
+            "id": "prod_1",
+            "name": "Test Product",
+            "base_price": 2500,
+            "stock_count": 10,
+            "category": "tops",
+        }
+        with patch(
+            "src.apps_sdk.tools.cart.find_product",
+            new=AsyncMock(return_value=mock_product),
+        ):
+            result = await add_to_cart(product_id="prod_1", quantity=2)
 
-        product_price = CATALOG_PRODUCTS[0]["basePrice"]
-        expected_subtotal = product_price * 2
+        expected_subtotal = 2500 * 2  # mock product price * quantity
 
         assert result["subtotal"] == expected_subtotal
         assert result["shipping"] == 500  # $5.00

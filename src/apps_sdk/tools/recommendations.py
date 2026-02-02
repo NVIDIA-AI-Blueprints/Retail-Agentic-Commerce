@@ -107,7 +107,7 @@ def _parse_search_agent_response(raw_result: Any) -> dict[str, Any]:
 
 async def _fetch_product_from_merchant(product_id: str) -> dict[str, Any] | None:
     """Fetch a product from the merchant API.
-    
+
     This is the single source of truth for product data.
     Returns None if the product doesn't exist in the merchant database.
     """
@@ -208,7 +208,7 @@ async def search_products(
             category=category,
             message="Search agent unavailable. Try again.",
         )
-    
+
     agent_items = agent_result.get("results", [])
     logger.info(f"Search agent returned {len(agent_items)} results")
 
@@ -251,7 +251,7 @@ async def search_products(
         if not product_id:
             logger.warning(f"Agent returned item without product_id: {item}")
             continue
-        
+
         enriched = await _fetch_product_from_merchant(product_id)
         if enriched:
             results.append(enriched)

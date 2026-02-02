@@ -90,4 +90,5 @@ const globalForWebhook = globalThis as typeof globalThis & {
 // Export the singleton instance using globalThis for true global singleton
 // This ensures the same instance is shared across all Next.js API routes
 export const webhookEmitter =
-  globalForWebhook[WEBHOOK_EMITTER_KEY] ?? (globalForWebhook[WEBHOOK_EMITTER_KEY] = new WebhookEventEmitter());
+  globalForWebhook[WEBHOOK_EMITTER_KEY] ??
+  (globalForWebhook[WEBHOOK_EMITTER_KEY] = new WebhookEventEmitter());

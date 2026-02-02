@@ -122,102 +122,103 @@ export function MerchantIframeContainer({
     );
   }, []);
 
-  const initializeMCPWidget = useCallback(async (query: string) => {
-    if (mcpCalledRef.current) return;
-    mcpCalledRef.current = true;
+  const initializeMCPWidget = useCallback(
+    async (query: string) => {
+      if (mcpCalledRef.current) return;
+      mcpCalledRef.current = true;
 
-    setMcpStatus("loading");
+      setMcpStatus("loading");
 
-    const trimmedQuery = query.trim();
-    const searchEventId = logAgentCall("search", {
-      query: trimmedQuery,
-      limit: 3,
-    });
-    const searchLoadingToken = Date.now();
-    searchLoadingTokenRef.current = searchLoadingToken;
-    setIsSearchLoading(true);
+      const trimmedQuery = query.trim();
+      const searchEventId = logAgentCall("search", {
+        query: trimmedQuery,
+        limit: 3,
+      });
+      const searchLoadingToken = Date.now();
+      searchLoadingTokenRef.current = searchLoadingToken;
+      setIsSearchLoading(true);
 
-    // Log MCP tool call - we're calling an actual tool, not just checking health
-    const eventId = logEvent(
-      "session_create",
-      "POST",
-      "/api/mcp (tools/call: search-products)",
-      "Calling MCP tool to discover widget URI"
-    );
+      // Log MCP tool call - we're calling an actual tool, not just checking health
+      const eventId = logEvent(
+        "session_create",
+        "POST",
+        "/api/mcp (tools/call: search-products)",
+        "Calling MCP tool to discover widget URI"
+      );
 
-    try {
-      // Call MCP tool - widget URL is DISCOVERED from response, not hardcoded
-      const { widgetUrl, widgetUri, error, result } = await getWidgetUrl(query, 3);
-      const toolError =
-        error ??
-        (typeof result?.error === "string" ? (result.error as string) : null);
+      try {
+        // Call MCP tool - widget URL is DISCOVERED from response, not hardcoded
+        const { widgetUrl, widgetUri, error, result } = await getWidgetUrl(query, 3);
+        const toolError =
+          error ?? (typeof result?.error === "string" ? (result.error as string) : null);
 
-      if (widgetUrl && widgetUri) {
-        // Successfully discovered widget URL from MCP tool response
-        // Include both the discovery and resolution in the completion message
-        if (toolError) {
-          completeEvent(eventId, "error", toolError, 500);
+        if (widgetUrl && widgetUri) {
+          // Successfully discovered widget URL from MCP tool response
+          // Include both the discovery and resolution in the completion message
+          if (toolError) {
+            completeEvent(eventId, "error", toolError, 500);
+          } else {
+            completeEvent(eventId, "success", `Discovered: ${widgetUri}`, 200);
+          }
+
+          setDiscoveredWidgetUri(widgetUri);
+          setIframeSrc(widgetUrl);
+          setMcpStatus("success");
+
+          const toolOutput = result ?? (toolError ? { error: toolError, products: [] } : null);
+
+          if (toolError) {
+            completeAgentCall(searchEventId, "error", undefined, toolError);
+          } else if (toolOutput) {
+            const productCount = Array.isArray(toolOutput.products)
+              ? toolOutput.products.length
+              : 0;
+            const decision = {
+              results: Array.isArray(toolOutput.products)
+                ? toolOutput.products.map((product: { id?: string; name?: string }) => ({
+                    productId: product.id ?? "",
+                    productName: product.name ?? "Product",
+                  }))
+                : [],
+              totalResults:
+                typeof toolOutput.totalResults === "number"
+                  ? toolOutput.totalResults
+                  : productCount,
+            };
+            completeAgentCall(searchEventId, "success", decision);
+          }
+
+          if (toolOutput) {
+            latestGlobalsRef.current = {
+              toolInput: { query, limit: 3 },
+              toolOutput: toolOutput,
+            };
+          }
         } else {
-          completeEvent(eventId, "success", `Discovered: ${widgetUri}`, 200);
+          throw new Error(toolError ?? "MCP tool did not return widget URI in _meta");
         }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "MCP tool call failed";
 
-        setDiscoveredWidgetUri(widgetUri);
-        setIframeSrc(widgetUrl);
-        setMcpStatus("success");
+        // Complete the original event with error, include fallback info in the message
+        completeEvent(eventId, "error", `${errorMessage} → Fallback: ${FALLBACK_WIDGET_URL}`, 500);
+        completeAgentCall(searchEventId, "error", undefined, errorMessage);
 
-        const toolOutput =
-          result ?? (toolError ? { error: toolError, products: [] } : null);
-
-        if (toolError) {
-          completeAgentCall(searchEventId, "error", undefined, toolError);
-        } else if (toolOutput) {
-          const productCount = Array.isArray(toolOutput.products)
-            ? toolOutput.products.length
-            : 0;
-          const decision = {
-            results: Array.isArray(toolOutput.products)
-              ? toolOutput.products.map((product: { id?: string; name?: string }) => ({
-                  productId: product.id ?? "",
-                  productName: product.name ?? "Product",
-                }))
-              : [],
-            totalResults:
-              typeof toolOutput.totalResults === "number"
-                ? toolOutput.totalResults
-                : productCount,
-          };
-          completeAgentCall(searchEventId, "success", decision);
+        setIframeSrc(FALLBACK_WIDGET_URL);
+        setMcpStatus("error");
+      } finally {
+        const elapsed = Date.now() - searchLoadingToken;
+        const remaining = MIN_SEARCH_DELAY_MS - elapsed;
+        if (remaining > 0) {
+          await new Promise((resolve) => setTimeout(resolve, remaining));
         }
-
-        if (toolOutput) {
-          latestGlobalsRef.current = {
-            toolInput: { query, limit: 3 },
-            toolOutput: toolOutput,
-          };
+        if (searchLoadingTokenRef.current === searchLoadingToken) {
+          setIsSearchLoading(false);
         }
-      } else {
-        throw new Error(toolError ?? "MCP tool did not return widget URI in _meta");
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "MCP tool call failed";
-
-      // Complete the original event with error, include fallback info in the message
-      completeEvent(eventId, "error", `${errorMessage} → Fallback: ${FALLBACK_WIDGET_URL}`, 500);
-      completeAgentCall(searchEventId, "error", undefined, errorMessage);
-
-      setIframeSrc(FALLBACK_WIDGET_URL);
-      setMcpStatus("error");
-    } finally {
-      const elapsed = Date.now() - searchLoadingToken;
-      const remaining = MIN_SEARCH_DELAY_MS - elapsed;
-      if (remaining > 0) {
-        await new Promise((resolve) => setTimeout(resolve, remaining));
-      }
-      if (searchLoadingTokenRef.current === searchLoadingToken) {
-        setIsSearchLoading(false);
-      }
-    }
-  }, [logAgentCall, completeAgentCall, logEvent, completeEvent, getWidgetUrl]);
+    },
+    [logAgentCall, completeAgentCall, logEvent, completeEvent, getWidgetUrl]
+  );
 
   /**
    * Handle iframe load event.
@@ -491,15 +492,11 @@ export function MerchantIframeContainer({
         });
 
         const toolError =
-          error ??
-          (typeof result?.error === "string" ? (result.error as string) : null);
-        const toolOutput =
-          result ?? (toolError ? { error: toolError, products: [] } : null);
+          error ?? (typeof result?.error === "string" ? (result.error as string) : null);
+        const toolOutput = result ?? (toolError ? { error: toolError, products: [] } : null);
 
         if (toolOutput) {
-          const productCount = Array.isArray(toolOutput.products)
-            ? toolOutput.products.length
-            : 0;
+          const productCount = Array.isArray(toolOutput.products) ? toolOutput.products.length : 0;
           const globals = {
             toolInput: { query: trimmedQuery, limit: 3 },
             toolOutput: toolOutput,
@@ -516,12 +513,7 @@ export function MerchantIframeContainer({
             completeEvent(acpEventId, "error", toolError, 500);
             completeAgentCall(searchEventId, "error", undefined, toolError);
           } else {
-            completeEvent(
-              acpEventId,
-              "success",
-              `Found ${productCount} products`,
-              200
-            );
+            completeEvent(acpEventId, "success", `Found ${productCount} products`, 200);
             const decision = {
               results: Array.isArray(toolOutput.products)
                 ? toolOutput.products.map((product: { id?: string; name?: string }) => ({
@@ -540,8 +532,7 @@ export function MerchantIframeContainer({
           throw new Error(toolError);
         }
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Failed to search products";
+        const errorMessage = error instanceof Error ? error.message : "Failed to search products";
         completeEvent(acpEventId, "error", errorMessage, 500);
         completeAgentCall(searchEventId, "error", undefined, errorMessage);
       } finally {
@@ -576,17 +567,10 @@ export function MerchantIframeContainer({
     }
 
     handleSearchRequest(searchRequest.query);
-  }, [
-    searchRequest?.requestId,
-    searchRequest?.query,
-    initializeMCPWidget,
-    handleSearchRequest,
-  ]);
+  }, [searchRequest?.requestId, searchRequest?.query, initializeMCPWidget, handleSearchRequest]);
 
   return (
-    <div
-      className={`merchant-iframe-container${isSearchLoading ? " is-search-loading" : ""}`}
-    >
+    <div className={`merchant-iframe-container${isSearchLoading ? " is-search-loading" : ""}`}>
       {/* MCP Status indicator */}
       {mcpStatus === "loading" && (
         <div className="mcp-status">

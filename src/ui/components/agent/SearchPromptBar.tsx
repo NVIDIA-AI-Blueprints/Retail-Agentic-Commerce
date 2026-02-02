@@ -1,37 +1,33 @@
- "use client";
- 
+"use client";
+
 import { useCallback } from "react";
 import type { ChangeEvent, FormEvent } from "react";
- 
- interface SearchPromptBarProps {
-   value: string;
-   onChange: (value: string) => void;
-   onSubmit: (value: string) => void;
- }
- 
-export function SearchPromptBar({
-  value,
-  onChange,
-  onSubmit,
-}: SearchPromptBarProps) {
-   const handleSubmit = useCallback(
+
+interface SearchPromptBarProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: (value: string) => void;
+}
+
+export function SearchPromptBar({ value, onChange, onSubmit }: SearchPromptBarProps) {
+  const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
-       event.preventDefault();
+      event.preventDefault();
       if (value.trim().length === 0) return;
-       onSubmit(value);
-     },
-     [onSubmit, value]
-   );
- 
-   const handleChange = useCallback(
+      onSubmit(value);
+    },
+    [onSubmit, value]
+  );
+
+  const handleChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-       onChange(event.target.value);
-     },
-     [onChange]
-   );
- 
-   const isDisabled = value.trim().length === 0;
- 
+      onChange(event.target.value);
+    },
+    [onChange]
+  );
+
+  const isDisabled = value.trim().length === 0;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -57,4 +53,4 @@ export function SearchPromptBar({
       </button>
     </form>
   );
- }
+}

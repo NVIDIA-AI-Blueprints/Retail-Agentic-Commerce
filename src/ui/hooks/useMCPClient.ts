@@ -166,7 +166,7 @@ export function useMCPClient() {
         const contentErrorText = mcpResponse.result?.content?.[0]?.text;
         const toolErrorMessage =
           mcpResponse.result?.isError || errorFromStructured
-            ? errorFromStructured ?? contentErrorText ?? "Tool call failed"
+            ? (errorFromStructured ?? contentErrorText ?? "Tool call failed")
             : null;
 
         // Extract widget URI from _meta.openai/outputTemplate
@@ -298,7 +298,7 @@ export function useMCPClient() {
         const contentErrorText = mcpResponse.result?.content?.[0]?.text;
         const toolErrorMessage =
           mcpResponse.result?.isError || errorFromStructured
-            ? errorFromStructured ?? contentErrorText ?? "Tool call failed"
+            ? (errorFromStructured ?? contentErrorText ?? "Tool call failed")
             : null;
 
         if (toolErrorMessage) {
