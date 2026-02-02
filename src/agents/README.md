@@ -51,6 +51,7 @@ All ACP agents follow a **3-layer hybrid architecture** that combines determinis
 | Promotion Agent | `configs/promotion.yml` | 8002 | Strategy arbiter for dynamic pricing |
 | Post-Purchase Agent | `configs/post-purchase.yml` | 8003 | Multilingual shipping message generator |
 | Recommendation Agent (ARAG) | `configs/recommendation-ultrafast.yml` | 8004 | Multi-agent personalized recommendations |
+| Search Agent (RAG) | `configs/search.yml` | 8005 | Lightweight semantic product search |
 
 ### ARAG Recommendation Agent Architecture
 
@@ -398,6 +399,26 @@ The Recommendation Agent requires Milvus for vector search and Phoenix for obser
 | Phoenix | 6006 | LLM observability UI and trace collection |
 | MinIO | 9001 | Object storage for Milvus (console optional) |
 
+### Search Agent (`configs/search.yml`)
+
+**Workflow Type:** `tool_calling_agent`
+
+Lightweight RAG search agent that performs semantic product search against the
+Milvus `product_catalog` collection and returns top-k matches for a query.
+
+```bash
+# Start as REST endpoint
+nat serve --config_file configs/search.yml --port 8005
+
+# Test with direct input
+nat run --config_file configs/search.yml --input '{
+  "query": "lightweight summer tee",
+  "limit": 3
+}'
+```
+
+**Requires:** Milvus running and seeded (same setup as Recommendation Agent).
+
 ```bash
 # Start infrastructure
 docker compose up -d
@@ -595,7 +616,8 @@ src/agents/
     ├── promotion.yml        # Promotion strategy arbiter (port 8002)
     ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
     ├── recommendation.yml   # ARAG multi-agent recommendations (full version)
-    └── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
+    ├── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
+    └── search.yml           # RAG product search agent (port 8005)
 ```
 
 ## Development

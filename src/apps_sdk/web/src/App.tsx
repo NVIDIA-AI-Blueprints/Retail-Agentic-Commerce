@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { SearchX } from "lucide-react";
 import { LoyaltyHeader } from "@/components/LoyaltyHeader";
 import { RecommendationCarousel } from "@/components/RecommendationCarousel";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -77,8 +78,18 @@ export function App() {
 
   // User and recommendations from toolOutput or defaults
   const user: MerchantUser = (toolOutput?.user as MerchantUser) ?? DEFAULT_USER;
-  const browseRecommendations: Product[] =
-    (toolOutput?.recommendations as Product[]) ?? DEFAULT_RECOMMENDATIONS;
+  const toolError =
+    toolOutput && typeof toolOutput.error === "string" ? (toolOutput.error as string) : null;
+  const browseRecommendations: Product[] = toolOutput
+    ? toolError
+      ? []
+      : ((toolOutput?.products as Product[]) ??
+        (toolOutput?.recommendations as Product[]) ??
+        [])
+    : DEFAULT_RECOMMENDATIONS;
+  const showEmptyState = browseRecommendations.length === 0;
+  const emptyStateMessage =
+    toolError ?? "No products found. Try a different search or browse trending items.";
 
   // Page navigation state
   const [currentPage, setCurrentPage] = useState<WidgetPage>("browse");
@@ -539,7 +550,7 @@ export function App() {
     } finally {
       setIsCheckingOut(false);
     }
-  }, [cartItems, cartState]);
+  }, [cartItems, cartState, getApiBaseUrl]);
 
   // Render product detail page
   if (currentPage === "product_detail" && selectedProduct) {
@@ -606,11 +617,28 @@ export function App() {
 
       {/* Main Content - Only show recommendations */}
       <div className="px-5 pb-6">
-        <RecommendationCarousel
-          products={browseRecommendations}
-          onAddToCart={handleAddToCart}
-          onProductClick={handleProductClick}
-        />
+        {toolError && (
+          <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+            {toolError}
+          </div>
+        )}
+        {showEmptyState ? (
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-default/60 bg-surface-elevated/50 px-6 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-default/60 bg-surface-elevated">
+              <SearchX className="h-6 w-6 text-text-secondary" strokeWidth={1.75} />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-text">No products found</p>
+              <p className="text-xs text-text-secondary">{emptyStateMessage}</p>
+            </div>
+          </div>
+        ) : (
+          <RecommendationCarousel
+            products={browseRecommendations}
+            onAddToCart={handleAddToCart}
+            onProductClick={handleProductClick}
+          />
+        )}
       </div>
     </div>
   );

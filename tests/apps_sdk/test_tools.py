@@ -10,6 +10,8 @@ Tests cover:
   - checkout: Processing checkout
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from src.apps_sdk.tools.cart import (
@@ -40,7 +42,16 @@ class TestSearchProducts:
     @pytest.mark.asyncio
     async def test_returns_products_and_metadata(self) -> None:
         """Happy path: Returns products, query info, and widget metadata."""
-        result = await search_products(query="tee")
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(
+                return_value={
+                    "results": [{"product_id": "prod_1", "score": 0.4}],
+                    "query": "tee",
+                }
+            ),
+        ):
+            result = await search_products(query="tee")
 
         assert "products" in result
         assert "query" in result
@@ -50,28 +61,26 @@ class TestSearchProducts:
 
     @pytest.mark.asyncio
     async def test_search_filters_by_query(self) -> None:
-        """Search filters products by name/category/sku/description."""
-        result = await search_products(query="jeans")
+        """Search returns empty list when agent returns no results."""
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(return_value={"results": []}),
+        ):
+            result = await search_products(query="jeans")
 
-        # Should find products with "jeans" in name/category/description
-        assert result["totalResults"] > 0
-        # Check that filtering worked (at least one product matches)
-        for product in result["products"]:
-            name_lower = str(product.get("name", "")).lower()
-            category_lower = str(product.get("category", "")).lower()
-            sku_lower = str(product.get("sku", "")).lower()
-            description_lower = str(product.get("description", "")).lower()
-            assert (
-                "jeans" in name_lower
-                or "jeans" in category_lower
-                or "jeans" in sku_lower
-                or "jeans" in description_lower
-            )
+        assert result["totalResults"] == 0
+        assert result["products"] == []
 
     @pytest.mark.asyncio
     async def test_search_with_category_filter(self) -> None:
         """Search with category filter narrows results."""
-        result = await search_products(query="tee", category="white")
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(
+                return_value={"results": [{"product_id": "prod_1", "score": 0.4}]}
+            ),
+        ):
+            result = await search_products(query="tee", category="white")
 
         assert "products" in result
         assert result["category"] == "white"
@@ -79,14 +88,29 @@ class TestSearchProducts:
     @pytest.mark.asyncio
     async def test_search_respects_limit(self) -> None:
         """Search respects the limit parameter."""
-        result = await search_products(query="tee", limit=1)
+        items = [
+            {"product_id": "prod_1", "score": 0.4},
+            {"product_id": "prod_2", "score": 0.4},
+        ]
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(return_value={"results": items}),
+        ):
+            result = await search_products(query="tee", limit=1)
 
         assert len(result["products"]) <= 1
 
     @pytest.mark.asyncio
     async def test_search_max_limit_is_50(self) -> None:
         """Search clamps limit to maximum of 50."""
-        result = await search_products(query="tee", limit=100)
+        items = [
+            {"product_id": CATALOG_PRODUCTS[0]["id"], "score": 0.4} for _ in range(60)
+        ]
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(return_value={"results": items}),
+        ):
+            result = await search_products(query="tee", limit=100)
 
         # Limit should be clamped to 50 internally
         assert len(result["products"]) <= 50
@@ -94,7 +118,16 @@ class TestSearchProducts:
     @pytest.mark.asyncio
     async def test_metadata_includes_widget_uri(self) -> None:
         """Metadata includes widget URI for client discovery."""
-        result = await search_products(query="tee")
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(
+                return_value={
+                    "results": [{"product_id": "prod_2", "score": 0.4}],
+                    "query": "tee",
+                }
+            ),
+        ):
+            result = await search_products(query="tee")
 
         meta = result["_meta"]
         assert "openai/outputTemplate" in meta
@@ -102,12 +135,70 @@ class TestSearchProducts:
         assert meta["openai/widgetAccessible"] is True
 
     @pytest.mark.asyncio
-    async def test_no_match_returns_all_products(self) -> None:
-        """When no products match, returns all products as fallback."""
-        result = await search_products(query="nonexistent_product_xyz123", limit=50)
+    async def test_search_agent_unavailable_returns_error(self) -> None:
+        """Agent failures return an error response."""
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(
+                return_value={"results": [], "error": "Search agent timeout"}
+            ),
+        ):
+            result = await search_products(query="nonexistent_product_xyz123", limit=50)
 
-        # Should fallback to all products (up to limit)
-        assert result["totalResults"] == len(CATALOG_PRODUCTS)
+        assert result["totalResults"] == 0
+        assert result["products"] == []
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_search_filters_by_similarity_threshold(self) -> None:
+        """Search filters out results below the similarity threshold."""
+        with patch(
+            "src.apps_sdk.tools.recommendations.call_search_agent",
+            new=AsyncMock(
+                return_value={
+                    "results": [
+                        {"product_id": "prod_1", "score": 0.1},
+                        {"product_id": "prod_2", "score": 5.0},
+                    ]
+                }
+            ),
+        ):
+            result = await search_products(query="tee", limit=3)
+
+        assert result["totalResults"] == 1
+        assert result["products"][0]["id"] == "prod_1"
+
+    @pytest.mark.asyncio
+    async def test_missing_product_uses_merchant_fallback(self) -> None:
+        """Missing catalog IDs are enriched via merchant API fallback."""
+        with (
+            patch(
+                "src.apps_sdk.tools.recommendations.call_search_agent",
+                new=AsyncMock(
+                    return_value={
+                        "results": [{"product_id": "prod_missing", "score": 0.2}]
+                    }
+                ),
+            ),
+            patch(
+                "src.apps_sdk.tools.recommendations._fetch_product_from_merchant",
+                new=AsyncMock(
+                    return_value={
+                        "id": "prod_missing",
+                        "sku": "TS-999",
+                        "name": "Limited Tee",
+                        "basePrice": 3900,
+                        "stockCount": 5,
+                        "category": "tops",
+                        "description": "Limited edition tee",
+                        "imageUrl": "/prod_99.jpeg",
+                    }
+                ),
+            ),
+        ):
+            result = await search_products(query="limited tee", limit=3)
+
+        assert result["products"][0]["id"] == "prod_missing"
 
 
 # =============================================================================

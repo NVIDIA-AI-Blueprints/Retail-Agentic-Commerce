@@ -38,6 +38,7 @@ export function WebhookToAgentActivityBridge() {
   const { addPostPurchaseEvent } = useAgentActivityLog();
   const { logEvent, completeEvent } = useACPLog();
   const seenEventIdsRef = useRef<Set<string>>(new Set());
+  const lastReceivedAtRef = useRef<string | null>(null);
 
   const addPostPurchaseEventRef = useRef(addPostPurchaseEvent);
   const logEventRef = useRef(logEvent);
@@ -52,6 +53,15 @@ export function WebhookToAgentActivityBridge() {
   const processWebhookEvent = useCallback((event: WebhookEvent) => {
     if (seenEventIdsRef.current.has(event.id)) return;
     seenEventIdsRef.current.add(event.id);
+
+    if (event.receivedAt) {
+      if (
+        !lastReceivedAtRef.current ||
+        new Date(event.receivedAt) > new Date(lastReceivedAtRef.current)
+      ) {
+        lastReceivedAtRef.current = event.receivedAt;
+      }
+    }
 
     if (event.type !== "shipping_update" || event.data.type !== "shipping_update") return;
 
@@ -126,13 +136,36 @@ export function WebhookToAgentActivityBridge() {
     });
   }, []);
 
+  const fetchMissedEvents = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (lastReceivedAtRef.current) {
+        params.set("since", lastReceivedAtRef.current);
+      }
+      const response = await fetch(
+        `/api/webhooks/acp${params.toString() ? `?${params.toString()}` : ""}`
+      );
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      const events = Array.isArray(data.events) ? data.events : [];
+      events.forEach((event: WebhookEvent) => {
+        processWebhookEvent(event);
+      });
+    } catch {
+      // Ignore fetch errors - SSE will keep trying
+    }
+  }, [processWebhookEvent]);
+
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
 
     const connect = () => {
+      fetchMissedEvents();
       eventSource = new EventSource("/api/webhooks/sse");
-      eventSource.onmessage = (event) => {
+      eventSource.onmessage = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === "heartbeat" || data.type === "connected") return;
@@ -143,6 +176,7 @@ export function WebhookToAgentActivityBridge() {
       };
       eventSource.onerror = () => {
         eventSource?.close();
+        fetchMissedEvents();
         reconnectTimeout = setTimeout(connect, 5000);
       };
     };
@@ -152,7 +186,7 @@ export function WebhookToAgentActivityBridge() {
       eventSource?.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [processWebhookEvent]);
+  }, [processWebhookEvent, fetchMissedEvents]);
 
   return null; // No UI - just event dispatching
 }

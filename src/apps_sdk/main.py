@@ -39,12 +39,11 @@ from src.apps_sdk.tools import (
     update_cart_quantity,
 )
 
-# ARAG Recommendation Agent URL
-RECOMMENDATION_AGENT_URL = os.getenv(
-    "RECOMMENDATION_AGENT_URL", "http://localhost:8004"
-)
-
 settings = get_apps_sdk_settings()
+
+# Agent URLs
+RECOMMENDATION_AGENT_URL = settings.arag_agent_url
+SEARCH_AGENT_URL = settings.search_agent_url
 
 # Configure logging
 logging.basicConfig(
@@ -122,7 +121,7 @@ class SearchProductsInput(BaseModel):
 
     query: str = Field(..., description="Search query for products")
     category: str | None = Field(None, description="Optional category filter")
-    limit: int = Field(default=10, ge=1, le=50, description="Max results (1-50)")
+    limit: int = Field(default=3, ge=1, le=50, description="Max results (1-50)")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -682,6 +681,20 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
     if tool_name == "search-products":
         payload = SearchProductsInput.model_validate(args)
         result = await search_products(payload.query, payload.category, payload.limit)
+        if result.get("error"):
+            return types.ServerResult(
+                types.CallToolResult(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=str(result.get("error")),
+                        )
+                    ],
+                    structuredContent=result,
+                    _meta=result.get("_meta", _search_meta()),
+                    isError=True,
+                )
+            )
         return types.ServerResult(
             types.CallToolResult(
                 content=[
@@ -840,6 +853,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info("Apps SDK MCP Server starting up...")
     logger.info(f"Widget dist directory: {DIST_DIR}")
+    logger.info(f"Search agent URL: {SEARCH_AGENT_URL}")
 
     # Initialize MCP server's session manager
     async with mcp.session_manager.run():

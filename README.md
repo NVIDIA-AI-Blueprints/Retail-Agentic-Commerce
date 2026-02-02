@@ -108,17 +108,23 @@ nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
 
 > **Note**: The Recommendation Agent requires Milvus. See [Optional: Milvus Setup](#optional-milvus-setup) below.
 
+```bash
+# Terminal 7: Search Agent (port 8005) - requires Milvus container
+cd src/agents
+source .venv/bin/activate
+nat serve --config_file configs/search.yml --port 8005
+```
 ### 4. Frontend
 
 ```bash
-# Terminal 7: Demo UI (port 3000)
+# Terminal 8: Demo UI (port 3000)
 cd src/ui
 pnpm install
 pnpm dev
 ```
 
 ```bash
-# Terminal 8: Apps SDK Widget (port 3001) - for development
+# Terminal 9: Apps SDK Widget (port 3001) - for development
 cd src/apps_sdk/web
 pnpm install
 pnpm dev
@@ -215,6 +221,7 @@ flowchart TB
 | Promotion Agent | 8002 | Discount strategy (NAT) |
 | Post-Purchase Agent | 8003 | Multilingual messages (NAT) |
 | Recommendation Agent | 8004 | Personalized recs (requires Docker) |
+| Search Agent | 8005 | RAG product search (requires Docker) |
 
 ## API Docs
 
@@ -271,7 +278,7 @@ The project uses two Docker Compose files:
    This starts all services including:
    - nginx (reverse proxy on port 80)
    - Merchant API, PSP, Apps SDK
-   - NAT Agents (Promotion, Post-Purchase, Recommendation)
+   - NAT Agents (Promotion, Post-Purchase, Recommendation, Search)
    - Milvus (vector database) and Phoenix (observability)
 
 3. **Verify services:**

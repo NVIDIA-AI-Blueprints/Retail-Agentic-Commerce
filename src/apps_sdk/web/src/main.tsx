@@ -125,12 +125,45 @@ function setupBridgeFromParent(): Promise<void> {
   });
 }
 
+function applyGlobalsUpdate(globals?: Partial<OpenAiGlobals>) {
+  if (!globals) return;
+
+  if (globals.toolOutput) {
+    simulatedToolOutput = globals.toolOutput as ToolOutput;
+  }
+
+  if (!window.openai) {
+    window.openai = createSimulatedOpenAi(globals);
+  } else {
+    window.openai = { ...window.openai, ...globals };
+  }
+
+  window.dispatchEvent(
+    new CustomEvent("openai:set_globals", {
+      detail: { globals: window.openai },
+    })
+  );
+}
+
+function setupUpdateListener() {
+  window.addEventListener("message", (event: MessageEvent) => {
+    if (
+      event.data?.type === "UPDATE_OPENAI_GLOBALS" ||
+      event.data?.type === "INIT_OPENAI_BRIDGE"
+    ) {
+      applyGlobalsUpdate(event.data.globals as Partial<OpenAiGlobals> | undefined);
+    }
+  });
+}
+
 /**
  * Wait for window.openai to be available.
  * In production mode, this is injected by the client agent.
  * In standalone mode, we create a simulated bridge.
  */
 async function initializeBridge(): Promise<void> {
+  setupUpdateListener();
+
   // If real window.openai exists (production mode), use it
   if (window.openai) {
     console.log("[Bridge] Using real window.openai from client agent");

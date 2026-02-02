@@ -17,16 +17,16 @@ describe("RecommendationSkeleton", () => {
   it("has proper structure for loading animation", () => {
     const { container } = render(<RecommendationSkeleton />);
     
-    // Check that the main flex container exists
-    const flexContainer = container.querySelector(".flex.gap-3");
-    expect(flexContainer).toBeInTheDocument();
+    // Check that the grid container exists
+    const gridContainer = container.querySelector(".grid.grid-cols-3.gap-3");
+    expect(gridContainer).toBeInTheDocument();
   });
 
   it("contains accessible content placeholders", () => {
     const { container } = render(<RecommendationSkeleton />);
     
     // Check that rounded cards exist
-    const roundedCards = container.querySelectorAll(".rounded-xl");
+    const roundedCards = container.querySelectorAll(".rounded-lg");
     expect(roundedCards.length).toBe(3);
   });
 });

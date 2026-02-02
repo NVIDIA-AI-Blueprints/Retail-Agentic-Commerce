@@ -8,6 +8,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -306,3 +307,62 @@ class TestGetRecommendationsOutput:
 
         assert data["recommendations"] == []
         assert data["error"] == "Agent unavailable"
+
+
+class TestCallSearchAgent:
+    """Tests for the call_search_agent function."""
+
+    @pytest.mark.asyncio
+    async def test_returns_search_results(self) -> None:
+        """Agent returns parsed search results."""
+        from src.apps_sdk.tools.recommendations import call_search_agent
+
+        mock_response = {
+            "value": json.dumps(
+                {
+                    "query": "summer tee",
+                    "results": [
+                        {
+                            "product_id": "prod_1",
+                            "product_name": "Classic Tee",
+                            "snippet": "Lightweight summer essential",
+                        }
+                    ],
+                }
+            )
+        }
+
+        mock_http_response = MagicMock()
+        mock_http_response.status_code = 200
+        mock_http_response.json.return_value = mock_response
+        mock_http_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.post.return_value = mock_http_response
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            mock_client.return_value = mock_instance
+
+            result = await call_search_agent(query="summer tee", category=None, limit=3)
+
+        assert result["query"] == "summer tee"
+        assert len(result["results"]) == 1
+        assert result["results"][0]["product_id"] == "prod_1"
+
+    @pytest.mark.asyncio
+    async def test_search_agent_timeout_returns_error(self) -> None:
+        """Timeout returns empty results with error message."""
+        from src.apps_sdk.tools.recommendations import call_search_agent
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.post.side_effect = httpx.TimeoutException("Timeout")
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            mock_client.return_value = mock_instance
+
+            result = await call_search_agent(query="summer tee", category=None, limit=3)
+
+        assert result["results"] == []
+        assert "timeout" in result["error"].lower()

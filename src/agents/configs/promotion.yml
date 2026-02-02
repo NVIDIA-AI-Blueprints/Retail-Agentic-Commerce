@@ -35,6 +35,7 @@ workflow:
   _type: chat_completion
   workflow_alias: promotion_agent
   llm_name: nim_llm
+  verbose: true
   system_prompt: |
     You are a Promotion Strategy Arbiter for an e-commerce retailer. You receive pre-computed 
     business context from the merchant system and select the optimal promotion action.

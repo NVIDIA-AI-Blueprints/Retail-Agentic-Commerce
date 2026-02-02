@@ -12,6 +12,8 @@ import type { RecommendationInputSignals, RecommendationDecision } from "@/types
 interface MerchantIframeContainerProps {
   /** Callback when checkout is completed */
   onCheckoutComplete?: (orderId: string) => void;
+  /** Trigger a search request in the widget */
+  searchRequest?: { query: string; requestId: number } | null;
 }
 
 /**
@@ -42,6 +44,11 @@ const LOADING_DELAY_MS = 4000;
 const MIN_RECOMMENDATION_DELAY_MS = 1000;
 
 /**
+ * Minimum delay for search refresh loading animation in milliseconds.
+ */
+const MIN_SEARCH_DELAY_MS = 800;
+
+/**
  * MerchantIframeContainer Component
  *
  * Embeds the merchant widget within the Client Agent panel.
@@ -65,20 +72,29 @@ const MIN_RECOMMENDATION_DELAY_MS = 1000;
  * - Logs Apps SDK events to the Protocol Inspector
  * - No data injection - widget is self-contained
  */
-export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeContainerProps) {
+export function MerchantIframeContainer({
+  onCheckoutComplete,
+  searchRequest,
+}: MerchantIframeContainerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const mcpCalledRef = useRef(false);
+  const bridgeInitializedRef = useRef(false);
+  const lastSearchRequestIdRef = useRef<number | null>(null);
+  const searchLoadingTokenRef = useRef(0);
+  const latestGlobalsRef = useRef<Record<string, unknown> | null>(null);
   const [isIframeLoaded, setIsIframeLoaded] = useState(false);
   const [isAnimationComplete, setIsAnimationComplete] = useState(false);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [mcpStatus, setMcpStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [discoveredWidgetUri, setDiscoveredWidgetUri] = useState<string | null>(null);
+  const shouldRevealIframe = isIframeLoaded && !isSearchLoading;
 
   // ACP logging for protocol inspector - extract stable functions only
   const { logEvent, completeEvent } = useACPLog();
 
   // MCP client hook for URL discovery and tool calls
-  const { getWidgetUrl, callTool } = useMCPClient();
+  const { getWidgetUrl, callTool, callToolWithWidget } = useMCPClient();
 
   // Agent activity logging for recommendation events
   const { logAgentCall, completeAgentCall } = useAgentActivityLog();
@@ -93,11 +109,33 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
    * 3. Resolve URI to HTTP URL
    * 4. Load in iframe
    */
-  const initializeMCPWidget = useCallback(async () => {
+  const postGlobalsToIframe = useCallback((globals: Record<string, unknown>, type: string) => {
+    if (!iframeRef.current?.contentWindow) {
+      return;
+    }
+    iframeRef.current.contentWindow.postMessage(
+      {
+        type,
+        globals,
+      },
+      "*"
+    );
+  }, []);
+
+  const initializeMCPWidget = useCallback(async (query: string) => {
     if (mcpCalledRef.current) return;
     mcpCalledRef.current = true;
 
     setMcpStatus("loading");
+
+    const trimmedQuery = query.trim();
+    const searchEventId = logAgentCall("search", {
+      query: trimmedQuery,
+      limit: 3,
+    });
+    const searchLoadingToken = Date.now();
+    searchLoadingTokenRef.current = searchLoadingToken;
+    setIsSearchLoading(true);
 
     // Log MCP tool call - we're calling an actual tool, not just checking health
     const eventId = logEvent(
@@ -109,40 +147,77 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
 
     try {
       // Call MCP tool - widget URL is DISCOVERED from response, not hardcoded
-      const { widgetUrl, widgetUri, error } = await getWidgetUrl();
-
-      if (error) {
-        throw new Error(error);
-      }
+      const { widgetUrl, widgetUri, error, result } = await getWidgetUrl(query, 3);
+      const toolError =
+        error ??
+        (typeof result?.error === "string" ? (result.error as string) : null);
 
       if (widgetUrl && widgetUri) {
         // Successfully discovered widget URL from MCP tool response
         // Include both the discovery and resolution in the completion message
-        completeEvent(eventId, "success", `Discovered: ${widgetUri}`, 200);
+        if (toolError) {
+          completeEvent(eventId, "error", toolError, 500);
+        } else {
+          completeEvent(eventId, "success", `Discovered: ${widgetUri}`, 200);
+        }
 
         setDiscoveredWidgetUri(widgetUri);
         setIframeSrc(widgetUrl);
         setMcpStatus("success");
+
+        const toolOutput =
+          result ?? (toolError ? { error: toolError, products: [] } : null);
+
+        if (toolError) {
+          completeAgentCall(searchEventId, "error", undefined, toolError);
+        } else if (toolOutput) {
+          const productCount = Array.isArray(toolOutput.products)
+            ? toolOutput.products.length
+            : 0;
+          const decision = {
+            results: Array.isArray(toolOutput.products)
+              ? toolOutput.products.map((product: { id?: string; name?: string }) => ({
+                  productId: product.id ?? "",
+                  productName: product.name ?? "Product",
+                }))
+              : [],
+            totalResults:
+              typeof toolOutput.totalResults === "number"
+                ? toolOutput.totalResults
+                : productCount,
+          };
+          completeAgentCall(searchEventId, "success", decision);
+        }
+
+        if (toolOutput) {
+          latestGlobalsRef.current = {
+            toolInput: { query, limit: 3 },
+            toolOutput: toolOutput,
+          };
+        }
       } else {
-        throw new Error("MCP tool did not return widget URI in _meta");
+        throw new Error(toolError ?? "MCP tool did not return widget URI in _meta");
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "MCP tool call failed";
 
       // Complete the original event with error, include fallback info in the message
       completeEvent(eventId, "error", `${errorMessage} → Fallback: ${FALLBACK_WIDGET_URL}`, 500);
+      completeAgentCall(searchEventId, "error", undefined, errorMessage);
 
       setIframeSrc(FALLBACK_WIDGET_URL);
       setMcpStatus("error");
+    } finally {
+      const elapsed = Date.now() - searchLoadingToken;
+      const remaining = MIN_SEARCH_DELAY_MS - elapsed;
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
+      if (searchLoadingTokenRef.current === searchLoadingToken) {
+        setIsSearchLoading(false);
+      }
     }
-  }, [logEvent, completeEvent, getWidgetUrl]);
-
-  /**
-   * Initialize MCP widget on component mount
-   */
-  useEffect(() => {
-    initializeMCPWidget();
-  }, [initializeMCPWidget]);
+  }, [logAgentCall, completeAgentCall, logEvent, completeEvent, getWidgetUrl]);
 
   /**
    * Handle iframe load event.
@@ -157,7 +232,12 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
     if (isAnimationComplete) {
       setIsIframeLoaded(true);
     }
-  }, [logEvent, completeEvent, isAnimationComplete]);
+
+    if (!bridgeInitializedRef.current && latestGlobalsRef.current) {
+      postGlobalsToIframe(latestGlobalsRef.current, "UPDATE_OPENAI_GLOBALS");
+      bridgeInitializedRef.current = true;
+    }
+  }, [logEvent, completeEvent, isAnimationComplete, postGlobalsToIframe]);
 
   /**
    * Start the loading animation timer when component mounts
@@ -383,8 +463,130 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
     };
   }, [handleMessage]);
 
+  const handleSearchRequest = useCallback(
+    async (query: string) => {
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery) return;
+
+      const searchLoadingToken = Date.now();
+      searchLoadingTokenRef.current = searchLoadingToken;
+      setIsSearchLoading(true);
+
+      const searchEventId = logAgentCall("search", {
+        query: trimmedQuery,
+        limit: 3,
+      });
+
+      const acpEventId = logEvent(
+        "session_update",
+        "POST",
+        "/api/mcp (tools/call: search-products)",
+        `Searching for "${trimmedQuery}"...`
+      );
+
+      try {
+        const { result, error } = await callToolWithWidget("search-products", {
+          query: trimmedQuery,
+          limit: 3,
+        });
+
+        const toolError =
+          error ??
+          (typeof result?.error === "string" ? (result.error as string) : null);
+        const toolOutput =
+          result ?? (toolError ? { error: toolError, products: [] } : null);
+
+        if (toolOutput) {
+          const productCount = Array.isArray(toolOutput.products)
+            ? toolOutput.products.length
+            : 0;
+          const globals = {
+            toolInput: { query: trimmedQuery, limit: 3 },
+            toolOutput: toolOutput,
+          };
+          latestGlobalsRef.current = globals;
+          if (bridgeInitializedRef.current) {
+            postGlobalsToIframe(globals, "UPDATE_OPENAI_GLOBALS");
+          } else {
+            postGlobalsToIframe(globals, "UPDATE_OPENAI_GLOBALS");
+            bridgeInitializedRef.current = true;
+          }
+
+          if (toolError) {
+            completeEvent(acpEventId, "error", toolError, 500);
+            completeAgentCall(searchEventId, "error", undefined, toolError);
+          } else {
+            completeEvent(
+              acpEventId,
+              "success",
+              `Found ${productCount} products`,
+              200
+            );
+            const decision = {
+              results: Array.isArray(toolOutput.products)
+                ? toolOutput.products.map((product: { id?: string; name?: string }) => ({
+                    productId: product.id ?? "",
+                    productName: product.name ?? "Product",
+                  }))
+                : [],
+              totalResults:
+                typeof toolOutput.totalResults === "number"
+                  ? toolOutput.totalResults
+                  : productCount,
+            };
+            completeAgentCall(searchEventId, "success", decision);
+          }
+        } else if (toolError) {
+          throw new Error(toolError);
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to search products";
+        completeEvent(acpEventId, "error", errorMessage, 500);
+        completeAgentCall(searchEventId, "error", undefined, errorMessage);
+      } finally {
+        const elapsed = Date.now() - searchLoadingToken;
+        const remaining = MIN_SEARCH_DELAY_MS - elapsed;
+        if (remaining > 0) {
+          await new Promise((resolve) => setTimeout(resolve, remaining));
+        }
+        if (searchLoadingTokenRef.current === searchLoadingToken) {
+          setIsSearchLoading(false);
+        }
+      }
+    },
+    [
+      callToolWithWidget,
+      logAgentCall,
+      completeAgentCall,
+      logEvent,
+      completeEvent,
+      postGlobalsToIframe,
+    ]
+  );
+
+  useEffect(() => {
+    if (!searchRequest?.query) return;
+    if (searchRequest.requestId === lastSearchRequestIdRef.current) return;
+    lastSearchRequestIdRef.current = searchRequest.requestId;
+
+    if (!mcpCalledRef.current) {
+      initializeMCPWidget(searchRequest.query);
+      return;
+    }
+
+    handleSearchRequest(searchRequest.query);
+  }, [
+    searchRequest?.requestId,
+    searchRequest?.query,
+    initializeMCPWidget,
+    handleSearchRequest,
+  ]);
+
   return (
-    <div className="merchant-iframe-container">
+    <div
+      className={`merchant-iframe-container${isSearchLoading ? " is-search-loading" : ""}`}
+    >
       {/* MCP Status indicator */}
       {mcpStatus === "loading" && (
         <div className="mcp-status">
@@ -406,7 +608,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
       )}
 
       {/* Skeleton loader overlay - only render when not loaded */}
-      {!isIframeLoaded && (
+      {(!isIframeLoaded || isSearchLoading) && (
         <div className="loader">
           <div className="topbar">
             <div className="pill shimmer"></div>
@@ -436,7 +638,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
               <span className="dot"></span>
               <span className="dot"></span>
             </span>
-            <span>Loading...</span>
+            <span>{isSearchLoading ? "Refreshing results..." : "Loading..."}</span>
           </div>
         </div>
       )}
@@ -448,9 +650,11 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
           src={iframeSrc}
           title="Merchant Widget"
           style={{
-            opacity: isIframeLoaded ? 1 : 0,
-            transform: isIframeLoaded ? "scale(1)" : "scale(0.995)",
-            filter: isIframeLoaded ? "none" : "saturate(0.98)",
+            opacity: shouldRevealIframe ? 1 : 0,
+            transform: shouldRevealIframe ? "scale(1)" : "scale(0.995)",
+            filter: shouldRevealIframe ? "none" : "saturate(0.98)",
+            visibility: shouldRevealIframe ? "visible" : "hidden",
+            pointerEvents: shouldRevealIframe ? "auto" : "none",
           }}
           className="merchant-iframe"
           onLoad={handleIframeLoad}
@@ -557,7 +761,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
           flex: 1;
           width: 100%;
           border: none;
-          background: transparent;
+          background: #1a1a1a;
           transition:
             opacity 220ms ease,
             transform 220ms ease,
@@ -576,7 +780,7 @@ export function MerchantIframeContainer({ onCheckoutComplete }: MerchantIframeCo
           pointer-events: none;
           opacity: 1;
           transition: opacity 200ms ease;
-          background: linear-gradient(to bottom, rgba(26, 26, 26, 0.95), rgba(26, 26, 26, 0.88));
+          background: linear-gradient(to bottom, rgba(26, 26, 26, 0.98), rgba(26, 26, 26, 0.96));
           animation: breathe 1.6s ease-in-out infinite;
           z-index: 10;
         }

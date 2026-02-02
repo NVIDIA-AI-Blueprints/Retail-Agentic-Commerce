@@ -28,6 +28,7 @@ interface MCPToolResponse {
   result?: {
     content?: Array<{ type: string; text: string }>;
     structuredContent?: Record<string, unknown>;
+    isError?: boolean;
     _meta?: {
       "openai/outputTemplate"?: string;
       "openai/widgetAccessible"?: boolean;
@@ -155,6 +156,19 @@ export function useMCPClient() {
           throw new Error(`MCP error: ${mcpResponse.error.message}`);
         }
 
+        const structuredContent = mcpResponse.result?.structuredContent || null;
+        const errorFromStructured =
+          structuredContent &&
+          typeof structuredContent === "object" &&
+          typeof (structuredContent as { error?: unknown }).error === "string"
+            ? (structuredContent as { error: string }).error
+            : null;
+        const contentErrorText = mcpResponse.result?.content?.[0]?.text;
+        const toolErrorMessage =
+          mcpResponse.result?.isError || errorFromStructured
+            ? errorFromStructured ?? contentErrorText ?? "Tool call failed"
+            : null;
+
         // Extract widget URI from _meta.openai/outputTemplate
         const meta = mcpResponse.result?._meta;
         const widgetUri = meta?.["openai/outputTemplate"] || null;
@@ -170,17 +184,17 @@ export function useMCPClient() {
 
         setState({
           isLoading: false,
-          error: null,
+          error: toolErrorMessage,
           widgetUrl,
           widgetUri,
-          toolResult: mcpResponse.result?.structuredContent || null,
+          toolResult: structuredContent,
         });
 
         return {
           widgetUrl,
           widgetUri,
-          result: mcpResponse.result?.structuredContent || null,
-          error: null,
+          result: structuredContent,
+          error: toolErrorMessage,
         };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "MCP call failed";
@@ -274,8 +288,25 @@ export function useMCPClient() {
           throw new Error(`MCP error: ${mcpResponse.error.message}`);
         }
 
-        console.log("[MCP] Returning structuredContent:", mcpResponse.result?.structuredContent);
-        return mcpResponse.result?.structuredContent || null;
+        const structuredContent = mcpResponse.result?.structuredContent || null;
+        const errorFromStructured =
+          structuredContent &&
+          typeof structuredContent === "object" &&
+          typeof (structuredContent as { error?: unknown }).error === "string"
+            ? (structuredContent as { error: string }).error
+            : null;
+        const contentErrorText = mcpResponse.result?.content?.[0]?.text;
+        const toolErrorMessage =
+          mcpResponse.result?.isError || errorFromStructured
+            ? errorFromStructured ?? contentErrorText ?? "Tool call failed"
+            : null;
+
+        if (toolErrorMessage) {
+          throw new Error(toolErrorMessage);
+        }
+
+        console.log("[MCP] Returning structuredContent:", structuredContent);
+        return structuredContent;
       } catch (error) {
         console.error("MCP tool call failed:", error);
         throw error;
@@ -292,8 +323,8 @@ export function useMCPClient() {
    * returns products and exposes the widget URI in _meta.openai/outputTemplate.
    */
   const getWidgetUrl = useCallback(
-    async (query: string = "tee") => {
-      return callTool("search-products", { query, limit: 10 });
+    async (query: string = "tee", limit: number = 3) => {
+      return callTool("search-products", { query, limit });
     },
     [callTool]
   );

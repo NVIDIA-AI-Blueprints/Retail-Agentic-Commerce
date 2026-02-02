@@ -2,14 +2,22 @@
 Cart tools for the MCP server.
 
 Manages shopping cart state with add, remove, update, and get operations.
+Product data is fetched from the merchant API (single source of truth).
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import uuid4
 
-from src.apps_sdk.tools.recommendations import CATALOG_PRODUCTS
+import httpx
+
+from src.apps_sdk.config import get_apps_sdk_settings
+
+logger = logging.getLogger(__name__)
+settings = get_apps_sdk_settings()
+MERCHANT_API_URL = settings.merchant_api_url
 
 # In-memory cart storage (use database in production)
 # Exported for use by checkout module
@@ -34,8 +42,8 @@ def get_or_create_cart(
     return new_id, carts[new_id]
 
 
-def find_product(product_id: str) -> dict[str, Any] | None:
-    """Find a product by ID.
+async def find_product(product_id: str) -> dict[str, Any] | None:
+    """Find a product by ID from the merchant API.
 
     Args:
         product_id: The product ID to look up.
@@ -43,7 +51,26 @@ def find_product(product_id: str) -> dict[str, Any] | None:
     Returns:
         Product dictionary or None if not found.
     """
-    return next((p for p in CATALOG_PRODUCTS if p["id"] == product_id), None)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{MERCHANT_API_URL}/products/{product_id}")
+            if response.status_code != 200:
+                logger.debug(f"Product {product_id} not found in merchant API")
+                return None
+            product = response.json()
+            return {
+                "id": product.get("id", product_id),
+                "sku": product.get("sku", ""),
+                "name": product.get("name", ""),
+                "basePrice": product.get("base_price", product.get("price_cents", 0)),
+                "stockCount": product.get("stock_count", 0),
+                "category": product.get("category", ""),
+                "description": product.get("description", ""),
+                "imageUrl": product.get("image_url"),
+            }
+    except Exception as e:
+        logger.warning(f"Failed to fetch product {product_id}: {e}")
+        return None
 
 
 def calculate_cart_totals(items: list[dict[str, Any]]) -> dict[str, int]:
@@ -95,7 +122,7 @@ async def add_to_cart(
         Updated cart state with items and totals.
     """
     cart_id, cart_items = get_or_create_cart(cart_id)
-    product = find_product(product_id)
+    product = await find_product(product_id)
 
     if not product:
         return {

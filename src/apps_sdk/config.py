@@ -29,6 +29,15 @@ class AppsSdkSettings(BaseSettings):
     merchant_api_url: str = "http://localhost:8000"
     psp_api_url: str = "http://localhost:8001"
     arag_agent_url: str = "http://localhost:8004"
+    search_agent_url: str = "http://localhost:8005"
+
+    # Search tuning
+    # Minimum similarity score required to keep a search result.
+    # Similarity is computed from the vector distance returned by Milvus.
+    search_min_similarity: float = 0.35
+    # Maximum distance allowed from vector search results.
+    # Lower values are stricter; set to 0 to disable distance filtering.
+    search_distance_cutoff: float = 1.4
 
     # API keys for calling merchant and PSP services
     merchant_api_key: str = "merchant-api-key-12345"

@@ -21,6 +21,7 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps) {
+  const variantLabel = [product.variant, product.size].filter(Boolean).join(" - ");
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -70,9 +71,7 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
       <div className="flex flex-1 flex-col gap-0.5 px-2.5 pt-2.5 pb-1.5">
         <h3 className="text-sm font-medium text-text leading-tight truncate">{product.name}</h3>
         <div className="flex items-center justify-between text-[11px] text-text-secondary">
-          <span className="truncate">
-            {product.variant} - {product.size}
-          </span>
+          <span className="truncate">{variantLabel || "Standard"}</span>
           <span className="flex items-center gap-0.5 flex-shrink-0">
             <Star className="h-2.5 w-2.5 text-amber-500" strokeWidth={2} fill="currentColor" /> 4.8
           </span>

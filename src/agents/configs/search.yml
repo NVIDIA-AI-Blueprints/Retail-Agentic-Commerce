@@ -1,0 +1,109 @@
+# RAG Search Agent (Lightweight)
+# ==============================
+# Purpose: Provide top-k product search results from Milvus embeddings.
+#
+# Usage:
+#   nat serve --config_file configs/search.yml --port 8005
+#   nat run --config_file configs/search.yml --input '{"query": "lightweight summer tee", "limit": 3}'
+
+general:
+  use_uvloop: true
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: info
+    tracing:
+      phoenix:
+        _type: phoenix
+        project: "search-agent"
+        endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006/v1/traces}
+
+# =============================================================================
+# EMBEDDERS - Semantic embeddings for product search
+# =============================================================================
+embedders:
+  product_embedder:
+    _type: nim
+    model_name: nvidia/nv-embedqa-e5-v5
+    truncate: "END"
+
+# =============================================================================
+# RETRIEVERS - Vector search for candidate products
+# =============================================================================
+retrievers:
+  product_retriever:
+    _type: milvus_retriever
+    uri: ${MILVUS_URI:-http://localhost:19530}
+    collection_name: "product_catalog"
+    embedding_model: product_embedder
+    top_k: 10
+
+# =============================================================================
+# FUNCTIONS - Product search tool
+# =============================================================================
+functions:
+  product_search:
+    _type: nat_retriever
+    retriever: product_retriever
+    topic: Search product catalog for items matching the user query
+
+# =============================================================================
+# LLM PROVIDERS
+# =============================================================================
+llms:
+  search_llm:
+    _type: nim
+    model_name: nvidia/nemotron-3-nano-30b-a3b
+    temperature: 0.2
+    max_tokens: 512
+    chat_template_kwargs:
+      enable_thinking: false
+
+# =============================================================================
+# MAIN WORKFLOW - Tool-calling agent
+# =============================================================================
+workflow:
+  _type: tool_calling_agent
+  name: rag_search_agent
+  workflow_alias: search_agent
+  llm_name: search_llm
+  tool_names:
+    - product_search
+  verbose: true
+  max_iterations: 2
+  system_prompt: |-
+    You are a product search assistant. You must retrieve products using the product_search tool
+    and return the best results for the user's query. If the search results do not match the query,
+    return an empty results list instead of unrelated items.
+
+    INPUT FORMAT:
+    The input is a JSON object with:
+    - query: string (the search query)
+    - category: string | null (optional category hint)
+    - limit: number (maximum results to return)
+
+    MANDATORY FIRST STEP:
+    You MUST call product_search with a query derived directly from the user's query.
+    If a category is provided, include it in the search query.
+    Do not respond before calling the tool.
+
+    OUTPUT FORMAT (return ONLY this JSON):
+    {
+      "query": "<original query>",
+      "results": [
+        {
+          "product_id": "<exact product_id from search>",
+          "product_name": "<exact product_name from search>",
+          "snippet": "Short relevance note in one sentence",
+          "distance": 0.123
+        }
+      ]
+    }
+
+    RULES:
+    - Use exact product_id and product_name from search results.
+    - Preserve distance/score/similarity from the tool output when available.
+    - Return at most the requested limit.
+    - Do not include products not present in the search results.
+    - Return valid JSON only (no extra text).

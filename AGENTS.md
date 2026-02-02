@@ -256,7 +256,8 @@ src/
 │       ├── promotion.yml        # Promotion strategy arbiter (port 8002)
 │       ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
 │       ├── recommendation.yml   # ARAG multi-agent recommendations (full version)
-│       └── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
+│       ├── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
+│       └── search.yml           # RAG product search (port 8005)
 │
 ├── apps_sdk/           # Apps SDK MCP Server (port 2091)
 │   ├── main.py         # FastAPI + MCP server entry point
@@ -301,6 +302,7 @@ tests/
 └── payment/            # PSP service test files
 
 docs/                   # Project documentation
+├──NEMO_AGENT_TOOLKIT_DOCUMENTATION.md # Nemo Agent Toolkit Documentation
 .cursor/skills/         # AI assistant skill definitions
 ```
 
@@ -331,6 +333,8 @@ NAT Agents (from `src/agents/`):
 - Start Promotion Agent: `nat serve --config_file configs/promotion.yml --port 8002`
 - Start Post-Purchase Agent: `nat serve --config_file configs/post-purchase.yml --port 8003`
 - Start Recommendation Agent (ARAG): `nat serve --config_file configs/recommendation-ultrafast.yml --port 8004`
+- Start Search Agent (RAG): `nat serve --config_file configs/search.yml --port 8005`
+- Apps SDK `search-products` relies on Search Agent; no local fallback.
 - Test Promotion: `nat run --config_file configs/promotion.yml --input '{...}'`
 - Test Post-Purchase: `nat run --config_file configs/post-purchase.yml --input '{...}'`
 

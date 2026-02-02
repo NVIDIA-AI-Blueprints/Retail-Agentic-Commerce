@@ -37,6 +37,7 @@ workflow:
   _type: chat_completion
   workflow_alias: post_purchase_agent
   llm_name: nim_llm
+  verbose: true
   system_prompt: |
     You are a Post-Purchase Communication Specialist for e-commerce retailers. You generate 
     human-like shipping update messages that reflect the brand's personality and the customer's

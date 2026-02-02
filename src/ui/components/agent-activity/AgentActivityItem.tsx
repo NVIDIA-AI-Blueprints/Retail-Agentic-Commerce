@@ -10,6 +10,8 @@ import type {
   PostPurchaseDecision,
   RecommendationInputSignals,
   RecommendationDecision,
+  SearchInputSignals,
+  SearchDecision,
 } from "@/types";
 
 /**
@@ -34,6 +36,13 @@ function isRecommendationEvent(event: AgentActivityEvent): event is AgentActivit
   decision?: RecommendationDecision;
 } {
   return event.agentType === "recommendation";
+}
+
+function isSearchEvent(event: AgentActivityEvent): event is AgentActivityEvent & {
+  inputSignals: SearchInputSignals;
+  decision?: SearchDecision;
+} {
+  return event.agentType === "search";
 }
 
 /**
@@ -491,6 +500,157 @@ function RecommendationCard({
 }
 
 /**
+ * Search Card - displays search agent activity
+ */
+function SearchCard({
+  event,
+  isLast,
+}: {
+  event: AgentActivityEvent & {
+    inputSignals: SearchInputSignals;
+    decision?: SearchDecision;
+  };
+  isLast: boolean;
+}) {
+  const isPending = event.status === "pending";
+  const isError = event.status === "error";
+  const resultCount = event.decision?.results?.length ?? 0;
+  const totalResults = event.decision?.totalResults ?? resultCount;
+
+  return (
+    <div style={{ marginBottom: isLast ? 0 : "12px" }}>
+      <div className="glass-decision">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "12px",
+          }}
+        >
+          <div
+            className="glass-kicker"
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
+          >
+            <span
+              style={{
+                width: "24px",
+                height: "24px",
+                borderRadius: "6px",
+                background: isPending
+                  ? "rgba(255, 255, 255, 0.08)"
+                  : isError
+                    ? "rgba(255, 107, 107, 0.15)"
+                    : "rgba(118, 185, 0, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Bot
+                style={{
+                  width: "14px",
+                  height: "14px",
+                  color: isPending
+                    ? "rgba(255, 255, 255, 0.5)"
+                    : isError
+                      ? "#FF6B6B"
+                      : "rgba(118, 185, 0, 0.9)",
+                }}
+              />
+            </span>
+            Search Agent
+          </div>
+          <div className={`glass-pill ${isPending ? "yellow" : isError ? "" : "green"}`}>
+            {isPending ? "Searching" : isError ? "Error" : `${resultCount} items`}
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: "8px",
+            fontSize: "13px",
+            color: "var(--text-secondary)",
+            fontWeight: "650",
+          }}
+        >
+          {event.inputSignals.query}
+        </div>
+
+        {event.decision?.results && event.decision.results.length > 0 && (
+          <div style={{ marginTop: "10px" }}>
+            {event.decision.results.map((result, index) => (
+              <div
+                key={result.productId}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "6px 0",
+                  borderTop: index === 0 ? "none" : "1px solid rgba(255, 255, 255, 0.06)",
+                }}
+              >
+                <span
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    background: "rgba(118, 185, 0, 0.15)",
+                    color: "rgba(118, 185, 0, 0.9)",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {index + 1}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{ fontSize: "12px", fontWeight: "500", color: "var(--text-primary)" }}
+                  >
+                    {result.productName}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {totalResults > resultCount && (
+              <div style={{ marginTop: "8px", fontSize: "11px", color: "var(--text-muted)" }}>
+                {totalResults} total matches
+              </div>
+            )}
+          </div>
+        )}
+
+        {isPending && (
+          <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "10px" }}>
+            Searching catalog for matching products...
+          </div>
+        )}
+
+        {isError && event.error && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "10px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255, 107, 107, 0.25)",
+              background: "rgba(255, 107, 107, 0.08)",
+              fontSize: "12px",
+              color: "#FF6B6B",
+            }}
+          >
+            {event.error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Decision Card - displays a single agent decision with glass design
  */
 export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
@@ -506,6 +666,10 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
   // Handle recommendation events with specialized card
   if (isRecommendationEvent(event)) {
     return <RecommendationCard event={event} isLast={isLast} />;
+  }
+
+  if (isSearchEvent(event)) {
+    return <SearchCard event={event} isLast={isLast} />;
   }
 
   // Only process promotion events from here

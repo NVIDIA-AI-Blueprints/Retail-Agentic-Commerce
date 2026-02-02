@@ -168,7 +168,9 @@ export type DisplayMode = "pip" | "inline" | "fullscreen";
 export type Theme = "light" | "dark";
 
 export interface ToolOutput {
+  products?: Product[];
   recommendations?: Product[];
+  error?: string;
   user?: MerchantUser;
   theme?: Theme;
   locale?: string;

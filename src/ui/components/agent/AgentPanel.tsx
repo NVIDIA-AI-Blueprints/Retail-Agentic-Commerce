@@ -10,6 +10,7 @@ import { StreamingText } from "./StreamingText";
 import { PaymentShippingForm } from "./PaymentShippingForm";
 import { ModeTabSwitcher } from "./ModeTabSwitcher";
 import { MerchantIframeContainer } from "./MerchantIframeContainer";
+import { SearchPromptBar } from "./SearchPromptBar";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
 import { useACPLog } from "@/hooks/useACPLog";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
@@ -374,6 +375,12 @@ export function AgentPanel() {
   const [showProducts, setShowProducts] = useState(false);
   const [activeMode, setActiveMode] = useState<CheckoutMode>("native");
   const [notification, setNotification] = useState<WebhookNotification | null>(null);
+  const [appsSdkQuery, setAppsSdkQuery] = useState("");
+  const [appsSdkLastPrompt, setAppsSdkLastPrompt] = useState<ChatMessageType | null>(null);
+  const [appsSdkSearchRequest, setAppsSdkSearchRequest] = useState<{
+    query: string;
+    requestId: number;
+  } | null>(null);
   const acpLog = useACPLog();
   const agentActivityLog = useAgentActivityLog();
 
@@ -463,6 +470,9 @@ export function AgentPanel() {
       if (mode === "apps-sdk") {
         reset();
         setIsModalOpen(false);
+        setAppsSdkQuery("");
+        setAppsSdkLastPrompt(null);
+        setAppsSdkSearchRequest(null);
       }
     },
     [reset, acpLog, agentActivityLog]
@@ -477,6 +487,19 @@ export function AgentPanel() {
     },
     []
   );
+
+  const handleAppsSdkSearch = useCallback((query: string) => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+    setAppsSdkLastPrompt({
+      id: `apps-sdk-${Date.now()}`,
+      role: "user",
+      content: trimmedQuery,
+      timestamp: new Date().toISOString(),
+    });
+    setAppsSdkSearchRequest({ query: trimmedQuery, requestId: Date.now() });
+    setAppsSdkQuery("");
+  }, []);
 
   // Handle continue from summary to payment form
   const handleContinueToPayment = useCallback(() => {
@@ -697,16 +720,27 @@ export function AgentPanel() {
       {/* Apps SDK Mode Content */}
       {activeMode === "apps-sdk" && (
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Chat bubble - same as native mode */}
-          {messages[0] && (
+          {/* Show user's search query as chat message */}
+          {appsSdkLastPrompt && (
             <div style={{ padding: "24px 32px 16px 32px" }}>
-              <ChatMessage message={messages[0]} />
+              <ChatMessage message={appsSdkLastPrompt} />
             </div>
           )}
-          {/* Spacer between chat bubble and iframe */}
-          <div style={{ height: "12px", flexShrink: 0 }} />
-          {/* Merchant widget iframe */}
-          <MerchantIframeContainer onCheckoutComplete={handleAppsSdkCheckoutComplete} />
+          {/* Search bar */}
+          <div className="pb-3" style={{ paddingLeft: "16px", paddingRight: "16px" }}>
+            <SearchPromptBar
+              value={appsSdkQuery}
+              onChange={setAppsSdkQuery}
+              onSubmit={handleAppsSdkSearch}
+            />
+          </div>
+          {/* Merchant widget iframe - only shown after search */}
+          {appsSdkSearchRequest && (
+            <MerchantIframeContainer
+              onCheckoutComplete={handleAppsSdkCheckoutComplete}
+              searchRequest={appsSdkSearchRequest}
+            />
+          )}
         </div>
       )}
     </section>

@@ -638,7 +638,7 @@ export interface ACPRequest {
 /**
  * Agent types for activity logging
  */
-export type AgentType = "promotion" | "recommendation" | "post_purchase";
+export type AgentType = "promotion" | "recommendation" | "post_purchase" | "search";
 
 /**
  * Agent activity event status
@@ -729,17 +729,46 @@ export interface RecommendationDecision {
 }
 
 /**
+ * Input signals for search agent
+ */
+export interface SearchInputSignals {
+  query: string;
+  limit: number;
+}
+
+/**
+ * Search result item
+ */
+export interface SearchResultItem {
+  productId: string;
+  productName: string;
+}
+
+/**
+ * Search decision from agent
+ */
+export interface SearchDecision {
+  results: SearchResultItem[];
+  totalResults: number;
+}
+
+/**
  * Union type for agent input signals
  */
 export type AgentInputSignals =
   | PromotionInputSignals
   | PostPurchaseInputSignals
-  | RecommendationInputSignals;
+  | RecommendationInputSignals
+  | SearchInputSignals;
 
 /**
  * Union type for agent decisions
  */
-export type AgentDecision = PromotionDecision | PostPurchaseDecision | RecommendationDecision;
+export type AgentDecision =
+  | PromotionDecision
+  | PostPurchaseDecision
+  | RecommendationDecision
+  | SearchDecision;
 
 /**
  * Agent activity event for the activity panel
