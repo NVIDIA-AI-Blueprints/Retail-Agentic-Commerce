@@ -35,7 +35,91 @@ Before ANY work, read the relevant documentation:
 | Feature implementation | `docs/features/feature-XX-*.md` |
 | System architecture | `docs/architecture.md` |
 | Agent integration | `src/agents/README.md` |
+| NAT Agents (NeMo Agent Toolkit) | `docs/NEMO_AGENT_TOOLKIT_DOCUMENTATION.md` |
+| UCP Protocol | `docs/specs/ucp-spec.md` |
 | Apps SDK | `docs/specs/apps-sdk-spec.md` |
+
+### Specification Documents Reference (CRITICAL)
+
+The following specification documents are the **authoritative source of truth** for their respective domains. **ALWAYS consult these documents** before implementing, modifying, or debugging related functionality.
+
+#### ACP Specification (`docs/specs/acp-spec.md`)
+
+**Use when:** Working on ACP protocol, checkout flows, payment delegation, webhooks, or any merchant-client interactions.
+
+The ACP (Agentic Commerce Protocol) spec defines:
+- Protocol data types and schemas (CheckoutSession, PaymentDelegation, LineItem, etc.)
+- API endpoints and their contracts
+- Webhook event formats and signatures
+- Authentication and security requirements
+- Flow sequences (checkout creation → payment delegation → completion)
+
+**Key sections to reference:**
+- Data types: CheckoutSession, PaymentDelegation, LineItem, ShippingOption
+- Endpoints: `/checkout_sessions`, `/agentic_commerce/delegate_payment`, webhooks
+- Webhook architecture: Who sends webhooks (Merchant → Client Agent)
+- Security: API key authentication, HMAC signatures
+
+#### UCP Specification (`docs/specs/ucp-spec.md`)
+
+**Use when:** Working on UCP protocol, discovery endpoint, A2A transport, capability negotiation, or UCP-specific checkout flows. Note: UCP integration focuses on the native merchant backend flow only. The Apps SDK mode continues to use ACP exclusively.
+
+The UCP (Universal Commerce Protocol) spec defines:
+- Protocol comparison with ACP
+- UCP-specific status values and error handling
+- Capability negotiation and platform profiles
+- Discovery endpoint (`/.well-known/ucp`)
+- A2A transport (JSON-RPC 2.0 for agent-to-agent communication)
+- Payment handlers architecture (Trust Triangle model)
+
+**Key sections to reference:**
+- Status values: `incomplete`, `requires_escalation`, `ready_for_complete`, `complete_in_progress`, `completed`, `canceled`
+- Headers: `UCP-Agent`, `API-Version`, `Idempotency-Key`
+- A2A methods: `a2a.ucp.checkout.create`, `.get`, `.update`, `.complete`, `.cancel`
+- Discovery: Business profile, capabilities, payment handlers
+
+**Protocol Toggle:** The Merchant Activity Panel has ACP/UCP tabs. Switching toggles which backend protocol is used while the client agent flow remains unchanged.
+
+#### Apps SDK Specification (`docs/specs/apps-sdk-spec.md`)
+
+**Use when:** Working on Apps SDK MCP server, widget tools, recommendations, cart operations, or product search.
+
+The Apps SDK spec defines:
+- MCP (Model Context Protocol) tools and their schemas
+- Widget architecture and UI components
+- Tool implementations (get-recommendations, add-to-cart, checkout, search-products)
+- Integration with Merchant API and NAT agents
+- Autonomous vs user-initiated behaviors
+
+**Key sections to reference:**
+- Tool schemas: Input/output contracts for each MCP tool
+- Widget lifecycle: Initialization, state management, event handling
+- Backend integration: How tools communicate with Merchant API
+- Recommendation flow: NAT agent integration for product recommendations
+
+#### NeMo Agent Toolkit Documentation (`docs/NEMO_AGENT_TOOLKIT_DOCUMENTATION.md`)
+
+**Use when:** Working on NAT agents, YAML configurations, multi-agent orchestration, or RAG/ARAG patterns.
+
+The NAT documentation defines:
+- Agent YAML configuration syntax and options
+- Multi-agent patterns (ARAG with specialized agents)
+- Tool definitions and integrations
+- Prompt engineering for agents
+- Serving agents via `nat serve`
+
+**Key sections to reference:**
+- YAML configuration: Structure for promotion, post-purchase, recommendation agents
+- Multi-agent orchestration: UUA, NLI, CSA, Ranker agents
+- Tool registration: How to add custom tools to agents
+- Testing: `nat run` for testing agent configurations
+
+#### How to Use Specifications
+
+1. **Before implementing:** Read the relevant spec section to understand expected behavior
+2. **When debugging:** Check if implementation matches spec (spec is source of truth)
+3. **When confused:** Spec clarifies who calls what, data formats, and flow sequences
+4. **When reviewing code:** Validate that code follows spec contracts
 
 ### The Documentation-First Checklist
 
@@ -371,6 +455,10 @@ When making code changes, especially to API endpoints or integrations, you MUST 
 
 3. **Rebuild if frontend changes**:
    ```bash
+   # UI frontend
+   cd src/ui && pnpm build
+   
+   # Apps SDK widget
    cd src/apps_sdk/web && pnpm build
    ```
 

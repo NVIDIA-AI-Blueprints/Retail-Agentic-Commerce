@@ -8,7 +8,20 @@
 
 ## Executive Summary
 
-This project provides a masterful Reference Architecture for the Agentic Commerce Protocol (ACP), designed to transition e-commerce from "passive search" to "active agentic negotiation". It enables merchants to maintain their status as the Merchant of Record while leveraging autonomous intelligence to optimize business outcomes in real-time. 
+This project provides a masterful Reference Architecture for both the **Agentic Commerce Protocol (ACP)** and the **Universal Commerce Protocol (UCP)**, designed to transition e-commerce from "passive search" to "active agentic negotiation". It enables merchants to maintain their status as the Merchant of Record while leveraging autonomous intelligence to optimize business outcomes in real-time.
+
+### Dual Protocol Support
+
+The platform implements **both protocols** to demonstrate production-grade commerce interoperability:
+
+1. **ACP Implementation** - Project-specific checkout protocol for rapid prototyping
+2. **UCP Implementation** - Industry-standard protocol co-developed by major commerce platforms
+
+Both protocols share the same intelligent agent layer (NAT-powered Promotion, Recommendation, and Post-Purchase agents) and backend services, showcasing how merchants can support multiple protocols simultaneously without duplicating business logic.
+
+**Protocol Toggle:** The Merchant Activity Panel provides a **tab switcher (ACP | UCP)** to toggle between protocols. The client agent flow remains unchanged - only the backend endpoints and protocol format change based on the toggle.
+
+**UCP scope in this project:** UCP support includes **Discovery + Checkout (REST + A2A)**. The A2A transport uses JSON-RPC 2.0 for agent-to-agent communication. Cart/Order/Identity Linking capabilities and MCP/Embedded transports are out of scope for this reference implementation.
 
 ### The Technical Vision
 
@@ -33,7 +46,7 @@ For this project we will also build a **client agent simulator** that behaves li
 ## 1. Goals & Background Context
 
 * **Primary Goal**: Create a reference architecture that enables retailers to maintain "Merchant of Record" control while leveraging autonomous agents to optimize margins and loyalty.
-* **Protocol Fidelity**: 100% compliance with ACP specification (OpenAI/Stripe standard).
+* **Protocol Fidelity**: 100% compliance with ACP specification (OpenAI/Stripe standard). UCP alignment targets checkout + discovery only (v2026-01-11).
 * **Observability**: Real-time "Glass Box" visualization of agent reasoning and JSON traces.
 
 ## 2. Functional Requirements (FR)
@@ -335,7 +348,223 @@ A "Glass Box" dashboard built with Next.js to visualize the underlying protocol 
 * **Demo/Debug mode**: optionally show **raw chain-of-thought-style output** if available from the model/runtime, clearly labeled as "demo/debug only"
 * Visual connection between agent decisions and the resulting JSON in the middle panel
 
-## 5. Non-Functional Requirements (NFR)
+## 5. UCP Integration Requirements
+
+### 5.1 UCP Core Endpoints (Per Official Specification)
+
+Implement UCP-compliant endpoints alongside existing ACP endpoints (API Version: `2026-01-11`):
+
+#### FR-UCP-01: UCP Discovery Endpoint
+* **Endpoint**: `GET /.well-known/ucp`
+* **Purpose**: Advertise business profile with supported capabilities, services, and payment handlers
+* **Response Schema**:
+```json
+{
+  "ucp": {
+    "version": "2026-01-11",
+    "services": {
+      "dev.ucp.shopping": [
+        {
+          "version": "2026-01-11",
+          "spec": "https://ucp.dev/specification/overview",
+          "transport": "rest",
+          "endpoint": "https://merchant.example.com/ucp/v1",
+          "schema": "https://ucp.dev/services/shopping/rest.openapi.json"
+        }
+      ]
+    },
+    "capabilities": {
+      "dev.ucp.shopping.checkout": [
+        {
+          "version": "2026-01-11",
+          "spec": "https://ucp.dev/specification/checkout",
+          "schema": "https://ucp.dev/schemas/shopping/checkout.json"
+        }
+      ],
+      "dev.ucp.shopping.fulfillment": [
+        {
+          "version": "2026-01-11",
+          "spec": "https://ucp.dev/specification/fulfillment",
+          "schema": "https://ucp.dev/schemas/shopping/fulfillment.json",
+          "extends": "dev.ucp.shopping.checkout"
+        }
+      ],
+      "dev.ucp.shopping.discount": [
+        {
+          "version": "2026-01-11",
+          "spec": "https://ucp.dev/specification/discount",
+          "schema": "https://ucp.dev/schemas/shopping/discount.json",
+          "extends": "dev.ucp.shopping.checkout"
+        }
+      ]
+    },
+    "payment_handlers": {
+      "com.example.processor_tokenizer": [
+        {
+          "id": "processor_tokenizer",
+          "version": "2026-01-11",
+          "spec": "https://example.com/specs/payments/processor_tokenizer",
+          "schema": "https://example.com/schemas/processor_tokenizer.json",
+          "config": { ... }
+        }
+      ]
+    }
+  },
+  "signing_keys": [...]
+}
+```
+
+#### FR-UCP-02: Create Checkout Session (UCP)
+* **Endpoint**: `POST /checkout-sessions` (hyphenated per UCP spec)
+* **Purpose**: Initialize UCP checkout session with capability negotiation
+* **Required Header**: `UCP-Agent: profile="https://platform.example/profile.json"` (RFC 8941 dictionary structured field)
+* **Idempotency**: Mutating operations include `Idempotency-Key` for retry safety
+* **Request Schema**:
+```json
+{
+  "line_items": [
+    {
+      "item": { "id": "product_1", "title": "Blue T-Shirt", "price": 1999 },
+      "quantity": 1
+    }
+  ],
+  "buyer": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john@example.com"
+  }
+}
+```
+* **Response**: Full checkout state with `ucp` metadata, `status`, `line_items`, `totals`
+* **Status Transition**: `incomplete` (initial state)
+
+#### FR-UCP-03: Update Checkout Session (UCP)
+* **Endpoint**: `PUT /checkout-sessions/{id}` (PUT, not POST)
+* **Purpose**: Update checkout session with full replacement semantics
+* **Status Transition**: `incomplete` → `ready_for_complete` when all required fields present
+
+#### FR-UCP-04: Complete Checkout (UCP)
+* **Endpoint**: `POST /checkout-sessions/{id}/complete`
+* **Purpose**: Finalize transaction with payment instruments
+* **Request Schema**:
+```json
+{
+  "payment": {
+    "instruments": [
+      {
+        "id": "pm_1234567890abc",
+        "handler_id": "processor_tokenizer",
+        "type": "card",
+        "selected": true,
+        "display": {
+          "brand": "visa",
+          "last_digits": "4242"
+        },
+        "billing_address": { ... },
+        "credential": {
+          "type": "PAYMENT_GATEWAY",
+          "token": "tok_xxx"
+        }
+      }
+    ]
+  },
+  "risk_signals": { ... }
+}
+```
+* **Status Transition**: `ready_for_complete` → `completed`
+
+#### FR-UCP-05: Cancel Checkout (UCP)
+* **Endpoint**: `POST /checkout-sessions/{id}/cancel`
+* **Status Transition**: Any → `canceled`
+
+#### FR-UCP-06: Get Checkout Session (UCP)
+* **Endpoint**: `GET /checkout-sessions/{id}`
+* **Purpose**: Retrieve current checkout state
+
+**UCP request headers (all endpoints):**
+- `UCP-Agent: profile="..."` is required and uses RFC 8941 dictionary structured field syntax
+- `Idempotency-Key` is required for mutating operations (`POST`, `PUT`, `complete`, `cancel`)
+- `Authorization` is optional and depends on the business's policy
+
+#### UCP Response Schema (All Endpoints)
+All successful responses return the full checkout state with UCP metadata:
+```json
+{
+  "ucp": {
+    "version": "2026-01-11",
+    "capabilities": {
+      "dev.ucp.shopping.checkout": [{"version": "2026-01-11"}],
+      "dev.ucp.shopping.fulfillment": [{"version": "2026-01-11"}]
+    },
+    "payment_handlers": {
+      "com.example.processor_tokenizer": [
+        {"id": "processor_tokenizer", "version": "2026-01-11"}
+      ]
+    }
+  },
+  "id": "checkout_abc123",
+  "status": "ready_for_complete",
+  "currency": "USD",
+  "buyer": { ... },
+  "line_items": [...],
+  "totals": [
+    { "type": "subtotal", "label": "Subtotal", "amount": 2500 },
+    { "type": "fulfillment", "label": "Shipping", "amount": 500 },
+    { "type": "tax", "label": "Tax", "amount": 200 },
+    { "type": "total", "label": "Total", "amount": 3200 }
+  ],
+  "fulfillment": { ... },
+  "payment": { ... },
+  "messages": [],
+  "links": [
+    { "type": "terms_of_service", "url": "https://merchant.example.com/terms" }
+  ],
+  "continue_url": "https://merchant.example.com/checkout-sessions/abc123"
+}
+```
+
+**Handoff rule:** `continue_url` is required when `status = requires_escalation` and should be omitted for terminal states (`completed`, `canceled`).
+
+**Session Status Values (UCP):**
+| Status | Description |
+|--------|-------------|
+| `incomplete` | Missing required data |
+| `requires_escalation` | Buyer input or review required via `continue_url` |
+| `ready_for_complete` | All requirements met, ready for payment |
+| `complete_in_progress` | Payment is being processed |
+| `completed` | Successfully completed with order created |
+| `canceled` | Session has been canceled |
+
+### 5.2 Capability Negotiation (UCP-Specific)
+
+* **FR-NEG-01 (Profile Fetching)**: Business fetches platform profile from `UCP-Agent` header
+* **FR-NEG-02 (Intersection Computation)**: Compute capability intersection between business and platform profiles
+* **FR-NEG-03 (Extension Pruning)**: Remove orphaned extensions whose parents aren't in intersection
+* **FR-NEG-04 (Response Metadata)**: Include negotiated capabilities in `ucp` field of every response
+
+### 5.3 Shared Agent Services
+
+Both ACP and UCP protocols share the same intelligent merchant agents:
+
+* **Promotion Agent**: Same 3-layer hybrid reasoning for both protocols
+* **Recommendation Agent**: Same ARAG multi-agent architecture for both protocols
+* **Post-Purchase Agent**: Same multilingual messaging for both protocols
+
+The agents are protocol-agnostic and invoked by the shared business logic layer.
+
+### 5.4 UI/UX: Merchant Activity Panel Tabs
+
+The Protocol Inspector's Merchant Activity Panel features a **tab switcher**:
+
+* **ACP Tab**: Displays ACP protocol events (Stripe-style checkout sessions)
+* **UCP Tab**: Displays UCP protocol events (capability negotiation, UCP checkout sessions)
+
+Both tabs show:
+- Real-time JSON payloads
+- Session state
+- Protocol-specific metadata (API version for ACP, capability intersection for UCP)
+
+## 6. Non-Functional Requirements (NFR)
 
 * **NFR-LAT**: Total internal processing should target <10s for typical operations to ensure responsive user experience.
 * **NFR-LAN**: Multilingual support for English, Spanish, and French in the Post-Purchase agent.

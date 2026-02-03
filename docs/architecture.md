@@ -13,7 +13,12 @@
 ### Draft Content: High-Level Overview
 
 **1. Technical Summary**
-The **Intelligent ACP Middleware** is a Python **3.12+**-based reference architecture designed to host autonomous merchant agents. It exposes five RESTful endpoints compliant with the **Agentic Commerce Protocol v2026-01-16** and utilizes the **NVIDIA NeMo Agent Toolkit** to perform real-time business logic optimization. The system uses an "Async Parallel Orchestration" pattern to ensure fast, responsive agent reasoning.
+The **Intelligent Commerce Middleware** is a Python **3.12+**-based reference architecture designed to host autonomous merchant agents. It exposes **two protocol implementations**:
+
+1. **ACP (Agentic Commerce Protocol)** - Five RESTful endpoints compliant with v2026-01-16
+2. **UCP (Universal Commerce Protocol)** - Industry-standard protocol aligned to v2026-01-11 (Discovery + Checkout, REST only in this project)
+
+Both protocols utilize the **NVIDIA NeMo Agent Toolkit** to perform real-time business logic optimization. The system uses an "Async Parallel Orchestration" pattern to ensure fast, responsive agent reasoning while sharing the same intelligent agent layer and backend services.
 
 **Simulator (demo client)**
 We will also build a **client agent simulator** that plays the "client" role:
@@ -40,11 +45,17 @@ graph TD
     end
 
     subgraph "Intelligent Middleware (FastAPI)"
-        B[ACP Gateway Router]
-        C[Parallel Agent Orchestrator]
+        ROUTER[Protocol Router Layer]
+        ACP_ROUTER[ACP Endpoints]
+        UCP_ROUTER[UCP Endpoints + Discovery]
+        ROUTER --> ACP_ROUTER & UCP_ROUTER
+        C[Shared Business Logic Layer]
         D[NAT Promotion Agent]
         E[NAT Recommendation Agent]
         F[NAT Post-Purchase Agent]
+        ACP_ROUTER --> C
+        UCP_ROUTER --> C
+        C --> D & E & F
     end
 
     subgraph "Relational Data (SQLite)"
@@ -55,8 +66,11 @@ graph TD
 
     subgraph "Demo Interface (Next.js - Multi-Panel UI)"
         K1[Left: Agent/Client Simulation]
-        K2[Middle: Business/Retailer View]
-        K3[Right: Chain of Thought - Optional]
+        K2[Middle: Merchant Activity Panel]
+        K2_ACP[ACP Tab]
+        K2_UCP[UCP Tab]
+        K2 --> K2_ACP & K2_UCP
+        K3[Right: Agent Activity]
     end
 
     subgraph "Payments (PSP)"
@@ -74,24 +88,170 @@ graph TD
     TABS -->|Apps SDK| MERCHANT_IFRAME
     MERCHANT_IFRAME --> LOYALTY & REC_CAROUSEL & SHOP_CART
     REC_CAROUSEL -.->|Fetches 3 items| E
-    SHOP_CART -->|callTool checkout| B
-    A <-->|ACP REST/JSON| B
-    B <--> C
-    C --> D & E
+    SHOP_CART -->|callTool checkout| ACP_ROUTER
+    A -->|ACP REST| ACP_ROUTER
+    A -->|UCP REST + UCP-Agent header| UCP_ROUTER
     D & E & F <-->|SQL Queries| G & H & I
     A -.->|Simulation View| K1
-    B & C -.->|JSON/Protocol State| K2
+    ACP_ROUTER -.->|ACP JSON| K2_ACP
+    UCP_ROUTER -.->|UCP JSON + Capabilities| K2_UCP
     D & E & F -.->|Agent Reasoning| K3
     A -->|delegate payment| P1
     P1 -->|vault token| A
-    B -->|complete checkout (token)| P2
+    C -->|complete checkout (token)| P2
     P2 -.->|3DS required?| P3
-    P3 -->|authentication_result| B
+    P3 -->|authentication_result| C
     F -->|Post-purchase events| W
 
 ```
 
-**3. Key Architectural Patterns**
+**3. Dual Protocol Architecture**
+
+The system implements **both ACP and UCP protocols** to demonstrate how merchants can support multiple commerce standards simultaneously.
+
+**Protocol Toggle:** The Merchant Activity Panel has a tab switcher (ACP | UCP) that determines which backend protocol is used. The **client agent flow remains unchanged** - same product cards, checkout modal, and shipping selection. Only the backend endpoints and protocol format change based on the toggle.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        PROTOCOL TOGGLE BEHAVIOR                          │
+│                                                                          │
+│   Merchant Panel Toggle                                                  │
+│   ┌────────────────┬────────────────┐                                   │
+│   │     [ACP]      │     [UCP]      │                                   │
+│   └───────┬────────┴────────┬───────┘                                   │
+│           │                 │                                            │
+│           ▼                 ▼                                            │
+│   POST /checkout_sessions   POST /checkout-sessions (REST)              │
+│   (underscore, REST)        OR a2a.ucp.checkout.create (A2A)            │
+│                                                                          │
+│   ✓ Same Client Agent UI   ✓ Same Client Agent UI                       │
+│   ✓ Same NAT Agents        ✓ Same NAT Agents                            │
+│   ✓ Same PSP Payments      ✓ Same PSP Payments                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+```mermaid
+graph TD
+    subgraph "Protocol Router Layer"
+        DISC[GET /.well-known/ucp]
+        ACP[ACP Endpoints]
+        UCP[UCP Endpoints]
+        ACP1[POST /checkout_sessions]
+        ACP2[GET /checkout_sessions/:id]
+        UCP1[POST /checkout-sessions]
+        UCP2[GET /checkout-sessions/:id]
+        
+        DISC -.->|UCP Discovery| UCP
+        ACP --> ACP1 & ACP2
+        UCP --> UCP1 & UCP2
+    end
+    
+    subgraph "Shared Business Logic"
+        SVC[Checkout Service - Protocol Agnostic]
+        AGENTS[NAT Agents - Protocol Agnostic]
+        PROM[Promotion Agent]
+        RECO[Recommendation Agent]
+        POST[Post-Purchase Agent]
+        
+        SVC --> AGENTS
+        AGENTS --> PROM & RECO & POST
+    end
+    
+    subgraph "Data Layer"
+        DB[(SQLite)]
+        PRODUCTS[Products]
+        SESSIONS[Checkout Sessions]
+        ORDERS[Orders]
+        
+        DB --> PRODUCTS & SESSIONS & ORDERS
+    end
+    
+    ACP1 & ACP2 --> SVC
+    UCP1 & UCP2 --> SVC
+    SVC --> DB
+    PROM & RECO & POST --> DB
+```
+
+### Protocol Comparison
+
+| Aspect | ACP | UCP |
+|--------|-----|-----|
+| **Discovery** | Static config | `GET /.well-known/ucp` |
+| **Versioning** | Header: `API-Version: 2026-01-16` | Profile + negotiation: `2026-01-11` |
+| **Transport** | REST only | REST + A2A (JSON-RPC 2.0) |
+| **Session Endpoint** | `POST /checkout_sessions` | `POST /checkout-sessions` or `a2a.ucp.checkout.create` |
+| **Update Method** | `POST /checkout_sessions/{id}` | `PUT /checkout-sessions/{id}` or `a2a.ucp.checkout.update` |
+| **Status Names** | `not_ready_for_payment`, `ready_for_payment` | `incomplete`, `requires_escalation`, `ready_for_complete`, `complete_in_progress` |
+| **Response Metadata** | Payment provider info | `ucp` object with capabilities |
+| **Platform Advertisement** | API key (`Authorization` / `X-API-Key`) + `API-Version` | `UCP-Agent: profile="..."` (RFC 8941) |
+| **Buyer Handoff** | ACP UI-specific | `continue_url` required for `requires_escalation` |
+| **Fulfillment** | `fulfillment_details` object | `fulfillment` extension with methods |
+
+### Shared Components
+
+The following components are **protocol-agnostic** and serve both ACP and UCP:
+
+1. **NAT Agents**
+   - Promotion Agent: Dynamic pricing based on competitor data
+   - Recommendation Agent: ARAG-powered cross-sell suggestions
+   - Post-Purchase Agent: Multilingual shipping updates
+
+2. **Checkout Service**
+   - Session management
+   - Cart operations
+   - Totals calculation
+   - Validation logic
+
+3. **Payment Service**
+   - PSP delegation
+   - Vault token handling
+   - Payment intent processing
+   - 3DS authentication flow
+
+4. **Database Layer**
+   - Products catalog
+   - Checkout sessions (protocol field stores ACP vs UCP)
+   - Orders and history
+
+### Request Flow Example
+
+**ACP Flow:**
+```
+Client Agent
+  ↓ POST /checkout_sessions (Header: API-Version: 2026-01-16)
+ACP Router
+  ↓ normalize to internal format
+Shared Checkout Service
+  ↓ invoke agents
+NAT Agents (Promotion, Recommendation)
+  ↓ return decisions
+Shared Checkout Service
+  ↓ transform to ACP response format
+ACP Router
+  ↓ Response with payment_provider, status: ready_for_payment
+Client Agent
+```
+
+**UCP Flow:**
+```
+Client Agent
+  ↓ POST /checkout-sessions (Header: UCP-Agent: profile="...")
+UCP Router
+  ↓ fetch platform profile, compute capabilities
+  ↓ normalize to internal format
+Shared Checkout Service
+  ↓ invoke agents
+NAT Agents (Promotion, Recommendation)
+  ↓ return decisions
+Shared Checkout Service
+  ↓ transform to UCP response format
+UCP Router
+  ↓ inject negotiated capabilities relevant to checkout in ucp metadata
+  ↓ Response with ucp.capabilities, status: ready_for_complete
+Client Agent
+```
+
+**4. Key Architectural Patterns**
 
 * **Async Parallel Orchestrator**: The Promotion and Recommendation agents are triggered simultaneously via `asyncio.gather` during session creation.
 * **Tool-Calling SQL Bridge**: NAT agents do not access the DB directly; they use specific **Python Tools** that execute sanitized SQL queries to prevent injection.
@@ -131,7 +291,7 @@ graph TD
   2. Simulator displays 4 product cards with images and prices
   3. User clicks a product to start checkout via ACP protocol
 * **Static Product Catalog**: 4 pre-populated products stored in SQLite.
-* **Delegated Payments (PSP)** - ACP-compliant payment flow:
+* **Delegated Payments (PSP)** - ACP-compliant payment flow (UCP uses payment handlers; this demo may map handlers to the same PSP flow):
   1. **Client/Agent obtains vault token**: `POST /agentic_commerce/delegate_payment`
      - Sends: `payment_method` (card details), `allowance` (constraints), `risk_signals`
      - Requires: `Idempotency-Key` header for safe retries
@@ -148,7 +308,7 @@ graph TD
      - Validates amount within `allowance.max_amount`
      - Marks vault token as `consumed` (single-use)
      - Creates order on success
-* **Global Webhook Delivery**: Post-purchase shipping pulses are delivered to a **single global webhook URL** configured at the application level. The Post-Purchase Agent uses the **Brand Persona** to generate multilingual updates.
+* **Global Webhook Delivery**: Post-purchase shipping pulses are delivered to a **single global webhook URL** configured at the application level (ACP demo flow). UCP order webhooks are out of scope for this implementation.
 * **Configurable NIM Endpoint**: Supports both NVIDIA hosted API and local Docker deployment via environment variable.
 * **API Key Auth**: All ACP endpoints require an API key (e.g., `Authorization: Bearer <API_KEY>` or `X-API-Key: <API_KEY>`). Unauthorized requests return 401/403.
 * **Apps SDK Integration**: An alternative checkout mode where the merchant controls a fully-owned iframe embedded within the Client Agent panel:

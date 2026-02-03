@@ -12,17 +12,18 @@
 
 | Category | Technology | Version | Purpose | Rationale |
 | --- | --- | --- | --- | --- |
+| **Commerce Protocols** | **ACP + UCP** | **ACP v2026-01-16, UCP v2026-01-11** | Dual protocol support | ACP for rapid prototyping; UCP for discovery + checkout (REST) alignment. |
 | **Primary LLM** | **NVIDIA Nemotron-3-Nano-30B** | **v3 (Dec 2025)** | Agent Core Logic | Sparse MoE design for high inference throughput. |
 | **Language** | Python | **3.12+** | Backend logic & NAT | Native NAT and NeMo runtime support. |
 | **Agentic Framework** | NeMo Agent Toolkit | 1.3.1+ | Multi-agent workflows | Built-in support for tool-calling, RAG, and reasoning trace. |
 | **Inference Engine** | **NVIDIA NIM / TensorRT-LLM** | 25.11+ | Optimized Execution | Configurable: local Docker or public NVIDIA API endpoint. |
 | **Embedding Model** | **NVIDIA NV-EmbedQA-E5-v5** | latest | RAG for Recommendations | Semantic product search for ARAG retrieval pipeline. |
 | **Vector Database** | **Milvus** | 2.3+ | Product Embeddings | Stores product catalog embeddings for RAG-based recommendation retrieval. |
-| **Client Agent Simulator** | Static Simulator | n/a | Client simulator | Simulates product search ("find t-shirts") → displays 4 products → user clicks to start ACP checkout. |
-| **Client UI Framework** | React | 18+ | Multi-panel Inspector UI | Component model for three-panel Protocol Inspector (Agent/Business/CoT views). |
-| **Client App Framework** | Next.js | 14+ | Client UI | App Router for the simulator UI + Multi-Panel Protocol Inspector. |
-| **Component Library** | shadcn/ui | latest | Client UI | Modern accessible primitives to build a polished demo UI fast. |
-| **Payments (PSP)** | PSP service + SQLite | demo | Delegated payments | Vault token minting (`vt_...`), idempotency, payment intents (`pi_...`) that consume tokens. |
+| **Client Agent Simulator** | Static Simulator | n/a | Client simulator | Simulates product search ("find t-shirts") → displays 4 products → user clicks to start checkout (ACP today; UCP planned). |
+| **Client UI Framework** | React | 19+ | Multi-panel Inspector UI | Component model for three-panel Protocol Inspector (Agent/Merchant/Activity views). |
+| **Client App Framework** | Next.js | 15+ | Client UI | App Router for the simulator UI + Multi-Panel Protocol Inspector with protocol tabs. |
+| **Component Library** | Kaizen UI (KUI) | latest | Client UI | Accessible Kaizen primitives used throughout the demo UI. |
+| **Payments (PSP)** | PSP service + SQLite | demo | Delegated payments | Vault token minting (`vt_...`), idempotency, payment intents (`pi_...`) that consume tokens. ACP-specific demo flow; UCP uses payment handlers. |
 
 ---
 
@@ -45,7 +46,7 @@ For ChatGPT integration testing and production deployment:
 
 | Component | Technology | Version | Purpose |
 | --- | --- | --- | --- |
-| **MCP Server** | FastMCP (Python) | 1.0+ | Tool registration and handling for ChatGPT |
+| **MCP Server** | FastAPI + MCP | n/a | Tool registration and handling for ChatGPT |
 | **Widget Bundle** | Vite + React | latest | Builds HTML widget files for ChatGPT rendering |
 | **Tunnel** | ngrok | latest | Exposes local MCP server to ChatGPT for testing |
 | **Hosting** | Vercel / Alpic | n/a | Production deployment with HTTPS and CDN |
@@ -66,7 +67,7 @@ cd src/ui && pnpm run dev
 # Access http://localhost:3000, switch to Apps SDK tab
 
 # Integration (real ChatGPT via ngrok)
-cd src/apps-sdk && npm run dev  # MCP server on :2091
+uvicorn src.apps_sdk.main:app --reload --port 2091
 ngrok http 2091                  # Tunnel to ChatGPT
 # Configure ngrok URL in ChatGPT Settings → Connectors
 ```

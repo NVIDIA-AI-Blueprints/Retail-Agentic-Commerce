@@ -54,7 +54,7 @@ The current checkout flow uses hardcoded buyer information and simulated payment
 
 **Shipping Address:**
 - [x] Create `ShippingAddressForm` component
-- [ ] Implement address autocomplete (optional - Google Places API)
+- [ ] Implement address autocomplete (optional - geocoding API)
 - [ ] Add country/state selection dropdowns
 - [x] Validate required fields (name, address, city, state, zip, country)
 - [ ] Support international address formats
