@@ -221,21 +221,6 @@ flowchart TB
     EMBED --> MILVUS
     RECS --> MILVUS
     SEARCH --> MILVUS
-
-    style CA fill:#76b900,color:#000
-    style MCP fill:#1a1a2e,color:#fff
-    style WIDGET fill:#4a4a6a,color:#fff
-    style ACP fill:#1a1a2e,color:#fff
-    style MERCHANT fill:#1a1a2e,color:#fff
-    style PSP fill:#1a1a2e,color:#fff
-    style PROMO fill:#2d2d44,color:#fff
-    style POST fill:#2d2d44,color:#fff
-    style RECS fill:#2d2d44,color:#fff
-    style SEARCH fill:#2d2d44,color:#fff
-    style LLM fill:#76b900,color:#000
-    style EMBED fill:#76b900,color:#000
-    style SQLITE fill:#3d5a80,color:#fff
-    style MILVUS fill:#3d5a80,color:#fff
 ```
 
 ## Services
