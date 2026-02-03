@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor, act } from "@testing-library/react";
 import { WebhookToAgentActivityBridge } from "./WebhookToAgentActivityBridge";
 
 const addPostPurchaseEvent = vi.fn();
@@ -19,12 +19,15 @@ vi.mock("@/hooks/useACPLog", () => ({
   }),
 }));
 
+let mockEventSourceInstance: MockEventSource | null = null;
+
 class MockEventSource {
   url: string;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   constructor(url: string) {
     this.url = url;
+    mockEventSourceInstance = this;
   }
   close() {
     // no-op
@@ -36,14 +39,17 @@ describe("WebhookToAgentActivityBridge", () => {
     addPostPurchaseEvent.mockClear();
     logEvent.mockClear();
     completeEvent.mockClear();
+    mockEventSourceInstance = null;
     global.EventSource = MockEventSource as unknown as typeof EventSource;
+    // Mock fetch for the DELETE call on mount
+    global.fetch = vi.fn().mockResolvedValue({ ok: true });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("processes missed webhook events from polling", async () => {
+  it("processes shipping_update events received via SSE", async () => {
     const shippingEvent = {
       id: "evt_1",
       type: "shipping_update",
@@ -59,17 +65,33 @@ describe("WebhookToAgentActivityBridge", () => {
       },
     };
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ events: [shippingEvent] }),
-    });
-    global.fetch = fetchMock;
-
     render(<WebhookToAgentActivityBridge />);
 
+    // Wait for EventSource to be created
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled();
-      expect(addPostPurchaseEvent).toHaveBeenCalled();
+      expect(mockEventSourceInstance).not.toBeNull();
+    });
+
+    // Simulate SSE message
+    act(() => {
+      mockEventSourceInstance?.onmessage?.(
+        new MessageEvent("message", { data: JSON.stringify(shippingEvent) })
+      );
+    });
+
+    await waitFor(() => {
+      expect(addPostPurchaseEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: "order_123",
+          status: "order_shipped",
+          language: "en",
+        }),
+        expect.objectContaining({
+          subject: "Your order is on the way",
+          message: "Tracking details inside",
+        }),
+        "success"
+      );
     });
   });
 });

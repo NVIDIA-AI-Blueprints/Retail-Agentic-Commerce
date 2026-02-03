@@ -4,6 +4,7 @@ from collections.abc import Generator
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -70,6 +71,27 @@ def mock_merchant_api() -> Generator[None, None, None]:
     with patch(
         "src.apps_sdk.tools.cart.find_product",
         new=AsyncMock(side_effect=mock_find_product),
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_checkout_http_client() -> Generator[None, None, None]:
+    """Mock HTTP client for checkout operations.
+
+    Forces the simulated checkout fallback by raising ConnectError,
+    ensuring tests don't depend on external merchant/PSP services.
+    """
+
+    async def mock_aenter(_self: Any) -> Any:
+        raise httpx.ConnectError("Mocked connection error for tests")
+
+    async def mock_aexit(_self: Any, *_args: Any) -> None:
+        pass
+
+    with (
+        patch.object(httpx.AsyncClient, "__aenter__", mock_aenter),
+        patch.object(httpx.AsyncClient, "__aexit__", mock_aexit),
     ):
         yield
 

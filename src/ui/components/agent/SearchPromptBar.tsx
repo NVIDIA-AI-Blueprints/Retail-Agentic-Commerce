@@ -39,7 +39,7 @@ export function SearchPromptBar({ value, onChange, onSubmit }: SearchPromptBarPr
           type="search"
           value={value}
           onChange={handleChange}
-          placeholder="Search for products..."
+          placeholder="show me some shoes"
           className="nv-text-input-element px-4"
           aria-label="Search query"
         />

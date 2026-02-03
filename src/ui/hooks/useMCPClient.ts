@@ -112,7 +112,7 @@ export function useMCPClient() {
               arguments: args,
             },
           }),
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(65000), // 65s timeout for search agent (can take 20-30s)
         });
 
         if (!response.ok) {
