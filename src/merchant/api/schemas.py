@@ -35,6 +35,14 @@ class PaymentMethodEnum(str, Enum):
     CARD = "card"
 
 
+class SupportedLanguageEnum(str, Enum):
+    """Supported languages for post-purchase messages."""
+
+    EN = "en"
+    ES = "es"
+    FR = "fr"
+
+
 class FulfillmentTypeEnum(str, Enum):
     """Fulfillment option types."""
 
@@ -184,6 +192,10 @@ class CompleteCheckoutRequest(BaseModel):
 
     buyer: BuyerInput | None = Field(default=None, description="Buyer information")
     payment_data: PaymentDataInput = Field(..., description="Payment data")
+    preferred_language: SupportedLanguageEnum = Field(
+        default=SupportedLanguageEnum.EN,
+        description="Preferred language for post-purchase messages (en, es, fr)",
+    )
 
 
 # =============================================================================

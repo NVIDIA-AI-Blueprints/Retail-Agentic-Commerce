@@ -502,6 +502,8 @@ export interface CompleteCheckoutRequest {
   buyer?: Buyer;
   payment_data: PaymentData;
   authentication_result?: AuthenticationResult;
+  /** Preferred language for post-purchase messages (en, es, fr). Defaults to 'en' */
+  preferred_language?: SupportedLanguage;
 }
 
 // =============================================================================

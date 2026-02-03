@@ -659,6 +659,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
             provider: "stripe",
             billing_address: billingAddressData,
           },
+          preferred_language: billingAddress.preferredLanguage,
         });
 
         // Check if 3DS is required
@@ -691,6 +692,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
                     version: "2.2.0",
                   },
                 },
+                preferred_language: billingAddress.preferredLanguage,
               });
               if (authEventId) {
                 loggerRef.current?.completeEvent(

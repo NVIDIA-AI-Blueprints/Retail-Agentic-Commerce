@@ -272,13 +272,14 @@ def complete_checkout(
                 items = [{"name": "your order", "quantity": 1}]
 
             # Queue the post-purchase flow as a background task
+            # Use the preferred_language from the request (defaults to 'en')
             background_tasks.add_task(
                 trigger_post_purchase_flow,
                 checkout_session_id=session_id,
                 order_id=response.order.id,
                 customer_name=customer_name,
                 items=items,
-                language="en",  # Could be extracted from buyer preferences
+                language=request.preferred_language.value,
             )
 
         return response
