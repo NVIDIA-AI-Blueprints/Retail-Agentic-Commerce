@@ -152,19 +152,16 @@ flowchart TB
         direction LR
         subgraph SDK["Apps SDK Layer"]
             MCP["📦 Apps SDK MCP Server<br/>(Port 2091)"]
-            subgraph tools["MCP Tools"]
-                T1[get-recs]
-                T2[add-to-cart]
-                T3[checkout]
+            subgraph tools["Entry Point"]
+                T1["search-products<br/>(returns widget)"]
             end
+            WIDGET["🛒 Autonomous Widget<br/>(cart, checkout, recs)"]
         end
 
         subgraph Native["Native ACP Layer"]
             ACP["🔗 Direct ACP Protocol"]
-            subgraph endpoints["REST Endpoints"]
-                E1["checkout_sessions"]
-                E2["agentic_commerce"]
-                E3["products"]
+            subgraph endpoints["ACP Endpoints"]
+                E1["checkout_sessions/*"]
             end
         end
     end
@@ -205,6 +202,8 @@ flowchart TB
 
     CA -->|MCP| MCP
     CA -->|REST| ACP
+    MCP -.->|loads| WIDGET
+    WIDGET -->|MCP tools| MCP
     MCP --> MERCHANT
     ACP --> MERCHANT
     MERCHANT --> PSP
@@ -225,6 +224,7 @@ flowchart TB
 
     style CA fill:#76b900,color:#000
     style MCP fill:#1a1a2e,color:#fff
+    style WIDGET fill:#4a4a6a,color:#fff
     style ACP fill:#1a1a2e,color:#fff
     style MERCHANT fill:#1a1a2e,color:#fff
     style PSP fill:#1a1a2e,color:#fff
