@@ -98,7 +98,9 @@ networks:
   acp-nim-network:
     name: acp-nim-network
     driver: bridge
-  # External network created by docker-compose.infra.yml
-  # Allows NAT agents to connect to local NIMs
+  # Shared network for all services
+  # Created here so NIMs can start first (they take longest to initialize)
+  # Infrastructure and application services will join this network
   acp-infra-network:
-    external: true
+    name: acp-infra-network
+    driver: bridge

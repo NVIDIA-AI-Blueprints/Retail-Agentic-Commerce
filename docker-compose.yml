@@ -151,9 +151,6 @@ services:
 
   # Post-Purchase Agent (Port 8003) - Uses shared image
   post-purchase-agent:
-    build:
-      context: .
-      dockerfile: src/agents/Dockerfile
     image: nat-agents:latest
     container_name: nat-post-purchase-agent
     command: nat serve --config_file configs/post-purchase.yml --host 0.0.0.0 --port 8003
@@ -175,9 +172,6 @@ services:
 
   # Recommendation Agent (Port 8004) - Uses shared image, requires Milvus
   recommendation-agent:
-    build:
-      context: .
-      dockerfile: src/agents/Dockerfile
     image: nat-agents:latest
     container_name: nat-recommendation-agent
     command: nat serve --config_file configs/recommendation-ultrafast.yml --host 0.0.0.0 --port 8004
@@ -202,9 +196,6 @@ services:
 
   # Search Agent (Port 8005) - Uses shared image, requires Milvus for RAG
   search-agent:
-    build:
-      context: .
-      dockerfile: src/agents/Dockerfile
     image: nat-agents:latest
     container_name: nat-search-agent
     command: nat serve --config_file configs/search.yml --host 0.0.0.0 --port 8005
@@ -234,9 +225,6 @@ services:
   # Milvus Seeder - Seeds product catalog embeddings into Milvus
   # Runs once on startup, skips if already seeded
   milvus-seeder:
-    build:
-      context: .
-      dockerfile: src/agents/Dockerfile
     image: nat-agents:latest
     container_name: milvus-seeder
     command: python scripts/seed_milvus.py

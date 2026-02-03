@@ -111,9 +111,10 @@ services:
 # NETWORKS
 # =============================================================================
 networks:
+  # External network - created by docker-compose-nim.yml (which starts first)
+  # This allows NIMs to begin downloading models while infra services start
   acp-infra-network:
-    name: acp-infra-network
-    driver: bridge
+    external: true
 
 # =============================================================================
 # VOLUMES
