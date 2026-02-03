@@ -1,7 +1,7 @@
 """Pydantic schemas for PSP delegated payment endpoints."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,28 +11,28 @@ from pydantic import BaseModel, ConfigDict, Field
 # =============================================================================
 
 
-class CardNumberTypeEnum(str, Enum):
+class CardNumberTypeEnum(StrEnum):
     """Card number type."""
 
     FPAN = "fpan"
     DPAN = "dpan"
 
 
-class AllowanceReasonEnum(str, Enum):
+class AllowanceReasonEnum(StrEnum):
     """Allowance reason type."""
 
     ONE_TIME = "one_time"
     SUBSCRIPTION = "subscription"
 
 
-class PaymentIntentStatusEnum(str, Enum):
+class PaymentIntentStatusEnum(StrEnum):
     """Payment intent status."""
 
     PENDING = "pending"
     COMPLETED = "completed"
 
 
-class RiskSignalTypeEnum(str, Enum):
+class RiskSignalTypeEnum(StrEnum):
     """Risk signal types."""
 
     CARD_TESTING = "card_testing"
@@ -40,7 +40,7 @@ class RiskSignalTypeEnum(str, Enum):
     VELOCITY = "velocity"
 
 
-class RiskSignalActionEnum(str, Enum):
+class RiskSignalActionEnum(StrEnum):
     """Risk signal actions."""
 
     AUTHORIZED = "authorized"
@@ -199,7 +199,7 @@ class PaymentIntentResponse(BaseModel):
 # =============================================================================
 
 
-class ErrorTypeEnum(str, Enum):
+class ErrorTypeEnum(StrEnum):
     """Error response types."""
 
     INVALID_REQUEST = "invalid_request"
@@ -211,7 +211,7 @@ class ErrorTypeEnum(str, Enum):
     FORBIDDEN = "forbidden"
 
 
-class ErrorCodeEnum(str, Enum):
+class ErrorCodeEnum(StrEnum):
     """Error response codes."""
 
     CHECKOUT_SESSION_NOT_FOUND = "checkout_session_not_found"

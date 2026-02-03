@@ -1,7 +1,7 @@
 """SQLModel database models for the PSP (Payment Service Provider)."""
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import ClassVar
 
 from sqlmodel import Field, SQLModel
@@ -12,14 +12,14 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-class VaultTokenStatus(str, Enum):
+class VaultTokenStatus(StrEnum):
     """Vault token status values."""
 
     ACTIVE = "active"
     CONSUMED = "consumed"
 
 
-class PaymentIntentStatus(str, Enum):
+class PaymentIntentStatus(StrEnum):
     """Payment intent status values."""
 
     PENDING = "pending"

@@ -20,7 +20,7 @@ Designed for integration with Feature 11 (Webhook Integration).
 import asyncio
 import json
 import logging
-from enum import Enum
+from enum import StrEnum
 from typing import TypedDict
 
 import httpx
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-class ShippingStatus(str, Enum):
+class ShippingStatus(StrEnum):
     """Shipping status values for post-purchase communications."""
 
     ORDER_CONFIRMED = "order_confirmed"
@@ -49,7 +49,7 @@ class ShippingStatus(str, Enum):
 # =============================================================================
 
 
-class MessageTone(str, Enum):
+class MessageTone(StrEnum):
     """Available tone options for brand persona."""
 
     FRIENDLY = "friendly"  # Warm, enthusiastic, uses emojis sparingly
@@ -63,7 +63,7 @@ class MessageTone(str, Enum):
 # =============================================================================
 
 
-class SupportedLanguage(str, Enum):
+class SupportedLanguage(StrEnum):
     """Supported languages for message generation."""
 
     ENGLISH = "en"

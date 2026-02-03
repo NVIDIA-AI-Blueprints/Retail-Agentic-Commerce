@@ -3,7 +3,7 @@
 Based on the Agentic Checkout Protocol specification (docs/acp-spec.md).
 """
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # =============================================================================
 
 
-class CheckoutStatusEnum(str, Enum):
+class CheckoutStatusEnum(StrEnum):
     """Checkout session status values."""
 
     NOT_READY_FOR_PAYMENT = "not_ready_for_payment"
@@ -22,20 +22,20 @@ class CheckoutStatusEnum(str, Enum):
     CANCELED = "canceled"
 
 
-class PaymentProviderEnum(str, Enum):
+class PaymentProviderEnum(StrEnum):
     """Supported payment providers."""
 
     STRIPE = "stripe"
     ADYEN = "adyen"
 
 
-class PaymentMethodEnum(str, Enum):
+class PaymentMethodEnum(StrEnum):
     """Supported payment methods."""
 
     CARD = "card"
 
 
-class SupportedLanguageEnum(str, Enum):
+class SupportedLanguageEnum(StrEnum):
     """Supported languages for post-purchase messages."""
 
     EN = "en"
@@ -43,14 +43,14 @@ class SupportedLanguageEnum(str, Enum):
     FR = "fr"
 
 
-class FulfillmentTypeEnum(str, Enum):
+class FulfillmentTypeEnum(StrEnum):
     """Fulfillment option types."""
 
     SHIPPING = "shipping"
     DIGITAL = "digital"
 
 
-class TotalTypeEnum(str, Enum):
+class TotalTypeEnum(StrEnum):
     """Total line item types."""
 
     ITEMS_BASE_AMOUNT = "items_base_amount"
@@ -63,21 +63,21 @@ class TotalTypeEnum(str, Enum):
     TOTAL = "total"
 
 
-class MessageTypeEnum(str, Enum):
+class MessageTypeEnum(StrEnum):
     """Message types."""
 
     INFO = "info"
     ERROR = "error"
 
 
-class ContentTypeEnum(str, Enum):
+class ContentTypeEnum(StrEnum):
     """Content format types."""
 
     PLAIN = "plain"
     MARKDOWN = "markdown"
 
 
-class ErrorCodeEnum(str, Enum):
+class ErrorCodeEnum(StrEnum):
     """Error codes for error messages."""
 
     MISSING = "missing"
@@ -88,7 +88,7 @@ class ErrorCodeEnum(str, Enum):
     REQUIRES_3DS = "requires_3ds"
 
 
-class LinkTypeEnum(str, Enum):
+class LinkTypeEnum(StrEnum):
     """Link types for HATEOAS links."""
 
     TERMS_OF_USE = "terms_of_use"
@@ -386,7 +386,7 @@ class CheckoutSessionResponse(BaseModel):
 # =============================================================================
 
 
-class ErrorTypeEnum(str, Enum):
+class ErrorTypeEnum(StrEnum):
     """Error response types."""
 
     INVALID_REQUEST = "invalid_request"
@@ -397,7 +397,7 @@ class ErrorTypeEnum(str, Enum):
     FORBIDDEN = "forbidden"
 
 
-class ErrorResponseCodeEnum(str, Enum):
+class ErrorResponseCodeEnum(StrEnum):
     """Error response codes."""
 
     REQUEST_NOT_IDEMPOTENT = "request_not_idempotent"

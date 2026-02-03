@@ -1,7 +1,7 @@
 """SQLModel database models for the Agentic Commerce middleware."""
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import ClassVar, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -12,7 +12,7 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-class CheckoutStatus(str, Enum):
+class CheckoutStatus(StrEnum):
     """Checkout session status as per ACP specification."""
 
     NOT_READY_FOR_PAYMENT = "not_ready_for_payment"

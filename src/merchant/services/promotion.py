@@ -21,7 +21,7 @@ All prices are in CENTS (e.g., 2500 = $25.00).
 import asyncio
 import json
 import logging
-from enum import Enum
+from enum import StrEnum
 from typing import Any, TypedDict
 
 import httpx
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-class PromotionAction(str, Enum):
+class PromotionAction(StrEnum):
     """Allowed promotion actions - LLM must choose from these only.
 
     The ACP endpoint filters this list based on margin constraints
@@ -67,14 +67,14 @@ ACTION_DISCOUNT_MAP: dict[PromotionAction, float] = {
 # =============================================================================
 
 
-class InventoryPressure(str, Enum):
+class InventoryPressure(StrEnum):
     """Inventory pressure signal based on stock_count."""
 
     HIGH = "high"  # stock_count > STOCK_THRESHOLD
     LOW = "low"  # stock_count <= STOCK_THRESHOLD
 
 
-class CompetitionPosition(str, Enum):
+class CompetitionPosition(StrEnum):
     """Competition position signal based on price comparison."""
 
     ABOVE_MARKET = "above_market"  # base_price > lowest_competitor
@@ -94,7 +94,7 @@ STOCK_THRESHOLD = 50  # Units above this = high inventory pressure
 # =============================================================================
 
 
-class ReasonCode(str, Enum):
+class ReasonCode(StrEnum):
     """Standard reason codes for promotion decisions."""
 
     HIGH_INVENTORY = "HIGH_INVENTORY"
