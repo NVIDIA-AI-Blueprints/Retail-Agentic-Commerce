@@ -1,0 +1,104 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# NVIDIA NIM Microservices for Retail Agentic Commerce
+#
+# This compose file deploys local NVIDIA NIMs for LLM inference and embeddings.
+# Use this instead of NVIDIA API Catalog hosted endpoints for on-prem deployment.
+#
+# Prerequisites:
+#   - NVIDIA GPU(s) with sufficient VRAM
+#   - NGC_API_KEY environment variable set
+#   - LOCAL_NIM_CACHE directory created (~/.cache/nim)
+#
+# Usage:
+#   # Start NIMs only
+#   docker compose -f docker-compose-nim.yml up -d
+#
+#   # Start with infrastructure and application services
+#   docker compose -f docker-compose.infra.yml -f docker-compose-nim.yml -f docker-compose.yml up -d
+#
+# After starting, update your .env to use local NIMs:
+#   NIM_LLM_BASE_URL=http://nemotron-nano:8000/v1
+#   NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+#   NIM_EMBED_BASE_URL=http://embedqa:8000/v1
+#   NIM_EMBED_MODEL_NAME=nvidia/nv-embedqa-e5-v5
+#
+# Note: The model name for local NIM is 'nvidia/nemotron-3-nano' (without the version suffix)
+#       while the public endpoint uses 'nvidia/nemotron-3-nano-30b-a3b'
+services:
+
+  # =============================================================================
+  # NVIDIA NIM - LLM (Nemotron Nano)
+  # =============================================================================
+  nemotron-nano:
+    image: nvcr.io/nim/nvidia/nemotron-3-nano:1
+    container_name: nemotron-nano
+    ports:
+      - "8010:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+    volumes:
+      - ${LOCAL_NIM_CACHE:-~/.cache/nim}:/opt/nim/.cache
+    user: "${UID:-1000}"
+    shm_size: "16gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+    restart: "no"
+    networks:
+      - acp-nim-network
+      - acp-infra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # =============================================================================
+  # NVIDIA NIM - Embedding Model
+  # =============================================================================
+  embedqa:
+    image: nvcr.io/nim/nvidia/nv-embedqa-e5-v5:1.6
+    container_name: embedqa
+    ports:
+      - "8011:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+    volumes:
+      - ${LOCAL_NIM_CACHE:-~/.cache/nim}:/opt/nim/.cache
+    user: "${UID:-1000}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+    restart: "no"
+    networks:
+      - acp-nim-network
+      - acp-infra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  acp-nim-network:
+    name: acp-nim-network
+    driver: bridge
+  # External network created by docker-compose.infra.yml
+  # Allows NAT agents to connect to local NIMs
+  acp-infra-network:
+    external: true

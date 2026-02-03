@@ -124,6 +124,8 @@ node_modules/
 out/
 build/
 dist/
+# Exception: Keep pre-built Kaizen UI package dist folders
+!src/ui/kui-foundations-react-external/**/dist/
 
 # Next.js
 .next/

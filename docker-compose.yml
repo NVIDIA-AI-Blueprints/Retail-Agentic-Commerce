@@ -139,6 +139,11 @@ services:
     environment:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+      # NIM Configuration - defaults to public NVIDIA API endpoints
+      # For local NIM: set NIM_LLM_BASE_URL=http://nemotron-nano:8000/v1
+      #                    NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+      - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
     networks:
       - acp-network
       - acp-infra-network
@@ -146,6 +151,9 @@ services:
 
   # Post-Purchase Agent (Port 8003) - Uses shared image
   post-purchase-agent:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
     image: nat-agents:latest
     container_name: nat-post-purchase-agent
     command: nat serve --config_file configs/post-purchase.yml --host 0.0.0.0 --port 8003
@@ -154,6 +162,9 @@ services:
     environment:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+      # NIM Configuration
+      - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
     depends_on:
       promotion-agent:
         condition: service_started
@@ -164,6 +175,9 @@ services:
 
   # Recommendation Agent (Port 8004) - Uses shared image, requires Milvus
   recommendation-agent:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
     image: nat-agents:latest
     container_name: nat-recommendation-agent
     command: nat serve --config_file configs/recommendation-ultrafast.yml --host 0.0.0.0 --port 8004
@@ -173,6 +187,11 @@ services:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - MILVUS_URI=http://milvus-standalone:19530
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+      # NIM Configuration (LLM and Embeddings)
+      - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
     depends_on:
       promotion-agent:
         condition: service_started
@@ -183,6 +202,9 @@ services:
 
   # Search Agent (Port 8005) - Uses shared image, requires Milvus for RAG
   search-agent:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
     image: nat-agents:latest
     container_name: nat-search-agent
     command: nat serve --config_file configs/search.yml --host 0.0.0.0 --port 8005
@@ -192,6 +214,11 @@ services:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - MILVUS_URI=http://milvus-standalone:19530
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+      # NIM Configuration (LLM and Embeddings)
+      - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
     depends_on:
       promotion-agent:
         condition: service_started
@@ -199,6 +226,35 @@ services:
       - acp-network
       - acp-infra-network
     restart: unless-stopped
+
+  # =============================================================================
+  # MILVUS SEEDER (one-shot initialization)
+  # =============================================================================
+
+  # Milvus Seeder - Seeds product catalog embeddings into Milvus
+  # Runs once on startup, skips if already seeded
+  milvus-seeder:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
+    image: nat-agents:latest
+    container_name: milvus-seeder
+    command: python scripts/seed_milvus.py
+    environment:
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - MILVUS_URI=http://milvus-standalone:19530
+      # NIM Embedding Configuration - defaults to public NVIDIA API endpoint
+      # For local NIM: set NIM_EMBED_BASE_URL=http://embedqa:8000/v1
+      - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+      # Set to "true" to force re-seeding even if data exists
+      # - FORCE_RESEED=false
+    depends_on:
+      promotion-agent:
+        condition: service_started
+    networks:
+      - acp-infra-network
+    restart: "no"
 
 # =============================================================================
 # NETWORKS
