@@ -27,7 +27,7 @@ RUN corepack enable
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy source code (includes kui-foundations-react-external)
+# Copy source code (includes kui-foundations-react-external with pre-built dist)
 # Webpack aliases in next.config.ts resolve @kui/foundations-react-external to local folder
 COPY src/ui ./
 
