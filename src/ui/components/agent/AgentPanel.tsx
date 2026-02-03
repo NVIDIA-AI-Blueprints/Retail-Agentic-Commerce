@@ -464,6 +464,10 @@ export function AgentPanel() {
       // Clear both panels when switching modes to start fresh
       acpLog.clear();
       agentActivityLog.clear();
+      // Clear server-side webhook store to ensure clean slate
+      fetch("/api/webhooks/acp", { method: "DELETE" }).catch(() => {
+        // Ignore errors - server may not be running
+      });
       // Clear any post-purchase notification when switching tabs
       setNotification(null);
       // Reset native checkout flow when switching modes

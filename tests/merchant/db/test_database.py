@@ -65,6 +65,7 @@ class TestDatabaseInitialization:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
 
@@ -84,6 +85,7 @@ class TestDatabaseInitialization:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
             init_db()
@@ -99,6 +101,7 @@ class TestSeedData:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
 
@@ -114,6 +117,7 @@ class TestSeedData:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
 
@@ -129,6 +133,7 @@ class TestSeedData:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
 
@@ -146,6 +151,7 @@ class TestSeedData:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
 
@@ -170,6 +176,7 @@ class TestSeedData:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
 
@@ -195,6 +202,7 @@ class TestGetSession:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_db()
 
@@ -216,6 +224,7 @@ class TestInitAndSeedDb:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 
@@ -237,6 +246,7 @@ class TestCompetitorPriceRelationship:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 
@@ -265,6 +275,7 @@ class TestCustomerAndBrowseHistorySeeding:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 
@@ -283,6 +294,7 @@ class TestCustomerAndBrowseHistorySeeding:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 
@@ -296,6 +308,7 @@ class TestCustomerAndBrowseHistorySeeding:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 
@@ -314,6 +327,7 @@ class TestCustomerAndBrowseHistorySeeding:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 
@@ -332,6 +346,7 @@ class TestCustomerAndBrowseHistorySeeding:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 
@@ -359,6 +374,7 @@ class TestCustomerAndBrowseHistorySeeding:
         with patch("src.merchant.db.database.get_settings") as mock_settings:
             mock_settings.return_value.database_url = temp_db_url
             mock_settings.return_value.debug = False
+            mock_settings.return_value.log_sql = False
 
             init_and_seed_db()
 

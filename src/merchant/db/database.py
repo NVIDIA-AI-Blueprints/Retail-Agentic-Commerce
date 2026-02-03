@@ -24,7 +24,7 @@ def get_engine():
         settings = get_settings()
         _engine = create_engine(
             settings.database_url,
-            echo=settings.debug,
+            echo=settings.log_sql,  # Only log SQL when explicitly enabled
             connect_args={"check_same_thread": False},
         )
     return _engine

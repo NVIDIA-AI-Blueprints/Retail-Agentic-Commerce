@@ -9,9 +9,9 @@ Tests cover:
 import pytest
 
 from src.merchant.db.models import Product
-from src.merchant.services.checkout import (
-    _calculate_line_item,
-    _recalculate_line_item_from_existing,
+from src.merchant.services.helpers import (
+    calculate_line_item,
+    recalculate_line_item_from_existing,
 )
 
 # =============================================================================
@@ -72,22 +72,22 @@ def existing_line_item_no_discount() -> dict:
 
 
 # =============================================================================
-# _calculate_line_item Tests
+# calculate_line_item Tests
 # =============================================================================
 
 
 class TestCalculateLineItem:
-    """Tests for the _calculate_line_item function."""
+    """Tests for the calculate_line_item function."""
 
     def test_calculates_base_amount_correctly(self, sample_product: Product) -> None:
         """Happy path: Base amount is quantity * base_price."""
-        result = _calculate_line_item(sample_product, quantity=3)
+        result = calculate_line_item(sample_product, quantity=3)
 
         assert result["base_amount"] == 7500  # 3 * 2500
 
     def test_calculates_discount_correctly(self, sample_product: Product) -> None:
         """Happy path: Discount is quantity * discount_per_unit."""
-        result = _calculate_line_item(sample_product, quantity=2, discount_per_unit=250)
+        result = calculate_line_item(sample_product, quantity=2, discount_per_unit=250)
 
         assert result["discount"] == 500  # 2 * 250
 
@@ -95,7 +95,7 @@ class TestCalculateLineItem:
         self, sample_product: Product
     ) -> None:
         """Happy path: Subtotal is base_amount - discount."""
-        result = _calculate_line_item(sample_product, quantity=2, discount_per_unit=250)
+        result = calculate_line_item(sample_product, quantity=2, discount_per_unit=250)
 
         assert result["subtotal"] == 4500  # 5000 - 500
 
@@ -103,7 +103,7 @@ class TestCalculateLineItem:
         self, sample_product: Product
     ) -> None:
         """Happy path: Tax is 10% of subtotal."""
-        result = _calculate_line_item(sample_product, quantity=2)
+        result = calculate_line_item(sample_product, quantity=2)
 
         # base_amount = 5000, discount = 0, subtotal = 5000
         # tax = 5000 * 0.10 = 500
@@ -113,7 +113,7 @@ class TestCalculateLineItem:
         self, sample_product: Product
     ) -> None:
         """Happy path: Total is subtotal + tax."""
-        result = _calculate_line_item(sample_product, quantity=2)
+        result = calculate_line_item(sample_product, quantity=2)
 
         # subtotal = 5000, tax = 500, total = 5500
         assert result["total"] == 5500
@@ -122,7 +122,7 @@ class TestCalculateLineItem:
         self, sample_product: Product
     ) -> None:
         """Happy path: Generates a new line item ID."""
-        result = _calculate_line_item(sample_product, quantity=1)
+        result = calculate_line_item(sample_product, quantity=1)
 
         assert result["id"].startswith("li_")
 
@@ -130,7 +130,7 @@ class TestCalculateLineItem:
         self, sample_product: Product
     ) -> None:
         """Happy path: Preserves existing line item ID when provided."""
-        result = _calculate_line_item(
+        result = calculate_line_item(
             sample_product, quantity=1, line_item_id="li_preserved"
         )
 
@@ -145,7 +145,7 @@ class TestCalculateLineItem:
             "reason_codes": ["HIGH_INVENTORY"],
             "reasoning": "Test reasoning",
         }
-        result = _calculate_line_item(
+        result = calculate_line_item(
             sample_product, quantity=1, promotion_info=promotion_info
         )
 
@@ -156,7 +156,7 @@ class TestCalculateLineItem:
 
     def test_no_promotion_when_none_provided(self, sample_product: Product) -> None:
         """Edge case: No promotion key when promotion_info is None."""
-        result = _calculate_line_item(sample_product, quantity=1)
+        result = calculate_line_item(sample_product, quantity=1)
 
         assert "promotion" not in result
 
@@ -164,7 +164,7 @@ class TestCalculateLineItem:
         self, sample_product: Product
     ) -> None:
         """Edge case: Zero quantity results in zero amounts."""
-        result = _calculate_line_item(sample_product, quantity=0)
+        result = calculate_line_item(sample_product, quantity=0)
 
         assert result["base_amount"] == 0
         assert result["discount"] == 0
@@ -174,12 +174,12 @@ class TestCalculateLineItem:
 
 
 # =============================================================================
-# _recalculate_line_item_from_existing Tests
+# recalculate_line_item_from_existing Tests
 # =============================================================================
 
 
 class TestRecalculateLineItemFromExisting:
-    """Tests for the _recalculate_line_item_from_existing function.
+    """Tests for the recalculate_line_item_from_existing function.
 
     This is the key optimization: reuse existing promotion data
     instead of re-calling the promotion agent.
@@ -191,7 +191,7 @@ class TestRecalculateLineItemFromExisting:
         """Happy path: Per-unit discount is preserved when quantity changes."""
         # Original: 2 items with $5.00 total discount = $2.50 per unit
         # New: 4 items should have $10.00 total discount
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product,
             quantity=4,
             existing_line_item=existing_line_item_with_discount,
@@ -205,7 +205,7 @@ class TestRecalculateLineItemFromExisting:
         self, sample_product: Product, existing_line_item_with_discount: dict
     ) -> None:
         """Happy path: Base amount is recalculated for new quantity."""
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product,
             quantity=5,
             existing_line_item=existing_line_item_with_discount,
@@ -218,7 +218,7 @@ class TestRecalculateLineItemFromExisting:
         self, sample_product: Product, existing_line_item_with_discount: dict
     ) -> None:
         """Happy path: Subtotal, tax, and total are recalculated correctly."""
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product,
             quantity=4,
             existing_line_item=existing_line_item_with_discount,
@@ -239,7 +239,7 @@ class TestRecalculateLineItemFromExisting:
         self, sample_product: Product, existing_line_item_with_discount: dict
     ) -> None:
         """Happy path: Line item ID is preserved from existing item."""
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product,
             quantity=3,
             existing_line_item=existing_line_item_with_discount,
@@ -251,7 +251,7 @@ class TestRecalculateLineItemFromExisting:
         self, sample_product: Product, existing_line_item_with_discount: dict
     ) -> None:
         """Happy path: Promotion metadata is preserved from existing item."""
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product,
             quantity=3,
             existing_line_item=existing_line_item_with_discount,
@@ -266,7 +266,7 @@ class TestRecalculateLineItemFromExisting:
         self, sample_product: Product, existing_line_item_no_discount: dict
     ) -> None:
         """Edge case: Handles items with no discount correctly."""
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product,
             quantity=3,
             existing_line_item=existing_line_item_no_discount,
@@ -288,7 +288,7 @@ class TestRecalculateLineItemFromExisting:
             "total": 0,
         }
 
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product, quantity=2, existing_line_item=existing_item
         )
 
@@ -309,7 +309,7 @@ class TestRecalculateLineItemFromExisting:
             # No "promotion" key
         }
 
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product, quantity=2, existing_line_item=existing_item
         )
 
@@ -329,7 +329,7 @@ class TestRecalculateLineItemFromExisting:
             "total": 2750,
         }
 
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product, quantity=2, existing_line_item=existing_item
         )
 
@@ -340,7 +340,7 @@ class TestRecalculateLineItemFromExisting:
         self, sample_product: Product, existing_line_item_with_discount: dict
     ) -> None:
         """Edge case: Single quantity preserves per-unit discount exactly."""
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product,
             quantity=1,
             existing_line_item=existing_line_item_with_discount,
@@ -386,7 +386,7 @@ class TestUpdateSessionSkipsPromotionAgent:
         }
 
         # When quantity increases to 5, discount should scale proportionally
-        result = _recalculate_line_item_from_existing(
+        result = recalculate_line_item_from_existing(
             sample_product, quantity=5, existing_line_item=existing_item
         )
 
@@ -415,10 +415,10 @@ class TestUpdateSessionSkipsPromotionAgent:
             },
         }
 
-        result_qty_2 = _recalculate_line_item_from_existing(
+        result_qty_2 = recalculate_line_item_from_existing(
             sample_product, quantity=2, existing_line_item=existing_item
         )
-        result_qty_10 = _recalculate_line_item_from_existing(
+        result_qty_10 = recalculate_line_item_from_existing(
             sample_product, quantity=10, existing_line_item=existing_item
         )
 

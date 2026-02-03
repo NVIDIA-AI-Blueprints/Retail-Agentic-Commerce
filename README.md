@@ -190,6 +190,17 @@ flowchart TB
         PROMO["🎯 Promotion Agent<br/>(Port 8002)"]
         POST["📨 Post-Purchase Agent<br/>(Port 8003)"]
         RECS["🔍 Recommendation Agent<br/>(Port 8004)"]
+        SEARCH["🔎 Search Agent<br/>(Port 8005)"]
+    end
+
+    subgraph NIMs["NVIDIA NIMs"]
+        LLM["🧠 Nemotron Nano LLM<br/>(Port 8010)"]
+        EMBED["📐 NV-EmbedQA-E5<br/>(Port 8011)"]
+    end
+
+    subgraph Data["Data Stores"]
+        SQLITE[("🗄️ SQLite<br/>Application DB")]
+        MILVUS[("🧠 Milvus<br/>Vector DB")]
     end
 
     CA -->|MCP| MCP
@@ -200,6 +211,17 @@ flowchart TB
     MERCHANT --> PROMO
     MERCHANT --> POST
     MERCHANT --> RECS
+    MERCHANT --> SEARCH
+    MERCHANT --> SQLITE
+    PROMO --> LLM
+    POST --> LLM
+    RECS --> LLM
+    RECS --> EMBED
+    SEARCH --> LLM
+    SEARCH --> EMBED
+    EMBED --> MILVUS
+    RECS --> MILVUS
+    SEARCH --> MILVUS
 
     style CA fill:#76b900,color:#000
     style MCP fill:#1a1a2e,color:#fff
@@ -209,6 +231,11 @@ flowchart TB
     style PROMO fill:#2d2d44,color:#fff
     style POST fill:#2d2d44,color:#fff
     style RECS fill:#2d2d44,color:#fff
+    style SEARCH fill:#2d2d44,color:#fff
+    style LLM fill:#76b900,color:#000
+    style EMBED fill:#76b900,color:#000
+    style SQLITE fill:#3d5a80,color:#fff
+    style MILVUS fill:#3d5a80,color:#fff
 ```
 
 ## Services

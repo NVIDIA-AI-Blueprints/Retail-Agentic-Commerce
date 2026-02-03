@@ -209,3 +209,14 @@ export async function GET(request: NextRequest) {
     count: filteredEvents.length,
   });
 }
+
+/**
+ * DELETE endpoint to clear all stored webhook events
+ * Called on page load/refresh and tab switch to start fresh
+ */
+export async function DELETE() {
+  const count = webhookEvents.length;
+  webhookEvents.length = 0; // Clear the array in place
+  console.log(`[Webhook] Cleared ${count} stored events`);
+  return NextResponse.json({ cleared: count });
+}

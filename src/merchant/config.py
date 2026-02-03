@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     app_name: str = "Agentic Commerce Middleware"
     app_version: str = "0.1.0"
     debug: bool = False
+    log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
+    log_sql: bool = False  # Enable verbose SQL logging (very noisy)
 
     # Database
     database_url: str = "sqlite:///./agentic_commerce.db"

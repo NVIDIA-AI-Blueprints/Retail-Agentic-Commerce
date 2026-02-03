@@ -1,6 +1,7 @@
 """FastAPI application entry point for the Agentic Commerce middleware."""
 
 import logging
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -16,11 +17,44 @@ from src.merchant.middleware import ACPHeadersMiddleware, RequestLoggingMiddlewa
 
 settings = get_settings()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+
+def configure_logging() -> None:
+    """Configure application logging with proper levels and formatting.
+
+    Sets up structured logging with:
+    - Configurable log level via LOG_LEVEL env var
+    - Suppressed verbose SQLAlchemy/uvicorn logs unless LOG_SQL=true
+    - Clean, readable format for traceability
+    """
+    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
+
+    # Root logger configuration
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stdout,
+        force=True,  # Override any existing configuration
+    )
+
+    # Suppress noisy loggers unless explicitly requested
+    if not settings.log_sql:
+        # SQLAlchemy engine logs every SQL statement - very noisy
+        logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+        logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+
+    # Reduce uvicorn access log noise (it duplicates our middleware logs)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+    # Keep uvicorn error logs visible
+    logging.getLogger("uvicorn.error").setLevel(log_level)
+
+    # Our application loggers at configured level
+    logging.getLogger("agentic_commerce").setLevel(log_level)
+    logging.getLogger("src.merchant").setLevel(log_level)
+
+
+configure_logging()
 
 
 @asynccontextmanager

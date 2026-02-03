@@ -38,7 +38,6 @@ export function WebhookToAgentActivityBridge() {
   const { addPostPurchaseEvent } = useAgentActivityLog();
   const { logEvent, completeEvent } = useACPLog();
   const seenEventIdsRef = useRef<Set<string>>(new Set());
-  const lastReceivedAtRef = useRef<string | null>(null);
 
   const addPostPurchaseEventRef = useRef(addPostPurchaseEvent);
   const logEventRef = useRef(logEvent);
@@ -53,15 +52,6 @@ export function WebhookToAgentActivityBridge() {
   const processWebhookEvent = useCallback((event: WebhookEvent) => {
     if (seenEventIdsRef.current.has(event.id)) return;
     seenEventIdsRef.current.add(event.id);
-
-    if (event.receivedAt) {
-      if (
-        !lastReceivedAtRef.current ||
-        new Date(event.receivedAt) > new Date(lastReceivedAtRef.current)
-      ) {
-        lastReceivedAtRef.current = event.receivedAt;
-      }
-    }
 
     if (event.type !== "shipping_update") return;
 
@@ -136,34 +126,22 @@ export function WebhookToAgentActivityBridge() {
     });
   }, []);
 
-  const fetchMissedEvents = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (lastReceivedAtRef.current) {
-        params.set("since", lastReceivedAtRef.current);
-      }
-      const response = await fetch(
-        `/api/webhooks/acp${params.toString() ? `?${params.toString()}` : ""}`
-      );
-      if (!response.ok) {
-        return;
-      }
-      const data = await response.json();
-      const events = Array.isArray(data.events) ? data.events : [];
-      events.forEach((event: WebhookEvent) => {
-        processWebhookEvent(event);
-      });
-    } catch {
-      // Ignore fetch errors - SSE will keep trying
-    }
-  }, [processWebhookEvent]);
-
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
+    let isMounted = true;
 
-    const connect = () => {
-      fetchMissedEvents();
+    const connect = async () => {
+      // On fresh page load, clear server-side stored events to start fresh
+      // This ensures refreshing the page resets all logs to 0
+      try {
+        await fetch("/api/webhooks/acp", { method: "DELETE" });
+      } catch {
+        // Ignore errors - server may not be running
+      }
+
+      if (!isMounted) return;
+
       eventSource = new EventSource("/api/webhooks/sse");
       eventSource.onmessage = (event: MessageEvent) => {
         try {
@@ -176,17 +154,22 @@ export function WebhookToAgentActivityBridge() {
       };
       eventSource.onerror = () => {
         eventSource?.close();
-        fetchMissedEvents();
-        reconnectTimeout = setTimeout(connect, 5000);
+        // On reconnect, don't fetch missed events - we want fresh start behavior
+        reconnectTimeout = setTimeout(() => {
+          if (isMounted) {
+            eventSource = new EventSource("/api/webhooks/sse");
+          }
+        }, 5000);
       };
     };
 
     connect();
     return () => {
+      isMounted = false;
       eventSource?.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [processWebhookEvent, fetchMissedEvents]);
+  }, [processWebhookEvent]);
 
   return null; // No UI - just event dispatching
 }
