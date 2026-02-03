@@ -24,17 +24,11 @@ WORKDIR /app
 # Enable corepack for pnpm
 RUN corepack enable
 
-# Copy package files and local dependency first
-COPY src/ui/package.json src/ui/pnpm-lock.yaml ./
-COPY src/ui/kui-foundations-react-external ./kui-foundations-react-external
-
-# Copy pnpm store from deps stage for offline install
+# Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
-# Reinstall to fix pnpm symlinks (uses cached node_modules, recreates symlinks)
-RUN pnpm install --frozen-lockfile --prefer-offline
-
-# Copy source code
+# Copy source code (includes kui-foundations-react-external)
+# Webpack aliases in next.config.ts resolve @kui/foundations-react-external to local folder
 COPY src/ui ./
 
 # Set build-time environment variables
