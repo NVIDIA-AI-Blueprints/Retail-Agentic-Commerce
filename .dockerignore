@@ -7,9 +7,11 @@ __pycache__
 
 # Build outputs
 .next
-dist
 build
 *.egg-info
+# Exclude dist folders from UI build output, but keep pre-built dependencies
+src/ui/.next
+src/apps_sdk/dist
 
 # Git and IDE
 .git

@@ -18,11 +18,12 @@ const nextConfig: NextConfig = {
     ],
   },
   // Webpack aliases to resolve local Kaizen UI package (fixes Docker pnpm symlink issues)
+  // Note: Using process.cwd() since __dirname is not available in ESM
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@kui/foundations-react-external": path.resolve(
-        __dirname,
+      "@kui/foundations-react-external": path.join(
+        process.cwd(),
         "kui-foundations-react-external"
       ),
     };
