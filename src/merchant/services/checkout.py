@@ -91,7 +91,7 @@ class InvalidStateTransitionError(CheckoutServiceError):
 
 
 async def create_checkout_session(
-    db: Session, request: CreateCheckoutRequest
+    db: Session, request: CreateCheckoutRequest, protocol: str = "acp"
 ) -> CheckoutSessionResponse:
     """Create a new checkout session.
 
@@ -168,6 +168,7 @@ async def create_checkout_session(
     # Create database record
     checkout_session = CheckoutSession(
         id=session_id,
+        protocol=protocol,
         status=CheckoutStatus.NOT_READY_FOR_PAYMENT,
         currency=DEFAULT_CURRENCY.upper(),
         line_items_json=json.dumps(line_items),

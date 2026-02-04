@@ -21,6 +21,89 @@ ACP lets AI agents negotiate with merchants on behalf of users. The merchant sta
 - Complete checkout with delegated payments
 - Receive multilingual post-purchase updates
 
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client["Client Layer"]
+        CA[🤖 Client Agent]
+    end
+
+    subgraph Integration["Integration Options"]
+        direction LR
+        subgraph SDK["Apps SDK Layer"]
+            MCP["📦 Apps SDK MCP Server<br/>(Port 2091)"]
+            subgraph tools["Entry Point"]
+                T1["search-products<br/>(returns widget)"]
+            end
+            WIDGET["🛒 Autonomous Widget<br/>(cart, checkout, recs)"]
+        end
+
+        subgraph Native["Native ACP Layer"]
+            ACP["🔗 Direct ACP Protocol"]
+            subgraph endpoints["ACP Endpoints"]
+                E1["checkout_sessions/*"]
+            end
+        end
+    end
+
+    subgraph Backend["Backend Services"]
+        MERCHANT["🏪 Merchant API<br/>(Port 8000)"]
+        PSP["💳 PSP Service<br/>(Port 8001)"]
+        
+        subgraph merchant_features["Merchant Features"]
+            M1[Products & Sessions]
+            M2[Checkout & Promotions]
+            M3[Orders & Recommendations]
+        end
+        
+        subgraph psp_features["PSP Features"]
+            P1[Payment Delegation]
+            P2[Vault Tokens]
+            P3[Idempotency]
+        end
+    end
+
+    subgraph Agents["NAT Agents"]
+        PROMO["🎯 Promotion Agent<br/>(Port 8002)"]
+        POST["📨 Post-Purchase Agent<br/>(Port 8003)"]
+        RECS["🔍 Recommendation Agent<br/>(Port 8004)"]
+        SEARCH["🔎 Search Agent<br/>(Port 8005)"]
+    end
+
+    subgraph NIMs["NVIDIA NIMs"]
+        LLM["🧠 Nemotron Nano LLM<br/>(Port 8010)"]
+        EMBED["📐 NV-EmbedQA-E5<br/>(Port 8011)"]
+    end
+
+    subgraph Data["Data Stores"]
+        SQLITE[("🗄️ SQLite<br/>Application DB")]
+        MILVUS[("🧠 Milvus<br/>Vector DB")]
+    end
+
+    CA -->|MCP| MCP
+    CA -->|REST| ACP
+    MCP -.->|loads| WIDGET
+    WIDGET -->|MCP tools| MCP
+    MCP --> MERCHANT
+    ACP --> MERCHANT
+    MERCHANT --> PSP
+    MERCHANT --> PROMO
+    MERCHANT --> POST
+    MERCHANT --> RECS
+    MERCHANT --> SEARCH
+    MERCHANT --> SQLITE
+    PROMO --> LLM
+    POST --> LLM
+    RECS --> LLM
+    RECS --> EMBED
+    SEARCH --> LLM
+    SEARCH --> EMBED
+    EMBED --> MILVUS
+    RECS --> MILVUS
+    SEARCH --> MILVUS
+```
+
 ## Quick Start
 
 ### Prerequisites
@@ -139,13 +222,21 @@ curl http://localhost:8001/health  # PSP Service
 curl http://localhost:2091/health  # Apps SDK
 ```
 
-### UCP Discovery (Phase 1)
+### UCP Endpoints
 
 ```bash
+# Discovery (Phase 1)
 curl http://localhost:8000/.well-known/ucp
+
+# Checkout (Phase 2) - requires UCP-Agent header
+curl -X POST http://localhost:8000/checkout-sessions \
+  -H "Authorization: Bearer test-api-key" \
+  -H "UCP-Agent: profile=\"https://platform.example/profile\"" \
+  -H "Content-Type: application/json" \
+  -d '{"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]}'
 ```
 
-Optional environment variables for UCP discovery:
+Optional environment variables for UCP:
 
 ```env
 UCP_VERSION=2026-01-11
@@ -161,94 +252,11 @@ UCP_SIGNING_KEY_Y=
 
 Visit **http://localhost:3000** to see the demo UI.
 
-## Architecture
-
-```mermaid
-flowchart TB
-    subgraph Client["Client Layer"]
-        CA[🤖 Client Agent]
-    end
-
-    subgraph Integration["Integration Options"]
-        direction LR
-        subgraph SDK["Apps SDK Layer"]
-            MCP["📦 Apps SDK MCP Server<br/>(Port 2091)"]
-            subgraph tools["Entry Point"]
-                T1["search-products<br/>(returns widget)"]
-            end
-            WIDGET["🛒 Autonomous Widget<br/>(cart, checkout, recs)"]
-        end
-
-        subgraph Native["Native ACP Layer"]
-            ACP["🔗 Direct ACP Protocol"]
-            subgraph endpoints["ACP Endpoints"]
-                E1["checkout_sessions/*"]
-            end
-        end
-    end
-
-    subgraph Backend["Backend Services"]
-        MERCHANT["🏪 Merchant API<br/>(Port 8000)"]
-        PSP["💳 PSP Service<br/>(Port 8001)"]
-        
-        subgraph merchant_features["Merchant Features"]
-            M1[Products & Sessions]
-            M2[Checkout & Promotions]
-            M3[Orders & Recommendations]
-        end
-        
-        subgraph psp_features["PSP Features"]
-            P1[Payment Delegation]
-            P2[Vault Tokens]
-            P3[Idempotency]
-        end
-    end
-
-    subgraph Agents["NAT Agents"]
-        PROMO["🎯 Promotion Agent<br/>(Port 8002)"]
-        POST["📨 Post-Purchase Agent<br/>(Port 8003)"]
-        RECS["🔍 Recommendation Agent<br/>(Port 8004)"]
-        SEARCH["🔎 Search Agent<br/>(Port 8005)"]
-    end
-
-    subgraph NIMs["NVIDIA NIMs"]
-        LLM["🧠 Nemotron Nano LLM<br/>(Port 8010)"]
-        EMBED["📐 NV-EmbedQA-E5<br/>(Port 8011)"]
-    end
-
-    subgraph Data["Data Stores"]
-        SQLITE[("🗄️ SQLite<br/>Application DB")]
-        MILVUS[("🧠 Milvus<br/>Vector DB")]
-    end
-
-    CA -->|MCP| MCP
-    CA -->|REST| ACP
-    MCP -.->|loads| WIDGET
-    WIDGET -->|MCP tools| MCP
-    MCP --> MERCHANT
-    ACP --> MERCHANT
-    MERCHANT --> PSP
-    MERCHANT --> PROMO
-    MERCHANT --> POST
-    MERCHANT --> RECS
-    MERCHANT --> SEARCH
-    MERCHANT --> SQLITE
-    PROMO --> LLM
-    POST --> LLM
-    RECS --> LLM
-    RECS --> EMBED
-    SEARCH --> LLM
-    SEARCH --> EMBED
-    EMBED --> MILVUS
-    RECS --> MILVUS
-    SEARCH --> MILVUS
-```
-
 ## Services
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Merchant API | 8000 | ACP checkout, products, orders |
+| Merchant API | 8000 | ACP/UCP checkout, products, orders |
 | PSP Service | 8001 | Payment delegation, vault tokens |
 | Apps SDK | 2091 | MCP server for AI agents |
 | Promotion Agent | 8002 | Discount strategy (NAT) |
@@ -344,7 +352,7 @@ The project uses three Docker Compose files:
 | Route | Service | Description |
 |-------|---------|-------------|
 | `/` | UI | Demo frontend |
-| `/api/*` | Merchant API | ACP checkout, products, orders |
+| `/api/*` | Merchant API | ACP/UCP checkout, products, orders |
 | `/psp/*` | PSP Service | Payment delegation |
 | `/apps-sdk/*` | Apps SDK | MCP server for AI agents |
 
@@ -448,7 +456,8 @@ docker compose -f docker-compose.infra.yml down
 |----------|-------------|
 | [Architecture](docs/architecture.md) | System design and data flow |
 | [Features](docs/features.md) | Feature breakdown and status |
-| [ACP Spec](docs/specs/acp-spec.md) | Protocol specification |
+| [ACP Spec](docs/specs/acp-spec.md) | ACP protocol specification |
+| [UCP Spec](docs/specs/ucp-spec.md) | UCP protocol specification |
 | [Apps SDK](src/apps_sdk/README.md) | MCP server documentation |
 | [NAT Agents](src/agents/README.md) | Agent configuration guide |
 

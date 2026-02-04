@@ -127,6 +127,7 @@ class CheckoutSession(SQLModel, table=True):
 
     Attributes:
         id: Unique session identifier (e.g., "checkout_abc123")
+        protocol: Protocol origin ("acp" or "ucp")
         status: Current checkout status
         currency: ISO 4217 currency code (default: USD)
         locale: BCP 47 language tag (default: en-US)
@@ -148,6 +149,7 @@ class CheckoutSession(SQLModel, table=True):
     __tablename__: ClassVar[str] = "checkout_session"  # type: ignore[assignment]
 
     id: str = Field(primary_key=True)
+    protocol: str = Field(default="acp")
     status: CheckoutStatus = Field(default=CheckoutStatus.NOT_READY_FOR_PAYMENT)
     currency: str = Field(default="USD")
     locale: str = Field(default="en-US")

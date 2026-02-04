@@ -1,8 +1,13 @@
-"""Pydantic schemas for UCP discovery profile."""
+"""Pydantic schemas for UCP discovery profile and checkout responses."""
 
-from typing import Any
+from __future__ import annotations
+
+from enum import StrEnum
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from src.merchant.api.schemas import PaymentDataInput
 
 
 class UCPService(BaseModel):
@@ -70,3 +75,149 @@ class UCPBusinessProfile(BaseModel):
 
     ucp: UCPMetadata
     signing_keys: list[UCPSigningKey] | None = None
+
+
+# =============================================================================
+# UCP Checkout Schemas (Phase 2 - minimal fields)
+# =============================================================================
+
+
+class UCPCheckoutStatus(StrEnum):
+    """UCP checkout status values (Phase 2 subset)."""
+
+    INCOMPLETE = "incomplete"
+    READY_FOR_COMPLETE = "ready_for_complete"
+    COMPLETED = "completed"
+    CANCELED = "canceled"
+
+
+class UCPTotalType(StrEnum):
+    """UCP total types (Phase 2 subset)."""
+
+    SUBTOTAL = "subtotal"
+    DISCOUNT = "discount"
+    ITEMS_DISCOUNT = "items_discount"
+    TAX = "tax"
+    TOTAL = "total"
+
+
+class UCPMessageType(StrEnum):
+    """UCP message types."""
+
+    INFO = "info"
+    ERROR = "error"
+    WARNING = "warning"
+
+
+class UCPItemInput(BaseModel):
+    """UCP item input for checkout requests."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(..., description="Product ID")
+
+
+class UCPLineItemInput(BaseModel):
+    """UCP line item input."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    item: UCPItemInput = Field(..., description="Item reference")
+    quantity: Annotated[int, Field(gt=0, description="Quantity")]
+
+
+class UCPBuyerInput(BaseModel):
+    """UCP buyer information input."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    first_name: str = Field(..., description="First name")
+    last_name: str | None = Field(default=None, description="Last name")
+    email: str = Field(..., description="Email address")
+    phone: str | None = Field(default=None, description="Phone number in E.164 format")
+
+
+class UCPCreateCheckoutRequest(BaseModel):
+    """Request body for creating a UCP checkout session."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    line_items: Annotated[
+        list[UCPLineItemInput], Field(min_length=1, description="Line items")
+    ]
+    buyer: UCPBuyerInput | None = Field(default=None, description="Buyer info")
+
+
+class UCPUpdateCheckoutRequest(BaseModel):
+    """Request body for updating a UCP checkout session (full replacement)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    line_items: Annotated[
+        list[UCPLineItemInput], Field(min_length=1, description="Line items")
+    ]
+    buyer: UCPBuyerInput | None = Field(default=None, description="Buyer info")
+
+
+class UCPCompleteCheckoutRequest(BaseModel):
+    """Request body for completing a UCP checkout session (Phase 2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    buyer: UCPBuyerInput | None = Field(default=None, description="Buyer info")
+    payment_data: PaymentDataInput = Field(..., description="Payment data")
+
+
+class UCPItem(BaseModel):
+    """UCP item details in response."""
+
+    id: str = Field(..., description="Product ID")
+    title: str = Field(..., description="Product title")
+    price: Annotated[int, Field(ge=0, description="Unit price in minor units")]
+
+
+class UCPTotal(BaseModel):
+    """UCP total line item."""
+
+    type: UCPTotalType = Field(..., description="Total category")
+    label: str = Field(..., description="Display label")
+    amount: Annotated[int, Field(ge=0, description="Amount in minor units")]
+
+
+class UCPLineItem(BaseModel):
+    """UCP line item in response."""
+
+    id: str = Field(..., description="Line item ID")
+    item: UCPItem = Field(..., description="Item details")
+    quantity: Annotated[int, Field(gt=0, description="Quantity")]
+    totals: list[UCPTotal] = Field(..., description="Line item totals")
+
+
+class UCPMessage(BaseModel):
+    """UCP message for checkout responses."""
+
+    type: UCPMessageType = Field(..., description="Message type")
+    code: str | None = Field(default=None, description="Optional error code")
+    path: str | None = Field(default=None, description="JSONPath for related field")
+    content: str = Field(..., description="Message content")
+
+
+class UCPResponseMetadata(BaseModel):
+    """UCP response metadata with negotiated capabilities."""
+
+    version: str
+    capabilities: dict[str, list[UCPCapabilityVersion]]
+
+
+class UCPCheckoutResponse(BaseModel):
+    """UCP checkout response (Phase 2 minimal fields)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    ucp: UCPResponseMetadata
+    id: str
+    status: UCPCheckoutStatus
+    currency: str
+    line_items: list[UCPLineItem]
+    totals: list[UCPTotal]
+    messages: Annotated[list[UCPMessage], Field(default_factory=list)]

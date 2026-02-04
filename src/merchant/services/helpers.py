@@ -476,8 +476,7 @@ def check_ready_for_payment(session: CheckoutSession) -> bool:
     A session is ready for payment when:
     - At least one line item exists
     - Buyer info is provided
-    - Fulfillment address is provided
-    - Fulfillment option is selected
+    - Fulfillment details are provided (ACP only)
 
     Args:
         session: CheckoutSession database model.
@@ -491,6 +490,9 @@ def check_ready_for_payment(session: CheckoutSession) -> bool:
 
     if session.buyer_json is None:
         return False
+
+    if session.protocol == "ucp":
+        return True
 
     if session.fulfillment_address_json is None:
         return False

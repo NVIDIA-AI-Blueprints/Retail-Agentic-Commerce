@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.merchant.api.routes.checkout import router as checkout_router
 from src.merchant.api.routes.health import router as health_router
 from src.merchant.api.routes.products import router as products_router
+from src.merchant.api.routes.ucp.checkout import router as ucp_checkout_router
 from src.merchant.api.routes.ucp.discovery import router as ucp_discovery_router
 from src.merchant.config import get_settings
 from src.merchant.db import init_and_seed_db
@@ -101,3 +102,4 @@ app.include_router(health_router)
 app.include_router(checkout_router)
 app.include_router(products_router)
 app.include_router(ucp_discovery_router)
+app.include_router(ucp_checkout_router)
