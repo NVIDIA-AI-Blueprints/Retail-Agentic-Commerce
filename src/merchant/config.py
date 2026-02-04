@@ -33,6 +33,20 @@ class Settings(BaseSettings):
     # Merchant API Security (for client authentication)
     merchant_api_key: str = ""
 
+    # UCP Discovery Configuration
+    ucp_version: str = "2026-01-11"
+    ucp_base_url: str | None = None  # Fully qualified base URL; None derives from request
+    ucp_service_path: str = "/ucp/v1"
+    ucp_business_name: str | None = None
+
+    # UCP Signing Key (public key for webhook verification)
+    ucp_signing_key_id: str = "ucp-key-1"
+    ucp_signing_key_kty: str = "EC"  # "EC" or "OKP"
+    ucp_signing_key_crv: str = "P-256"  # "P-256" or "Ed25519"
+    ucp_signing_key_alg: str = "ES256"  # "ES256" or "EdDSA"
+    ucp_signing_key_x: str = ""  # Base64url-encoded public key x
+    ucp_signing_key_y: str = ""  # Base64url-encoded public key y (EC only)
+
     # Promotion Agent Configuration
     promotion_agent_url: str = "http://localhost:8002"
     promotion_agent_timeout: float = 10.0  # seconds (NFR-LAT target)

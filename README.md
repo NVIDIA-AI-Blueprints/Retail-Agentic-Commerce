@@ -138,6 +138,26 @@ curl http://localhost:8001/health  # PSP Service
 curl http://localhost:2091/health  # Apps SDK
 ```
 
+### UCP Discovery (Phase 1)
+
+```bash
+curl http://localhost:8000/.well-known/ucp
+```
+
+Optional environment variables for UCP discovery:
+
+```env
+UCP_VERSION=2026-01-11
+UCP_BASE_URL=http://localhost:8000
+UCP_SERVICE_PATH=/ucp/v1
+UCP_SIGNING_KEY_ID=ucp-key-1
+UCP_SIGNING_KEY_KTY=EC
+UCP_SIGNING_KEY_CRV=P-256
+UCP_SIGNING_KEY_ALG=ES256
+UCP_SIGNING_KEY_X=
+UCP_SIGNING_KEY_Y=
+```
+
 Visit **http://localhost:3000** to see the demo UI.
 
 ## Architecture
