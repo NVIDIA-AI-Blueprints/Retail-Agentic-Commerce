@@ -35,7 +35,9 @@ class Settings(BaseSettings):
 
     # UCP Discovery Configuration
     ucp_version: str = "2026-01-11"
-    ucp_base_url: str | None = None  # Fully qualified base URL; None derives from request
+    ucp_base_url: str | None = (
+        None  # Fully qualified base URL; None derives from request
+    )
     ucp_service_path: str = "/ucp/v1"
     ucp_business_name: str | None = None
 
