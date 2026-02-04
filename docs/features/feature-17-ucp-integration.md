@@ -2,7 +2,7 @@
 
 **Priority**: P1
 
-**Status**: 🔲 Planned
+**Status**: 🟡 In Progress (Phase 1 Complete)
 
 **Dependencies**: Features 3, 4, 5, 6, 7, 8
 
@@ -15,6 +15,32 @@ Implement the **Universal Commerce Protocol (UCP)** alongside the existing ACP i
 This feature adds UCP-compliant endpoints that share the same intelligent agent layer (NAT agents) and backend services with ACP, showcasing how merchants can support multiple protocols simultaneously without duplicating business logic.
 
 > **Note:** UCP integration focuses on the **native merchant backend flow** only. The Apps SDK mode continues to use ACP exclusively.
+
+---
+
+## Phase Progress
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| **Phase 1** | Discovery Endpoint (`GET /.well-known/ucp`) | ✅ Complete |
+| **Phase 2** | Checkout Endpoints (REST) | 🔲 Planned |
+| **Phase 3** | A2A Transport (JSON-RPC 2.0) | 🔲 Planned |
+| **Phase 4** | Capability Negotiation | 🔲 Planned |
+| **Phase 5** | Frontend Protocol Toggle | 🔲 Planned |
+
+### Phase 1 Deliverables (Complete)
+
+| File | Description |
+|------|-------------|
+| `src/merchant/api/routes/ucp/discovery.py` | Discovery endpoint (public, no auth) |
+| `src/merchant/api/ucp_schemas.py` | Pydantic schemas for UCP profile |
+| `src/merchant/services/ucp.py` | `build_business_profile()` helper |
+| `src/merchant/config.py` | 9 new UCP configuration fields |
+| `src/merchant/main.py` | Register UCP discovery router |
+| `tests/merchant/api/test_ucp_discovery.py` | 11 unit tests |
+| `AGENTS.md`, `README.md`, `env.example` | Documentation updates |
+
+- Ruff linting and Pyright type checking passed
 
 ---
 
@@ -372,7 +398,7 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 ### Backend Tasks
 
 1. **Create UCP Router Module** (`src/merchant/api/routes/ucp/`)
-   - [ ] `discovery.py` - UCP profile endpoint
+   - [x] `discovery.py` - UCP profile endpoint ✅ Phase 1
    - [ ] `checkout.py` - UCP checkout endpoints (REST)
    - [ ] `a2a.py` - A2A transport endpoints (JSON-RPC 2.0)
    - [ ] `negotiation.py` - Capability negotiation logic
@@ -383,11 +409,11 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
    - [ ] Response formatting (JSON-RPC 2.0)
    - [ ] Error handling with JSON-RPC error codes
 
-3. **Implement UCP Discovery**
-   - [ ] Static business profile configuration
-   - [ ] Capability declarations (checkout, fulfillment, discount)
-   - [ ] Payment handler specifications
-   - [ ] Signing keys for webhooks
+3. **Implement UCP Discovery** ✅ Phase 1 Complete
+   - [x] Static business profile configuration
+   - [x] Capability declarations (checkout, fulfillment, discount)
+   - [x] Payment handler specifications
+   - [x] Signing keys for webhooks
 
 4. **Implement Capability Negotiation**
    - [ ] Platform profile fetching (HTTP GET)
@@ -447,16 +473,16 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 ### Testing Tasks (Mandatory per `.cursor/skills/features/SKILL.md`)
 
 1. **Unit Tests** (`tests/merchant/test_ucp_*.py`)
-   - [ ] `test_ucp_discovery.py` - Discovery endpoint tests
+   - [x] `test_ucp_discovery.py` - Discovery endpoint tests ✅ Phase 1
    - [ ] `test_ucp_checkout.py` - UCP checkout CRUD tests
    - [ ] `test_ucp_a2a.py` - A2A transport tests (JSON-RPC 2.0)
    - [ ] `test_ucp_negotiation.py` - Capability negotiation tests
    - [ ] Happy path, edge cases, failure cases for each
 
-2. **Linting & Type Checking**
-   - [ ] `ruff check src/merchant/api/routes/ucp/`
-   - [ ] `ruff format src/merchant/api/routes/ucp/`
-   - [ ] `pyright src/merchant/api/routes/ucp/`
+2. **Linting & Type Checking** ✅ Phase 1 Complete
+   - [x] `ruff check src/merchant/api/routes/ucp/`
+   - [x] `ruff format src/merchant/api/routes/ucp/`
+   - [x] `pyright src/merchant/api/routes/ucp/`
 
 3. **Integration Tests**
    - [ ] End-to-end UCP checkout flow
@@ -511,12 +537,12 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 ## Acceptance Criteria
 
 ### Business Requirements
-- [ ] UCP discovery endpoint returns valid business profile
+- [x] UCP discovery endpoint returns valid business profile ✅ Phase 1
 - [ ] Platform profile is fetched and validated on each request
 - [ ] Capability negotiation correctly computes intersection
 - [ ] Orphaned extensions are removed from negotiated capabilities
 - [ ] NAT agents are invoked for UCP sessions (same as ACP)
-- [ ] Payment handler specifications are advertised in profile
+- [x] Payment handler specifications are advertised in profile ✅ Phase 1
 - [ ] UCP checkout flow completes successfully (create → update → complete)
 
 ### Technical Requirements
@@ -567,7 +593,8 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 
 ## Success Metrics
 
-- [ ] All UCP endpoints return 2xx status codes
+- [x] UCP discovery endpoint returns 200 with valid profile ✅ Phase 1
+- [ ] All UCP checkout endpoints return 2xx status codes
 - [ ] Capability negotiation succeeds in 100% of valid cases
 - [ ] NAT agents respond in <10s for UCP sessions (same as ACP)
 - [ ] Zero protocol confusion errors in logs
