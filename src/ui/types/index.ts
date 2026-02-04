@@ -922,3 +922,119 @@ export const DEFAULT_BILLING_ADDRESS: BillingAddressFormData = {
   address: "123 Main St, San Francisco, CA 94102",
   preferredLanguage: "en",
 };
+
+// =============================================================================
+// Metrics Dashboard Types
+// =============================================================================
+
+/**
+ * Time range options for the metrics dashboard
+ */
+export type TimeRange = "1h" | "24h" | "7d" | "30d";
+
+/**
+ * KPI metric data structure
+ */
+export interface KPIData {
+  id: string;
+  label: string;
+  value: number;
+  previousValue?: number;
+  format: "currency" | "number" | "percent" | "duration";
+  trend?: "up" | "down" | "neutral";
+  trendValue?: number;
+}
+
+/**
+ * Chart data point for time series
+ */
+export interface ChartDataPoint {
+  timestamp: string;
+  value: number;
+  label?: string;
+}
+
+/**
+ * Revenue chart data point with additional fields
+ */
+export interface RevenueDataPoint {
+  timestamp: string;
+  revenue: number;
+  orders: number;
+}
+
+/**
+ * Agent performance metrics
+ */
+export interface AgentPerformanceData {
+  agentType: AgentType;
+  label: string;
+  successRate: number;
+  avgLatency: number;
+  totalCalls: number;
+  errors: number;
+}
+
+/**
+ * Promotion breakdown data for pie chart
+ */
+export interface PromotionBreakdownData {
+  type: string;
+  label: string;
+  count: number;
+  totalSavings: number;
+  color: string;
+}
+
+/**
+ * Product health data for table
+ */
+export interface ProductHealthData {
+  id: string;
+  name: string;
+  sku: string;
+  stockLevel: number;
+  stockStatus: "healthy" | "low" | "critical";
+  basePrice: number;
+  competitorPrice?: number;
+  pricePosition: "above" | "at" | "below" | "unknown";
+  needsAttention: boolean;
+  attentionReason?: string;
+}
+
+/**
+ * Phoenix trace data from telemetry
+ */
+export interface PhoenixTraceData {
+  traceId: string;
+  spanId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  status: "ok" | "error";
+  attributes?: Record<string, unknown>;
+}
+
+/**
+ * Overall metrics state
+ */
+export interface MetricsState {
+  timeRange: TimeRange;
+  isLoading: boolean;
+  lastUpdated: Date | null;
+  kpis: KPIData[];
+  revenueData: RevenueDataPoint[];
+  agentPerformance: AgentPerformanceData[];
+  promotionBreakdown: PromotionBreakdownData[];
+  productHealth: ProductHealthData[];
+}
+
+/**
+ * Metrics context actions
+ */
+export type MetricsAction =
+  | { type: "SET_TIME_RANGE"; timeRange: TimeRange }
+  | { type: "SET_LOADING"; isLoading: boolean }
+  | { type: "UPDATE_METRICS"; metrics: Partial<MetricsState> }
+  | { type: "REFRESH" };

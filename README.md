@@ -119,6 +119,7 @@ nat serve --config_file configs/search.yml --port 8005
 ```bash
 # Terminal 8: Demo UI (port 3000)
 cd src/ui
+cp env.example .env.local
 pnpm install
 pnpm dev
 ```

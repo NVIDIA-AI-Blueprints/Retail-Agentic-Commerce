@@ -845,3 +845,307 @@ body {
   border: 1px solid var(--glass-border-subtle);
   background: rgba(255, 255, 255, 0.03);
 }
+
+/* ============================================
+   Navigation Link Styles
+   ============================================
+*/
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: all 180ms ease;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.nav-link:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--glass-border-subtle);
+}
+
+.nav-link-active {
+  color: var(--accent-green);
+  background: var(--accent-green-bg);
+  border-color: var(--accent-green-border);
+  box-shadow: 0 0 20px var(--accent-green-glow);
+}
+
+.nav-link-active:hover {
+  color: var(--accent-green);
+  background: var(--accent-green-bg);
+  border-color: var(--accent-green-border);
+}
+
+/* ============================================
+   Metrics Dashboard Styles
+   ============================================
+*/
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1200px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* KPI Card */
+.kpi-card {
+  background: var(--block-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 200ms ease;
+}
+
+.kpi-card:hover {
+  background: var(--block-bg-elevated);
+  border-color: var(--glass-border);
+  transform: translateY(-2px);
+}
+
+.kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 750;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kpi-trend.up {
+  color: var(--accent-green);
+}
+
+.kpi-trend.down {
+  color: #ef4444;
+}
+
+.kpi-trend.neutral {
+  color: var(--text-muted);
+}
+
+/* Chart Container */
+.chart-container {
+  background: var(--block-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  padding: 20px;
+  min-height: 300px;
+}
+
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Dashboard Layout */
+.dashboard-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.dashboard-row {
+  display: grid;
+  gap: 20px;
+}
+
+.dashboard-row.two-col {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-row.two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Time Range Tabs */
+.time-range-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border-subtle);
+}
+
+.time-range-tab {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.time-range-tab:hover {
+  color: var(--text-secondary);
+}
+
+.time-range-tab.active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Refresh Button */
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  transform: rotate(45deg);
+}
+
+.refresh-btn:active {
+  transform: rotate(180deg);
+}
+
+.refresh-btn.loading {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Product Health Table */
+.product-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.product-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--glass-border-subtle);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.product-table th:first-child {
+  border-radius: var(--glass-radius-sm) 0 0 0;
+}
+
+.product-table th:last-child {
+  border-radius: 0 var(--glass-radius-sm) 0 0;
+}
+
+.product-table td {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.product-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.product-table tr:last-child td {
+  border-bottom: none;
+}
+
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stock-badge.healthy {
+  background: var(--accent-green-bg);
+  color: var(--accent-green);
+  border: 1px solid var(--accent-green-border);
+}
+
+.stock-badge.low {
+  background: var(--accent-yellow-bg);
+  color: var(--accent-yellow);
+  border: 1px solid var(--accent-yellow-border);
+}
+
+.stock-badge.critical {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.attention-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
