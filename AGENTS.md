@@ -213,6 +213,7 @@ Backend:
 - API routes: `src/merchant/api/routes/`
 - Business logic: `src/merchant/services/`
 - Models: `src/merchant/db/models.py`
+- UCP discovery: `src/merchant/api/routes/ucp/discovery.py`, `src/merchant/api/ucp_schemas.py`, `src/merchant/services/ucp.py`
 
 Frontend:
 - Main UI layout: `src/ui/app/page.tsx`
