@@ -42,8 +42,17 @@ function PricePositionIndicator({ position }: { position: ProductHealthData["pri
   switch (position) {
     case "above":
       return (
-        <span style={{ color: "#ef4444", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span
+          style={{ color: "#ef4444", display: "inline-flex", alignItems: "center", gap: "4px" }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <polyline points="18 15 12 9 6 15" />
           </svg>
           Above
@@ -51,8 +60,17 @@ function PricePositionIndicator({ position }: { position: ProductHealthData["pri
       );
     case "below":
       return (
-        <span style={{ color: "#76b900", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span
+          style={{ color: "#76b900", display: "inline-flex", alignItems: "center", gap: "4px" }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <polyline points="6 9 12 15 18 9" />
           </svg>
           Below
@@ -60,8 +78,22 @@ function PricePositionIndicator({ position }: { position: ProductHealthData["pri
       );
     case "at":
       return (
-        <span style={{ color: "rgba(255, 255, 255, 0.6)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span
+          style={{
+            color: "rgba(255, 255, 255, 0.6)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           At Market
@@ -82,11 +114,7 @@ export function ProductHealthPanel({ data, isLoading }: ProductHealthPanelProps)
         <h3 className="chart-title">Product Health</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="glass-line w85"
-              style={{ height: "48px", marginTop: 0 }}
-            />
+            <div key={i} className="glass-line w85" style={{ height: "48px", marginTop: 0 }} />
           ))}
         </div>
       </div>
@@ -110,9 +138,7 @@ export function ProductHealthPanel({ data, isLoading }: ProductHealthPanelProps)
         <tbody>
           {data.map((product) => (
             <tr key={product.id}>
-              <td style={{ fontWeight: 600, color: "rgba(255, 255, 255, 0.9)" }}>
-                {product.name}
-              </td>
+              <td style={{ fontWeight: 600, color: "rgba(255, 255, 255, 0.9)" }}>{product.name}</td>
               <td style={{ fontFamily: "monospace", fontSize: "11px" }}>{product.sku}</td>
               <td>
                 <span className={getStockStatusClass(product.stockStatus)}>

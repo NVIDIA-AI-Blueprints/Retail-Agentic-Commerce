@@ -148,9 +148,7 @@ function calculateAgentPerformance(traces: PhoenixTraceData[]): AgentPerformance
     const errors = agentTraces.filter((t) => t.status === "error").length;
     const successRate = totalCalls > 0 ? ((totalCalls - errors) / totalCalls) * 100 : 100;
     const avgLatency =
-      totalCalls > 0
-        ? agentTraces.reduce((sum, t) => sum + t.duration, 0) / totalCalls
-        : 0;
+      totalCalls > 0 ? agentTraces.reduce((sum, t) => sum + t.duration, 0) / totalCalls : 0;
 
     const labelMap: Record<AgentType, string> = {
       promotion: "Promotion Agent",

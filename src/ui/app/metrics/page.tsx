@@ -6,7 +6,7 @@ import { MetricsProvider } from "@/hooks/useMetrics";
 import { Nebula } from "@/kui-foundations-react-external/nebula";
 
 /**
- * Metrics Dashboard page - Palantir-style analytics for retail operations
+ * Metrics Dashboard page - analytics for retail operations
  * Features NVIDIA-style Nebula animated background with gradient overlays
  */
 export default function MetricsPage() {

@@ -32,7 +32,14 @@ function formatValue(value: number, format: KPIData["format"]): string {
 function TrendIcon({ trend }: { trend: "up" | "down" | "neutral" }) {
   if (trend === "neutral") {
     return (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     );
@@ -66,8 +73,7 @@ export function KPICard({ data }: KPICardProps) {
   const { label, value, format, trend, trendValue } = data;
 
   // For latency, a decrease is positive
-  const isPositiveTrend =
-    format === "duration" ? (trendValue ?? 0) < 0 : (trendValue ?? 0) > 0;
+  const isPositiveTrend = format === "duration" ? (trendValue ?? 0) < 0 : (trendValue ?? 0) > 0;
 
   const trendClass = trend
     ? isPositiveTrend

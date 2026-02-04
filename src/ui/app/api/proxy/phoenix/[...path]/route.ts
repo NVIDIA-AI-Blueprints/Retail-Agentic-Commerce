@@ -37,10 +37,7 @@ export async function GET(
     const data = await response.json();
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json(
-      { error: "Failed to connect to Phoenix API" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Failed to connect to Phoenix API" }, { status: 502 });
   }
 }
 
@@ -73,9 +70,6 @@ export async function POST(
     const data = await response.json();
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json(
-      { error: "Failed to connect to Phoenix API" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Failed to connect to Phoenix API" }, { status: 502 });
   }
 }

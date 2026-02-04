@@ -61,7 +61,9 @@ export function PromotionPanel({ data, isLoading }: PromotionPanelProps) {
 
   // Calculate total savings
   const totalSavings = data.reduce((sum, item) => sum + item.totalSavings, 0);
-  const totalPromotions = data.filter((d) => d.type !== "NO_PROMO").reduce((sum, d) => sum + d.count, 0);
+  const totalPromotions = data
+    .filter((d) => d.type !== "NO_PROMO")
+    .reduce((sum, d) => sum + d.count, 0);
 
   return (
     <div className="chart-container">
@@ -82,7 +84,13 @@ export function PromotionPanel({ data, isLoading }: PromotionPanelProps) {
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.5)", textTransform: "uppercase" }}>
+          <p
+            style={{
+              fontSize: "10px",
+              color: "rgba(255, 255, 255, 0.5)",
+              textTransform: "uppercase",
+            }}
+          >
             Total Promotions
           </p>
           <p style={{ fontSize: "20px", fontWeight: 700, color: "#76b900" }}>
@@ -90,7 +98,13 @@ export function PromotionPanel({ data, isLoading }: PromotionPanelProps) {
           </p>
         </div>
         <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.5)", textTransform: "uppercase" }}>
+          <p
+            style={{
+              fontSize: "10px",
+              color: "rgba(255, 255, 255, 0.5)",
+              textTransform: "uppercase",
+            }}
+          >
             Total Savings
           </p>
           <p style={{ fontSize: "20px", fontWeight: 700, color: "#76b900" }}>

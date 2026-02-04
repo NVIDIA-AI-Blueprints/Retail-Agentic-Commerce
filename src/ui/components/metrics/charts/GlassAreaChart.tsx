@@ -67,11 +67,7 @@ export function GlassAreaChart({
             dx={-10}
             width={60}
           />
-          <Tooltip
-            content={
-              <ChartTooltip formatValue={(v) => formatValue(v)} />
-            }
-          />
+          <Tooltip content={<ChartTooltip formatValue={(v) => formatValue(v)} />} />
           <Area
             type="monotone"
             dataKey={dataKey}

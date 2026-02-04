@@ -32,10 +32,7 @@ export function Navbar() {
         }
         slotRight={
           <Flex align="center" gap="2">
-            <Link
-              href="/"
-              className={`nav-link ${pathname === "/" ? "nav-link-active" : ""}`}
-            >
+            <Link href="/" className={`nav-link ${pathname === "/" ? "nav-link-active" : ""}`}>
               <svg
                 width="16"
                 height="16"

@@ -9,12 +9,20 @@ import { PromotionPanel } from "./panels/PromotionPanel";
 import { ProductHealthPanel } from "./panels/ProductHealthPanel";
 
 /**
- * Main dashboard container with Palantir-style grid layout
+ * Main dashboard container with grid layout
  */
 export function MetricsDashboard() {
   const { state, setTimeRange, refresh } = useMetrics();
-  const { timeRange, isLoading, lastUpdated, kpis, revenueData, agentPerformance, promotionBreakdown, productHealth } =
-    state;
+  const {
+    timeRange,
+    isLoading,
+    lastUpdated,
+    kpis,
+    revenueData,
+    agentPerformance,
+    promotionBreakdown,
+    productHealth,
+  } = state;
 
   return (
     <div className="dashboard-grid">

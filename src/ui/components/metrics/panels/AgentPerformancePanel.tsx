@@ -50,7 +50,10 @@ export function AgentPerformancePanel({ data, isLoading }: AgentPerformancePanel
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {data.map((agent) => (
-              <div key={agent.agentType} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div
+                key={agent.agentType}
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
                 <span
                   style={{
                     fontSize: "11px",
@@ -114,7 +117,10 @@ export function AgentPerformancePanel({ data, isLoading }: AgentPerformancePanel
               const maxLatency = Math.max(...data.map((d) => d.avgLatency));
               const widthPercent = (agent.avgLatency / maxLatency) * 100;
               return (
-                <div key={agent.agentType} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  key={agent.agentType}
+                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                >
                   <span
                     style={{
                       fontSize: "11px",
