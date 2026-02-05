@@ -7,7 +7,7 @@
 * **Proposed Solution**: A Python **3.12+**-based (FastAPI) middleware that acts as a relational, intelligent bridge between agentic clients and existing merchant data.
 * **Key Value Proposition**: Demonstrates a "Glass Box" approach to agentic commerce, where business logic (discounts, recommendations, loyalty) is optimized by autonomous agents in real-time.
 * **Protocol Support**: Dual-protocol architecture supporting both ACP and UCP:
-  * **ACP**: OpenAI's Agentic Commerce Protocol for delegated payments
+  * **ACP**: Agentic Commerce Protocol for delegated payments
   * **UCP**: Industry-standard Universal Commerce Protocol with capability negotiation
 * **Demo Client (Client Agent Simulator)**: A static simulator with pre-populated products that can:
   * Accept search prompts (e.g., "find some t-shirts") and display product cards via RAG-powered Search Agent
@@ -114,8 +114,8 @@ The Post-Purchase Agent uses a configurable Brand Persona:
   * Payment via `window.openai.callTool()` pattern → same ACP flow
   * **Three Testing Modes** per [OpenAI Apps SDK guidelines](https://developers.openai.com/apps-sdk/deploy):
     * Standalone: Local development with simulated `window.openai` bridge
-    * ChatGPT Integration: Real ChatGPT testing via ngrok tunnel
-    * Production: Deployed MCP server accessible from ChatGPT Apps Directory
+    * Client Agent Integration: Testing with a real client agent via ngrok tunnel
+    * Production: Deployed MCP server accessible from the client agent's app directory
   * MCP server with `search-products`, `get-recommendations`, `add-to-cart`, `checkout` tools
   * Widget bundles served via `openai/outputTemplate` metadata
 

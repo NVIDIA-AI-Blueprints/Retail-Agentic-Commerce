@@ -363,7 +363,7 @@ graph TD
   - **Loyalty Integration**: Pre-authenticated user with points display
   - **Same Payment Flow**: Uses identical ACP + PSP payment infrastructure
 
-* **Apps SDK Testing Modes**: The implementation supports three testing environments per [OpenAI deployment guidelines](https://developers.openai.com/apps-sdk/deploy):
+* **Apps SDK Testing Modes**: The implementation supports three testing environments per Apps SDK deployment guidelines:
 
 ```mermaid
 graph TD
@@ -375,8 +375,8 @@ graph TD
         S2 --> S3
     end
 
-    subgraph "Mode 2: ChatGPT Integration"
-        C1[ChatGPT]
+    subgraph "Mode 2: Client Agent Integration"
+        C1[Client Agent]
         C2[ngrok Tunnel]
         C3[MCP Server localhost:2091]
         C4[Widget Bundle]
@@ -386,7 +386,7 @@ graph TD
     end
 
     subgraph "Mode 3: Production"
-        P1[ChatGPT]
+        P1[Client Agent]
         P2[MCP Server Vercel/Alpic]
         P3[Widget CDN]
         P1 -->|HTTPS| P2
@@ -394,9 +394,9 @@ graph TD
     end
 ```
 
-  - **Standalone**: Local development with simulated ChatGPT bridge
-  - **ChatGPT Integration**: Real ChatGPT testing via ngrok tunnel before production
-  - **Production**: Deployed MCP server accessible from ChatGPT Apps Directory
+  - **Standalone**: Local development with simulated client agent bridge
+  - **Client Agent Integration**: Testing with a real client agent via ngrok tunnel before production
+  - **Production**: Deployed MCP server accessible from the client agent's app directory
 
 ---
 

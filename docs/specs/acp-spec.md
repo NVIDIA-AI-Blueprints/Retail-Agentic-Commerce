@@ -1,12 +1,12 @@
 # Agentic Checkout Protocol - API Specification
 
-**Call Direction**: OpenAI → Merchant (REST) | Merchant → OpenAI (Webhooks)
+**Call Direction**: Client Agent → Merchant (REST) | Merchant → Client Agent (Webhooks)
 
 **API Version**: `2026-01-16`
 
 ## Overview
 
-This document defines the REST endpoints and webhook events for the Agentic Checkout Protocol. Merchants implement these endpoints to enable end-to-end checkout flows inside ChatGPT.
+This document defines the REST endpoints and webhook events for the Agentic Checkout Protocol. Merchants implement these endpoints to enable end-to-end checkout flows with client agents.
 
 ACP Checkout Sessions provide a stateful model for managing the checkout experience where:
 - **Merchants remain the system of record** for orders, payments, taxes, and compliance
@@ -80,7 +80,7 @@ ACP Checkout Sessions provide a stateful model for managing the checkout experie
 | Header          | Description                                      | Example                                         |
 |:----------------|:-------------------------------------------------|:------------------------------------------------|
 | Accept-Language | Preferred locale for messages/errors             | `en-US`                                         |
-| User-Agent      | Client identification                            | `ChatGPT/2.0`                                   |
+| User-Agent      | Client identification                            | `AgentClient/2.0`                               |
 | Idempotency-Key | Ensures request idempotency                      | `idem_abc123`                                   |
 | Request-Id      | Unique request identifier for tracing            | `req_xyz789`                                    |
 | Signature       | Request signature (base64url)                    | `ZXltZX...`                                     |
@@ -945,9 +945,9 @@ Can be strings or objects:
 
 ---
 
-## Webhooks (Merchant → OpenAI)
+## Webhooks (Merchant → Client Agent)
 
-Merchants send webhook events to OpenAI for order lifecycle updates. Events are signed with HMAC using a key provided by OpenAI.
+Merchants send webhook events to the client agent for order lifecycle updates. Events are signed with HMAC using a shared key.
 
 ### Webhook Event Schema
 

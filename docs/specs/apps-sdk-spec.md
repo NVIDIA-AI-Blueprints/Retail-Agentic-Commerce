@@ -1,4 +1,4 @@
-# Ultimate ChatGPT Apps SDK Developer Guide
+# Apps SDK Developer Guide
 
 > **For AI Coding Assistants**: This guide provides comprehensive reference material for building ChatGPT applications using OpenAI's Apps SDK with MCP servers and HTML/React widgets.
 

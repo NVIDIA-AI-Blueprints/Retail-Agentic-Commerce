@@ -2,7 +2,7 @@
 
 **Goal**: Implement an alternative checkout experience using the Apps SDK pattern, where the merchant controls a fully-owned iframe embedded within the Client Agent panel. This demonstrates how merchants can maintain complete UI control while leveraging the ACP payment infrastructure.
 
-**Reference**: [ChatGPT Apps SDK Developer Guide](../specs/apps-sdk-spec.md)
+**Reference**: [Apps SDK Developer Guide](../specs/apps-sdk-spec.md)
 
 ## Architecture Overview
 
@@ -371,14 +371,14 @@ Apps SDK events are logged in the Merchant Panel alongside native ACP events:
 NEXT_PUBLIC_MERCHANT_APP_URL=/merchant-app
 NEXT_PUBLIC_RECOMMENDATION_AGENT_URL=http://localhost:8004
 
-# MCP Server Configuration (for ChatGPT testing)
+# MCP Server Configuration (for client agent testing)
 MCP_SERVER_PORT=2091
 NGROK_ENABLED=false
 ```
 
 ## Deployment & Testing Architecture
 
-The Apps SDK integration is architected to support **three testing modes**, following the [OpenAI Apps SDK deployment guidelines](https://developers.openai.com/apps-sdk/deploy):
+The Apps SDK integration is architected to support **three testing modes**, following Apps SDK deployment guidelines:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -398,24 +398,24 @@ The Apps SDK integration is architected to support **three testing modes**, foll
 │                                                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  MODE 2: CHATGPT INTEGRATION (ngrok Tunnel)                                 │
-│  ════════════════════════════════════════════                               │
+│  MODE 2: CLIENT AGENT INTEGRATION (ngrok Tunnel)                             │
+│  ════════════════════════════════════════════════                           │
 │  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐       │
-│  │    ChatGPT      │     │   MCP Server    │     │  Merchant App   │       │
+│  │  Client Agent   │     │   MCP Server    │     │  Merchant App   │       │
 │  │    (Real)       │────▶│  (ngrok tunnel) │────▶│  + ACP Backend  │       │
 │  │                 │     │  *.ngrok.app    │     │  localhost:*    │       │
 │  └─────────────────┘     └─────────────────┘     └─────────────────┘       │
 │         │                        │                                          │
 │         ▼                        ▼                                          │
 │  Real window.openai        MCP Protocol                                     │
-│  injected by ChatGPT       over HTTPS                                       │
+│  injected by client agent  over HTTPS                                       │
 │                                                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  MODE 3: PRODUCTION (Deployed)                                              │
 │  ═════════════════════════════                                              │
 │  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐       │
-│  │    ChatGPT      │     │   MCP Server    │     │  Merchant App   │       │
+│  │  Client Agent   │     │   MCP Server    │     │  Merchant App   │       │
 │  │    (Real)       │────▶│  (Vercel/etc)   │────▶│  (Production)   │       │
 │  │                 │     │  HTTPS endpoint │     │                 │       │
 │  └─────────────────┘     └─────────────────┘     └─────────────────┘       │
@@ -423,9 +423,9 @@ The Apps SDK integration is architected to support **three testing modes**, foll
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Mode 1: Standalone Testing (Simulated ChatGPT)
+### Mode 1: Standalone Testing (Simulated Client Agent)
 
-For local development without ChatGPT:
+For local development without a client agent:
 
 ```bash
 # Terminal 1: Start ACP Backend + ARAG Agent
@@ -439,14 +439,14 @@ cd src/ui && pnpm run dev
 # Switch to "Apps SDK" tab to test merchant iframe
 ```
 
-The standalone mode uses a **simulated `window.openai` bridge** that mimics the real ChatGPT Apps SDK:
+The standalone mode uses a **simulated `window.openai` bridge** that mimics the real Apps SDK:
 - Parent window injects simulated bridge via `postMessage`
 - Merchant iframe uses same code as production
 - Full ACP payment flow works identically
 
-### Mode 2: ChatGPT Integration Testing (ngrok)
+### Mode 2: Client Agent Integration Testing (ngrok)
 
-For testing directly in ChatGPT before production:
+For testing with a real client agent before production:
 
 ```bash
 # Terminal 1: Start all backend services
@@ -465,8 +465,8 @@ ngrok http 2091
 cd src/ui && pnpm run dev
 ```
 
-**ChatGPT Configuration:**
-1. Go to ChatGPT Settings → Connectors
+**Client Agent Configuration:**
+1. Go to the client agent's connector settings
 2. Add Connector with ngrok URL: `https://<subdomain>.ngrok.app/mcp`
 3. Test with prompts like: "Show me t-shirt recommendations"
 
@@ -483,7 +483,7 @@ For production, deploy to a hosting platform with HTTPS:
 
 ## MCP Server Architecture
 
-The merchant app is structured as a proper MCP server that works with ChatGPT:
+The merchant app is structured as a proper MCP server that works with any compatible client agent:
 
 ```
 src/apps_sdk/
@@ -557,9 +557,9 @@ The widget will load from the MCP server (port 2091) or fall back to the Vite de
 
 ### MCP Tools Definition
 
-Per the [Apps SDK spec](../specs/apps-sdk-spec.md), the MCP server exposes tools that ChatGPT can invoke. The merchant-owned iframe handles product display and recommendations internally - these don't need MCP tools since the merchant controls the UI.
+Per the [Apps SDK spec](../specs/apps-sdk-spec.md), the MCP server exposes tools that the client agent can invoke. The merchant-owned iframe handles product display and recommendations internally - these don't need MCP tools since the merchant controls the UI.
 
-**Tools exposed to ChatGPT:**
+**Tools exposed to the client agent:**
 
 | Tool | Description | Per Spec |
 |------|-------------|----------|
@@ -634,7 +634,7 @@ async def checkout(cart_id: str) -> dict:
 - [x] Implement `CheckoutButton` component
 - [x] Create simulated `window.openai` bridge for standalone mode
 
-**Phase 3: MCP Server (ChatGPT Integration)** ✅
+**Phase 3: MCP Server (Client Agent Integration)** ✅
 - [x] Create `src/apps-sdk/server/` with FastMCP server
 - [x] Implement `get-recommendations` tool with ARAG integration
 - [x] Implement `add-to-cart` and `remove-from-cart` tools
@@ -660,9 +660,9 @@ async def checkout(cart_id: str) -> dict:
 - [x] Log Apps SDK events in Protocol Inspector
 
 **Phase 7: ngrok Testing**
-- [ ] Document ngrok setup for ChatGPT testing
+- [ ] Document ngrok setup for client agent testing
 - [ ] Add environment variable for tunnel mode
-- [ ] Test complete flow in real ChatGPT
+- [ ] Test complete flow in real client agent
 - [ ] Capture screenshots/recordings for documentation
 
 ## Acceptance Criteria
@@ -678,14 +678,14 @@ async def checkout(cart_id: str) -> dict:
 - [x] Pre-authenticated user displays with name and loyalty points
 - [x] Recommendation carousel shows 3 items (mock/ARAG)
 - [x] Shopping cart supports add/remove items and quantity changes
-- [x] Simulated `window.openai` bridge works identically to real ChatGPT
+- [x] Simulated `window.openai` bridge works identically to real client agent
 
-**MCP Server (ChatGPT Integration)** ✅:
+**MCP Server (Client Agent Integration)** ✅:
 - [x] MCP server starts and responds to tool calls
 - [x] `get-recommendations` tool returns ARAG recommendations (with fallback)
 - [x] `add-to-cart`, `remove-from-cart`, and `checkout` tools work correctly
 - [x] Widget resources are served with correct MIME types
-- [ ] Server supports ngrok tunneling for ChatGPT testing (Phase 7)
+- [ ] Server supports ngrok tunneling for client agent testing (Phase 7)
 
 **ARAG Integration** ✅:
 - [x] Recommendations are fetched from ARAG Recommendation Agent
@@ -694,7 +694,7 @@ async def checkout(cart_id: str) -> dict:
 
 **Communication Bridge** ✅:
 - [x] `window.openai.callTool()` pattern works from iframe (standalone)
-- [ ] `window.openai.callTool()` works from real ChatGPT (via ngrok)
+- [ ] `window.openai.callTool()` works from real client agent (via ngrok)
 - [x] Parent receives and processes checkout requests
 - [x] Results are returned to iframe/widget after payment
 
@@ -708,9 +708,9 @@ async def checkout(cart_id: str) -> dict:
 - [x] Event flow is traceable from iframe to order completion
 
 **Deployment & Testing**:
-- [ ] Standalone mode works without ChatGPT connection
-- [ ] ngrok tunnel successfully exposes MCP server to ChatGPT
-- [ ] Real ChatGPT can invoke tools and render widgets
+- [ ] Standalone mode works without client agent connection
+- [ ] ngrok tunnel successfully exposes MCP server to client agent
+- [ ] Real client agent can invoke tools and render widgets
 - [ ] Widget bundle builds correctly for production
 - [ ] Documentation covers all three testing modes
 

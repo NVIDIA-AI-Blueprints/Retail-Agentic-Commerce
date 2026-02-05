@@ -42,34 +42,34 @@ The Apps SDK mode provides an alternative merchant-controlled checkout experienc
 
 ### Apps SDK MCP Server Stack
 
-For ChatGPT integration testing and production deployment:
+For client agent integration testing and production deployment:
 
 | Component | Technology | Version | Purpose |
 | --- | --- | --- | --- |
-| **MCP Server** | FastAPI + MCP | n/a | Tool registration and handling for ChatGPT |
-| **Widget Bundle** | Vite + React | latest | Builds HTML widget files for ChatGPT rendering |
-| **Tunnel** | ngrok | latest | Exposes local MCP server to ChatGPT for testing |
+| **MCP Server** | FastAPI + MCP | n/a | Tool registration and handling for the client agent |
+| **Widget Bundle** | Vite + React | latest | Builds HTML widget files for client agent rendering |
+| **Tunnel** | ngrok | latest | Exposes local MCP server to the client agent for testing |
 | **Hosting** | Vercel / Alpic | n/a | Production deployment with HTTPS and CDN |
 
 ### Testing Modes
 
-The Apps SDK is architected for three testing environments per [OpenAI guidelines](https://developers.openai.com/apps-sdk/deploy):
+The Apps SDK is architected for three testing environments per Apps SDK deployment guidelines:
 
-| Mode | ChatGPT | MCP Server | Purpose |
+| Mode | Client Agent | MCP Server | Purpose |
 | --- | --- | --- | --- |
-| **Standalone** | Simulated | N/A (postMessage) | Local development without ChatGPT |
-| **Integration** | Real | ngrok tunnel | Pre-production testing in ChatGPT |
+| **Standalone** | Simulated | N/A (postMessage) | Local development without a client agent |
+| **Integration** | Real | ngrok tunnel | Pre-production testing with a client agent |
 | **Production** | Real | Vercel/Alpic | Public deployment |
 
 ```bash
-# Standalone (simulated ChatGPT)
+# Standalone (simulated client agent)
 cd src/ui && pnpm run dev
 # Access http://localhost:3000, switch to Apps SDK tab
 
-# Integration (real ChatGPT via ngrok)
+# Integration (real client agent via ngrok)
 uvicorn src.apps_sdk.main:app --reload --port 2091
-ngrok http 2091                  # Tunnel to ChatGPT
-# Configure ngrok URL in ChatGPT Settings → Connectors
+ngrok http 2091                  # Tunnel to client agent
+# Configure ngrok URL in the client agent's connector settings
 ```
 
 #### Apps SDK Communication Flow

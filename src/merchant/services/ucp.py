@@ -83,6 +83,8 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
             )
         ]
 
+    agent_card_url = f"{base_url.rstrip('/')}/.well-known/agent-card.json"
+
     return UCPBusinessProfile(
         ucp=UCPMetadata(
             version=settings.ucp_version,
@@ -90,9 +92,16 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
                 "dev.ucp.shopping": [
                     UCPService(
                         version=settings.ucp_version,
+                        spec="https://ucp.dev/specification/overview",
                         transport="rest",
                         endpoint=service_endpoint,
-                    )
+                    ),
+                    UCPService(
+                        version=settings.ucp_version,
+                        spec="https://ucp.dev/specification/overview",
+                        transport="a2a",
+                        endpoint=agent_card_url,
+                    ),
                 ]
             },
             capabilities={

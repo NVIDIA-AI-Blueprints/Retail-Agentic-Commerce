@@ -46,14 +46,14 @@ For this project we will also build a **client agent simulator** that behaves li
 ## 1. Goals & Background Context
 
 * **Primary Goal**: Create a reference architecture that enables retailers to maintain "Merchant of Record" control while leveraging autonomous agents to optimize margins and loyalty.
-* **Protocol Fidelity**: 100% compliance with ACP specification (OpenAI/Stripe standard). UCP alignment targets checkout + discovery only (v2026-01-11).
+* **Protocol Fidelity**: 100% compliance with ACP specification. UCP alignment targets checkout + discovery only (v2026-01-11).
 * **Observability**: Real-time "Glass Box" visualization of agent reasoning and JSON traces.
 
 ## 2. Functional Requirements (FR)
 
 ### 2.1 ACP Checkout Endpoints (Per Official Specification)
 
-Implement the 5 required RESTful endpoints per the OpenAI/Stripe ACP specification (API Version: `2026-01-16`):
+Implement the 5 required RESTful endpoints per the ACP specification (API Version: `2026-01-16`):
 
 #### FR-ACP-01: Create Checkout Session
 * **Endpoint**: `POST /checkout_sessions`
@@ -268,19 +268,19 @@ Per [OpenAI Apps SDK guidelines](https://developers.openai.com/apps-sdk/deploy),
 | Mode | Environment | Purpose |
 |------|-------------|---------|
 | **Standalone** | Local (localhost:3000) | Development with simulated `window.openai` bridge |
-| **ChatGPT Integration** | ngrok tunnel | Pre-production testing in real ChatGPT |
-| **Production** | Vercel/Alpic/Cloud | Public deployment via ChatGPT Apps Directory |
+| **Client Agent Integration** | ngrok tunnel | Pre-production testing with a real client agent |
+| **Production** | Vercel/Alpic/Cloud | Public deployment via client agent's app directory |
 
 **Standalone Testing** (simulated):
 - Protocol Inspector embeds merchant iframe locally
-- Simulated `window.openai` bridge mimics ChatGPT behavior
-- Full ACP payment flow works without ChatGPT connection
+- Simulated `window.openai` bridge mimics client agent behavior
+- Full ACP payment flow works without client agent connection
 
-**ChatGPT Integration Testing** (via ngrok):
+**Client Agent Integration Testing** (via ngrok):
 ```bash
 ngrok http 2091
 # Exposes MCP server at https://<subdomain>.ngrok.app/mcp
-# Configure in ChatGPT Settings → Connectors
+# Configure tunnel URL in the client agent's connector settings
 ```
 
 **MCP Server Requirements**:

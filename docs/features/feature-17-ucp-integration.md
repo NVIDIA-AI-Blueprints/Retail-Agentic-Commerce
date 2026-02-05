@@ -2,7 +2,7 @@
 
 **Priority**: P1
 
-**Status**: 🟡 In Progress (Phase 1 Complete)
+**Status**: 🟡 In Progress (Phase 3 Complete)
 
 **Dependencies**: Features 3, 4, 5, 6, 7, 8
 
@@ -24,7 +24,7 @@ This feature adds UCP-compliant endpoints that share the same intelligent agent 
 |-------|-------------|--------|
 | **Phase 1** | Discovery Endpoint (`GET /.well-known/ucp`) | ✅ Complete |
 | **Phase 2** | Checkout Endpoints (REST) + Checkout-Only Capability Negotiation | ✅ Complete |
-| **Phase 3** | A2A Transport (JSON-RPC 2.0) | 🔲 Planned |
+| **Phase 3** | A2A Transport (JSON-RPC 2.0) | ✅ Complete |
 | **Phase 4** | Full Capability Negotiation (extension pruning) | 🔲 Planned |
 | **Phase 5** | Frontend Protocol Toggle | 🔲 Planned |
 | **Phase 6** | Fulfillment Extension (`dev.ucp.shopping.fulfillment`) | 🔲 Planned |
@@ -75,6 +75,27 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 - Real capability negotiation (checkout-only)
 - In-memory profile caching (10 min TTL)
 - Spec-aligned error codes (400, 422, 424)
+- Ruff linting and Pyright type checking passed
+
+### Phase 3 Deliverables (Complete)
+
+| File | Description |
+|------|-------------|
+| `src/merchant/api/routes/ucp/a2a.py` | A2A JSON-RPC 2.0 endpoint (`POST /a2a`) |
+| `src/merchant/api/routes/ucp/agent_card.py` | Agent Card discovery (`GET /.well-known/agent-card.json`) |
+| `src/merchant/api/a2a_schemas.py` | Pydantic schemas for A2A messages and parts |
+| `src/merchant/services/a2a.py` | A2A service layer: action routing, context management, idempotency, agent card builder |
+| `src/merchant/services/ucp.py` | Updated `build_business_profile()` with A2A transport + `spec` fields |
+| `src/merchant/main.py` | Registered A2A and Agent Card routers |
+| `tests/merchant/api/test_ucp_a2a.py` | 21 unit tests covering all actions and error cases |
+
+- JSON-RPC 2.0 `message/send` method with structured DataPart actions
+- Required header validation (`UCP-Agent`, `X-A2A-Extensions`) with JSON-RPC error codes
+- 7 checkout actions: `create_checkout`, `add_to_checkout`, `remove_from_checkout`, `update_checkout`, `get_checkout`, `complete_checkout`, `cancel_checkout`
+- contextId-to-session mapping for multi-turn conversations
+- messageId-based idempotency via existing `IdempotencyStore`
+- Agent Card with map-keyed capabilities per `checkout-a2a.md`
+- UCP discovery updated with A2A transport entry (version + spec fields)
 - Ruff linting and Pyright type checking passed
 
 ---
@@ -438,14 +459,14 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 1. **Create UCP Router Module** (`src/merchant/api/routes/ucp/`)
    - [x] `discovery.py` - UCP profile endpoint ✅ Phase 1
    - [x] `checkout.py` - UCP checkout endpoints (REST)
-   - [ ] `a2a.py` - A2A transport endpoints (JSON-RPC 2.0)
+   - [x] `a2a.py` - A2A transport endpoints (JSON-RPC 2.0) ✅ Phase 3
    - [ ] `negotiation.py` - Capability negotiation logic
 
-2. **Implement A2A Transport** (`src/merchant/api/routes/ucp/a2a.py`)
-   - [ ] JSON-RPC 2.0 request parsing
-   - [ ] Method routing (`a2a.ucp.checkout.create`, `.get`, `.update`, `.complete`, `.cancel`)
-   - [ ] Response formatting (JSON-RPC 2.0)
-   - [ ] Error handling with JSON-RPC error codes
+2. **Implement A2A Transport** (`src/merchant/api/routes/ucp/a2a.py`) ✅ Phase 3
+   - [x] JSON-RPC 2.0 request parsing
+   - [x] Method routing (action-based via DataPart)
+   - [x] Response formatting (JSON-RPC 2.0)
+   - [x] Error handling with JSON-RPC error codes
 
 3. **Implement UCP Discovery** ✅ Phase 1 Complete
    - [x] Static business profile configuration
@@ -513,7 +534,7 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 1. **Unit Tests** (`tests/merchant/test_ucp_*.py`)
    - [x] `test_ucp_discovery.py` - Discovery endpoint tests ✅ Phase 1
    - [x] `test_ucp_checkout.py` - UCP checkout CRUD tests
-   - [ ] `test_ucp_a2a.py` - A2A transport tests (JSON-RPC 2.0)
+   - [x] `test_ucp_a2a.py` - A2A transport tests (JSON-RPC 2.0) ✅ Phase 3
    - [ ] `test_ucp_negotiation.py` - Capability negotiation tests
    - [ ] Happy path, edge cases, failure cases for each
 
