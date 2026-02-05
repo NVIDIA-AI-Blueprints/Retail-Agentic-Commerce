@@ -221,6 +221,8 @@ class TestCheckoutActions:
         checkout = result["parts"][0]["data"]["a2a.ucp.checkout"]
         assert checkout["status"] == "incomplete"
         assert checkout["id"]
+        assert checkout["ucp"]["payment_handlers"] is not None
+        assert "com.example.processor_tokenizer" in checkout["ucp"]["payment_handlers"]
 
     @pytest.mark.usefixtures("mock_platform_profile")
     def test_get_checkout(
@@ -412,10 +414,10 @@ class TestDiscoveryA2A:
 
         services = response.json()["ucp"]["services"]["dev.ucp.shopping"]
         transports = [s["transport"] for s in services]
-        assert "rest" in transports
         assert "a2a" in transports
+        assert len(services) == 1  # A2A only, no REST
 
-        a2a_entry = next(s for s in services if s["transport"] == "a2a")
+        a2a_entry = services[0]
         assert a2a_entry["version"] == get_settings().ucp_version
         assert a2a_entry["spec"] == "https://ucp.dev/specification/overview"
         assert "agent-card.json" in a2a_entry["endpoint"]

@@ -38,8 +38,8 @@ class Settings(BaseSettings):
     ucp_base_url: str | None = (
         None  # Fully qualified base URL; None derives from request
     )
-    ucp_service_path: str = "/ucp/v1"
     ucp_business_name: str | None = None
+    ucp_continue_url: str | None = None  # Fallback URL for negotiation failures
 
     # UCP Signing Key (public key for webhook verification)
     ucp_signing_key_id: str = "ucp-key-1"

@@ -23,14 +23,19 @@ class UCPService(BaseModel):
 
 
 class UCPCapabilityVersion(BaseModel):
-    """UCP capability with version and optional extension parent."""
+    """UCP capability with version and optional extension parent.
+
+    ``extends`` may be a single parent (str) or multiple parents (list[str]).
+    Multi-parent extensions (e.g. discount extends checkout AND cart) are kept
+    during pruning when at least one parent is present in the intersection.
+    """
 
     model_config = ConfigDict(populate_by_name=True)
 
     version: str
     spec: str | None = None
     schema_url: str | None = Field(default=None, serialization_alias="schema")
-    extends: str | None = None  # For extensions like fulfillment
+    extends: str | list[str] | None = None
 
 
 class UCPPaymentHandler(BaseModel):
@@ -193,6 +198,14 @@ class UCPLineItem(BaseModel):
     totals: list[UCPTotal] = Field(..., description="Line item totals")
 
 
+class UCPMessageSeverity(StrEnum):
+    """UCP message severity values per spec."""
+
+    RECOVERABLE = "recoverable"
+    REQUIRES_BUYER_INPUT = "requires_buyer_input"
+    REQUIRES_BUYER_REVIEW = "requires_buyer_review"
+
+
 class UCPMessage(BaseModel):
     """UCP message for checkout responses."""
 
@@ -200,6 +213,9 @@ class UCPMessage(BaseModel):
     code: str | None = Field(default=None, description="Optional error code")
     path: str | None = Field(default=None, description="JSONPath for related field")
     content: str = Field(..., description="Message content")
+    severity: UCPMessageSeverity | None = Field(
+        default=None, description="Required when type is error"
+    )
 
 
 class UCPResponseMetadata(BaseModel):
@@ -207,6 +223,7 @@ class UCPResponseMetadata(BaseModel):
 
     version: str
     capabilities: dict[str, list[UCPCapabilityVersion]]
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None
 
 
 class UCPCheckoutResponse(BaseModel):

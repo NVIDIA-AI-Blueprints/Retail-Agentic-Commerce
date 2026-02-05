@@ -19,6 +19,7 @@ from sqlmodel import Session
 
 from src.merchant.api.a2a_schemas import A2AMessage
 from src.merchant.api.dependencies import verify_api_key
+from src.merchant.config import get_settings
 from src.merchant.db.database import get_session
 from src.merchant.services.a2a import (
     A2A_UCP_EXTENSION_URL,
@@ -30,6 +31,7 @@ from src.merchant.services.a2a import (
     JSONRPC_PARSE_ERROR,
     JSONRPC_SESSION_NOT_FOUND,
     UCP_AGENT_HEADER,
+    UCP_CHECKOUT_KEY,
     build_jsonrpc_error,
     build_jsonrpc_result,
     check_message_idempotency,
@@ -43,6 +45,7 @@ from src.merchant.services.checkout import (
     ProductNotFoundError,
     SessionNotFoundError,
 )
+from src.merchant.services.ucp import NegotiationFailureError
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +188,31 @@ async def handle_a2a_request(
     # ---- 8. Negotiate capabilities ----
     base_url = str(http_request.base_url).rstrip("/")
     try:
-        negotiated = await negotiate_a2a_capabilities(ucp_agent_value, base_url)
+        negotiated, payment_handlers = await negotiate_a2a_capabilities(
+            ucp_agent_value, base_url
+        )
+    except NegotiationFailureError as exc:
+        # Per spec: negotiation failure → JSON-RPC result, not error
+        settings = get_settings()
+        failure_body: dict[str, Any] = {
+            "ucp": {"version": settings.ucp_version, "capabilities": {}},
+            "messages": [
+                {
+                    "type": "error",
+                    "code": exc.code,
+                    "content": exc.content,
+                    "severity": "requires_buyer_input",
+                }
+            ],
+        }
+        if settings.ucp_continue_url:
+            failure_body["continue_url"] = settings.ucp_continue_url
+        result = build_jsonrpc_result(
+            request_id=request_id,
+            context_id=context_id,
+            parts=[{"kind": "data", "data": {UCP_CHECKOUT_KEY: failure_body}}],
+        )
+        return JSONResponse(result)
     except ValueError as exc:
         return JSONResponse(
             build_jsonrpc_error(
@@ -223,6 +250,7 @@ async def handle_a2a_request(
             context_id=context_id,
             db=db,
             negotiated=negotiated,
+            payment_handlers=payment_handlers,
         )
     except SessionNotFoundError:
         return JSONResponse(
