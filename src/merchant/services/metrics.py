@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from sqlmodel import Session, select
 
@@ -48,7 +48,9 @@ _PROMOTION_FAILURE_MARKERS = (
 )
 
 
-def get_dashboard_metrics(db: Session, time_range: DashboardTimeRange) -> dict[str, Any]:
+def get_dashboard_metrics(
+    db: Session, time_range: DashboardTimeRange
+) -> dict[str, Any]:
     """Build metrics dashboard aggregates for the requested time range."""
     now = datetime.now(UTC)
     duration = _TIME_RANGE_TO_DURATION[time_range]
@@ -56,9 +58,9 @@ def get_dashboard_metrics(db: Session, time_range: DashboardTimeRange) -> dict[s
     requested_start = now - duration
     requested_end = now
 
-    sessions = db.exec(select(CheckoutSession)).all()
-    products = db.exec(select(Product)).all()
-    competitor_prices = db.exec(select(CompetitorPrice)).all()
+    sessions = list(db.exec(select(CheckoutSession)).all())
+    products = list(db.exec(select(Product)).all())
+    competitor_prices = list(db.exec(select(CompetitorPrice)).all())
 
     window_start, window_end, fallback_applied = _resolve_effective_window(
         sessions=sessions,
@@ -73,14 +75,18 @@ def get_dashboard_metrics(db: Session, time_range: DashboardTimeRange) -> dict[s
     previous_sessions = _sessions_in_window(sessions, previous_start, previous_end)
 
     current_completed = [s for s in current_sessions if _is_completed_status(s.status)]
-    previous_completed = [s for s in previous_sessions if _is_completed_status(s.status)]
+    previous_completed = [
+        s for s in previous_sessions if _is_completed_status(s.status)
+    ]
 
     revenue = _sum_revenue(current_completed)
     previous_revenue = _sum_revenue(previous_completed)
     orders = len(current_completed)
     previous_orders = len(previous_completed)
     conversion = _calculate_conversion_rate(current_sessions, current_completed)
-    previous_conversion = _calculate_conversion_rate(previous_sessions, previous_completed)
+    previous_conversion = _calculate_conversion_rate(
+        previous_sessions, previous_completed
+    )
     aov = (revenue / orders) if orders > 0 else 0.0
     previous_aov = (previous_revenue / previous_orders) if previous_orders > 0 else 0.0
 
@@ -195,7 +201,9 @@ def _resolve_effective_window(
     for step in range(1, max_steps + 1):
         candidate_end = requested_start - (duration * (step - 1))
         candidate_start = candidate_end - duration
-        candidate_sessions = _sessions_in_window(sessions, candidate_start, candidate_end)
+        candidate_sessions = _sessions_in_window(
+            sessions, candidate_start, candidate_end
+        )
         if any(_is_completed_status(s.status) for s in candidate_sessions):
             return candidate_start, candidate_end, True
 
@@ -209,17 +217,20 @@ def _extract_total_amount(totals_json: str) -> int:
         return 0
 
     if isinstance(parsed, list):
-        for total_line in parsed:
-            if (
-                isinstance(total_line, dict)
-                and str(total_line.get("type", "")).lower() == "total"
-                and isinstance(total_line.get("amount"), (int, float))
-            ):
-                return int(total_line["amount"])
+        parsed_list = cast(list[Any], parsed)
+        for raw_total_line in parsed_list:
+            if not isinstance(raw_total_line, dict):
+                continue
+            total_line = cast(dict[str, Any], raw_total_line)
+            total_type = total_line.get("type")
+            amount = total_line.get("amount")
+            if str(total_type).lower() == "total" and isinstance(amount, (int, float)):
+                return int(amount)
         return 0
 
     if isinstance(parsed, dict):
-        amount = parsed.get("total")
+        parsed_dict = cast(dict[str, Any], parsed)
+        amount = parsed_dict.get("total")
         if isinstance(amount, (int, float)):
             return int(amount)
 
@@ -309,7 +320,12 @@ def _extract_line_items(line_items_json: str) -> list[dict[str, Any]]:
     except json.JSONDecodeError:
         return []
     if isinstance(parsed, list):
-        return [item for item in parsed if isinstance(item, dict)]
+        items: list[dict[str, Any]] = []
+        parsed_list = cast(list[Any], parsed)
+        for raw_item in parsed_list:
+            if isinstance(raw_item, dict):
+                items.append(cast(dict[str, Any], raw_item))
+        return items
     return []
 
 
@@ -322,7 +338,8 @@ def _build_promotion_breakdown(sessions: list[CheckoutSession]) -> list[dict[str
             promotion = item.get("promotion")
             action = "NO_PROMO"
             if isinstance(promotion, dict):
-                action = str(promotion.get("action", "NO_PROMO"))
+                promotion_dict = cast(dict[str, Any], promotion)
+                action = str(promotion_dict.get("action", "NO_PROMO"))
             counts[action] += 1
             if isinstance(item.get("discount"), (int, float)):
                 savings[action] += int(item["discount"])
@@ -359,7 +376,8 @@ def _is_promotion_failure(promotion: dict[str, Any]) -> bool:
 
     reason_codes = promotion.get("reason_codes")
     if isinstance(reason_codes, list):
-        for code in reason_codes:
+        reason_codes_list = cast(list[Any], reason_codes)
+        for code in reason_codes_list:
             text = str(code).upper()
             if "ERROR" in text or "TIMEOUT" in text:
                 return True
@@ -376,8 +394,9 @@ def _build_agent_outcomes(sessions: list[CheckoutSession]) -> list[dict[str, Any
             promotion = item.get("promotion")
             if not isinstance(promotion, dict):
                 continue
+            promotion_dict = cast(dict[str, Any], promotion)
             promotion_calls += 1
-            if _is_promotion_failure(promotion):
+            if _is_promotion_failure(promotion_dict):
                 promotion_errors += 1
 
     outcomes: list[dict[str, Any]] = [
@@ -420,7 +439,11 @@ def _merge_with_legacy_promotion_outcomes(
 ) -> list[dict[str, Any]]:
     """Backfill promotion outcome from checkout line-item metadata when needed."""
     promotion_index = next(
-        (idx for idx, item in enumerate(aggregated_outcomes) if item.get("agent_type") == "promotion"),
+        (
+            idx
+            for idx, item in enumerate(aggregated_outcomes)
+            if item.get("agent_type") == "promotion"
+        ),
         None,
     )
     if promotion_index is None:

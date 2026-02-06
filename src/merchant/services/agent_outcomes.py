@@ -18,7 +18,12 @@ from src.merchant.middleware.logging import get_request_id
 
 logger = logging.getLogger(__name__)
 
-AGENT_TYPES: tuple[str, ...] = ("promotion", "recommendation", "post_purchase", "search")
+AGENT_TYPES: tuple[str, ...] = (
+    "promotion",
+    "recommendation",
+    "post_purchase",
+    "search",
+)
 
 
 def _to_utc(dt: datetime) -> datetime:
@@ -85,7 +90,9 @@ def record_agent_outcome(
 
     Returns True if the outcome was persisted, False when best-effort recording fails.
     """
-    effective_request_id = request_id if request_id is not None else get_request_id() or None
+    effective_request_id = (
+        request_id if request_id is not None else get_request_id() or None
+    )
 
     try:
         if db is None:
@@ -150,7 +157,9 @@ def summarize_agent_outcomes(
             continue
         aggregate = aggregates[agent_type]
         aggregate["total_calls"] += 1
-        status_value = str(row.status.value if hasattr(row.status, "value") else row.status)
+        status_value = str(
+            row.status.value if hasattr(row.status, "value") else row.status
+        )
         if status_value.startswith("error"):
             aggregate["errors"] += 1
 
@@ -160,7 +169,9 @@ def summarize_agent_outcomes(
         total_calls = int(aggregate["total_calls"])
         errors = int(aggregate["errors"])
         if total_calls > 0:
-            aggregate["success_rate"] = round(((total_calls - errors) / total_calls) * 100, 1)
+            aggregate["success_rate"] = round(
+                ((total_calls - errors) / total_calls) * 100, 1
+            )
             aggregate["source"] = "application"
         ordered.append(aggregate)
 

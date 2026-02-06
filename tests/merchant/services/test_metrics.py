@@ -163,7 +163,9 @@ def test_get_dashboard_metrics_returns_expected_kpis() -> None:
     assert data["recommendation_attribution"]["clicks"] == 0
     assert data["recommendation_attribution"]["purchases"] == 0
     promotion_outcome = next(
-        outcome for outcome in data["agent_outcomes"] if outcome["agent_type"] == "promotion"
+        outcome
+        for outcome in data["agent_outcomes"]
+        if outcome["agent_type"] == "promotion"
     )
     assert promotion_outcome["total_calls"] == 2
     assert promotion_outcome["errors"] == 0
@@ -271,7 +273,9 @@ def test_get_dashboard_metrics_reports_promotion_application_failures() -> None:
     data = get_dashboard_metrics(session, DashboardTimeRange.SEVEN_DAYS)
 
     promotion_outcome = next(
-        outcome for outcome in data["agent_outcomes"] if outcome["agent_type"] == "promotion"
+        outcome
+        for outcome in data["agent_outcomes"]
+        if outcome["agent_type"] == "promotion"
     )
     assert promotion_outcome["total_calls"] == 2
     assert promotion_outcome["errors"] == 1
@@ -341,7 +345,9 @@ def test_get_dashboard_metrics_uses_recorded_agent_outcomes() -> None:
     assert recommendation_outcome["success_rate"] == 50.0
 
     search_outcome = next(
-        outcome for outcome in data["agent_outcomes"] if outcome["agent_type"] == "search"
+        outcome
+        for outcome in data["agent_outcomes"]
+        if outcome["agent_type"] == "search"
     )
     assert search_outcome["source"] == "application"
     assert search_outcome["total_calls"] == 1
@@ -420,7 +426,9 @@ def test_get_dashboard_metrics_reports_recommendation_attribution_funnel() -> No
     engine.dispose()
 
 
-def test_recommendation_attribution_matches_purchase_by_request_id_without_click_session() -> None:
+def test_recommendation_attribution_matches_purchase_by_request_id_without_click_session() -> (
+    None
+):
     """Attributes purchase when click and purchase share request_id/product but not session_id."""
     session, engine = _create_engine()
     now = datetime.now(UTC)

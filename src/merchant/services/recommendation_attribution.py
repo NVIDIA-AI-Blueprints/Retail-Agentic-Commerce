@@ -132,11 +132,9 @@ def summarize_recommendation_attribution(
         select(RecommendationAttributionEvent).where(
             RecommendationAttributionEvent.timestamp >= _to_utc(start),
             RecommendationAttributionEvent.timestamp < _to_utc(end),
-        ).order_by(
-            RecommendationAttributionEvent.timestamp,
-            RecommendationAttributionEvent.id,
         )
     ).all()
+    rows = sorted(rows, key=lambda row: (row.timestamp, row.id or 0))
 
     impressions = 0
     clicks = 0
@@ -153,7 +151,11 @@ def summarize_recommendation_attribution(
     for row in rows:
         event_type = row.event_type
         product_id = row.product_id
-        key_session_request = (row.session_id, product_id, row.recommendation_request_id)
+        key_session_request = (
+            row.session_id,
+            product_id,
+            row.recommendation_request_id,
+        )
         key_request = (
             (row.recommendation_request_id, product_id)
             if row.recommendation_request_id

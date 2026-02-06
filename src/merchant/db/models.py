@@ -205,8 +205,12 @@ class AgentInvocationOutcome(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     timestamp: datetime = Field(default_factory=_utc_now, index=True)
     agent_type: str = Field(index=True)
-    channel: AgentInvocationChannel = Field(default=AgentInvocationChannel.ACP, index=True)
-    status: AgentInvocationStatus = Field(default=AgentInvocationStatus.SUCCESS, index=True)
+    channel: AgentInvocationChannel = Field(
+        default=AgentInvocationChannel.ACP, index=True
+    )
+    status: AgentInvocationStatus = Field(
+        default=AgentInvocationStatus.SUCCESS, index=True
+    )
     latency_ms: int = Field(default=0)
 
     request_id: str | None = Field(default=None, index=True)

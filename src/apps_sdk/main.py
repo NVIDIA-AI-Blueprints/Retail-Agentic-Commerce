@@ -944,19 +944,24 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             latency_ms=int((time.perf_counter() - started) * 1000),
             error_code=error_code,
         )
-        raw_recommendations = (
-            result.get("recommendations")
-            if isinstance(result.get("recommendations"), list)
+        raw_recommendations_value: Any = result.get("recommendations")
+        raw_recommendations: list[dict[str, Any]] = (
+            [
+                cast(dict[str, Any], rec)
+                for rec in cast(list[Any], raw_recommendations_value)
+                if isinstance(rec, dict)
+            ]
+            if isinstance(raw_recommendations_value, list)
             else []
         )
         for index, rec in enumerate(raw_recommendations):
-            if not isinstance(rec, dict):
-                continue
             product_id = rec.get("product_id") or rec.get("productId")
             if not isinstance(product_id, str) or not product_id:
                 continue
             position_value = rec.get("rank")
-            position = int(position_value) if isinstance(position_value, int) else index + 1
+            position = (
+                int(position_value) if isinstance(position_value, int) else index + 1
+            )
             await _record_recommendation_attribution_event(
                 event_type="impression",
                 product_id=product_id,
@@ -1295,7 +1300,9 @@ class RecommendationClickRequest(BaseModel):
 
 
 @app.post("/recommendations/click", tags=["metrics"])
-async def api_recommendation_click(request: RecommendationClickRequest) -> dict[str, bool]:
+async def api_recommendation_click(
+    request: RecommendationClickRequest,
+) -> dict[str, bool]:
     """Track a recommendation click event for attribution analytics."""
     await _record_recommendation_attribution_event(
         event_type="click",
@@ -1811,20 +1818,29 @@ async def api_checkout(request: CartCheckoutRequest) -> dict[str, Any]:
     if result.get("success") is True:
         order_id = str(result.get("orderId") or "")
         for item in request.cart_items:
-            if not isinstance(item, dict):
-                continue
             recommendation_request_id = item.get("recommendationRequestId") or item.get(
                 "recommendation_request_id"
             )
             product_id = item.get("id") or item.get("productId")
-            if not isinstance(recommendation_request_id, str) or not recommendation_request_id:
+            if (
+                not isinstance(recommendation_request_id, str)
+                or not recommendation_request_id
+            ):
                 continue
             if not isinstance(product_id, str) or not product_id:
                 continue
             quantity_raw = item.get("quantity")
-            price_raw = item.get("basePrice") if "basePrice" in item else item.get("base_price")
-            quantity = quantity_raw if isinstance(quantity_raw, int) and quantity_raw > 0 else 1
-            unit_price = price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
+            price_raw = (
+                item.get("basePrice") if "basePrice" in item else item.get("base_price")
+            )
+            quantity = (
+                quantity_raw
+                if isinstance(quantity_raw, int) and quantity_raw > 0
+                else 1
+            )
+            unit_price = (
+                price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
+            )
             position_raw = item.get("recommendationPosition")
             position = position_raw if isinstance(position_raw, int) else None
 
