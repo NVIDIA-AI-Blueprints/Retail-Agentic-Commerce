@@ -40,7 +40,7 @@ export function SearchPromptBar({ value, onChange, onSubmit }: SearchPromptBarPr
           value={value}
           onChange={handleChange}
           placeholder="show me some shoes"
-          className="nv-text-input-element px-4"
+          className="nv-text-input-element px-4 placeholder:text-white/45"
           aria-label="Search query"
         />
       </div>

@@ -16,7 +16,7 @@ export function Navbar() {
     <div className="transparent-header">
       <AppBar
         slotLeft={
-          <Flex align="center" gap="3">
+          <Link href="/" className="inline-flex items-center gap-3">
             <Image
               src="/logo.png"
               alt="NVIDIA Logo"
@@ -28,7 +28,7 @@ export function Navbar() {
             <Text kind="label/semibold/md" className="text-gray-100 hidden sm:block">
               Agentic Commerce
             </Text>
-          </Flex>
+          </Link>
         }
         slotRight={
           <Flex align="center" gap="2">

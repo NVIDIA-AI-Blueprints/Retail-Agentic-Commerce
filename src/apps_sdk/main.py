@@ -11,6 +11,7 @@ import contextlib
 import json
 import logging
 import os
+import time
 from collections import deque
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -147,6 +148,11 @@ class GetRecommendationsInput(BaseModel):
         default=[],
         alias="cartItems",
         description="Current cart items for context",
+    )
+    session_id: str | None = Field(
+        None,
+        alias="sessionId",
+        description="Optional cart/session identifier for attribution tracking",
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
@@ -300,6 +306,11 @@ class GetRecommendationsOutput(BaseModel):
     pipelineTrace: PipelineTraceOutput | None = Field(
         None, alias="pipelineTrace", description="ARAG pipeline trace"
     )
+    recommendationRequestId: str | None = Field(
+        None,
+        alias="recommendationRequestId",
+        description="Identifier for click/purchase attribution across this recommendation set",
+    )
     error: str | None = Field(None, description="Error message if request failed")
 
     model_config = ConfigDict(populate_by_name=True)
@@ -353,6 +364,109 @@ def _recommendations_meta() -> dict[str, Any]:
         "openai/toolInvocation/invoking": "Getting recommendations...",
         "openai/toolInvocation/invoked": "Recommendations ready",
     }
+
+
+def _classify_outcome_status(
+    *,
+    agent_type: str,
+    error_message: str | None,
+) -> tuple[str, str | None]:
+    """Map tool-level error messages to normalized outcome statuses."""
+    if not error_message:
+        return "success", None
+
+    message = error_message.lower()
+    if agent_type == "search" and "no products found" in message:
+        return "success", None
+    if "timeout" in message:
+        return "error_timeout", "timeout"
+    if "unavailable" in message or "connect" in message or "agent error" in message:
+        return "error_upstream", "upstream_error"
+    if "validation" in message:
+        return "error_validation", "validation_error"
+    return "error_internal", "internal_error"
+
+
+async def _record_apps_sdk_outcome(
+    *,
+    agent_type: str,
+    status: str,
+    latency_ms: int,
+    error_code: str | None = None,
+) -> None:
+    """Best-effort metrics handoff to Merchant API for dashboard aggregation."""
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.post(
+                f"{settings.merchant_api_url}/metrics/agent-outcomes",
+                headers={
+                    "Authorization": f"Bearer {settings.merchant_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "agent_type": agent_type,
+                    "channel": "apps_sdk",
+                    "status": status,
+                    "latency_ms": max(latency_ms, 0),
+                    "error_code": error_code,
+                },
+            )
+            if response.status_code >= 400:
+                logger.warning(
+                    "Failed to record %s outcome (status=%d): %s",
+                    agent_type,
+                    response.status_code,
+                    response.text,
+                )
+    except Exception as exc:
+        logger.warning("Unable to record %s outcome: %s", agent_type, exc)
+
+
+async def _record_recommendation_attribution_event(
+    *,
+    event_type: str,
+    product_id: str,
+    session_id: str | None = None,
+    recommendation_request_id: str | None = None,
+    position: int | None = None,
+    order_id: str | None = None,
+    quantity: int = 1,
+    revenue_cents: int = 0,
+    source: str = "apps_sdk",
+) -> None:
+    """Best-effort recording of recommendation attribution events."""
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.post(
+                f"{settings.merchant_api_url}/metrics/recommendation-attribution",
+                headers={
+                    "Authorization": f"Bearer {settings.merchant_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "event_type": event_type,
+                    "product_id": product_id,
+                    "session_id": session_id,
+                    "recommendation_request_id": recommendation_request_id,
+                    "position": position,
+                    "order_id": order_id,
+                    "quantity": max(quantity, 1),
+                    "revenue_cents": max(revenue_cents, 0),
+                    "source": source,
+                },
+            )
+            if response.status_code >= 400:
+                logger.warning(
+                    "Failed to record recommendation attribution event (%s): %s",
+                    event_type,
+                    response.text,
+                )
+    except Exception as exc:
+        logger.warning(
+            "Unable to record recommendation attribution event (%s): %s",
+            event_type,
+            exc,
+        )
 
 
 def _parse_agent_response(raw_result: Any) -> dict[str, Any]:
@@ -680,7 +794,21 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
 
     if tool_name == "search-products":
         payload = SearchProductsInput.model_validate(args)
+        started = time.perf_counter()
         result = await search_products(payload.query, payload.category, payload.limit)
+        error_message = (
+            str(result.get("error")) if result.get("error") is not None else None
+        )
+        status, error_code = _classify_outcome_status(
+            agent_type="search",
+            error_message=error_message,
+        )
+        await _record_apps_sdk_outcome(
+            agent_type="search",
+            status=status,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            error_code=error_code,
+        )
         if result.get("error"):
             return types.ServerResult(
                 types.CallToolResult(
@@ -796,11 +924,47 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
 
     elif tool_name == "get-recommendations":
         payload = GetRecommendationsInput.model_validate(args)
+        recommendation_request_id = f"rec_{uuid4().hex[:12]}"
+        started = time.perf_counter()
         result = await call_recommendation_agent(
             payload.product_id,
             payload.product_name,
             payload.cart_items,
         )
+        error_message = (
+            str(result.get("error")) if result.get("error") is not None else None
+        )
+        status, error_code = _classify_outcome_status(
+            agent_type="recommendation",
+            error_message=error_message,
+        )
+        await _record_apps_sdk_outcome(
+            agent_type="recommendation",
+            status=status,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            error_code=error_code,
+        )
+        raw_recommendations = (
+            result.get("recommendations")
+            if isinstance(result.get("recommendations"), list)
+            else []
+        )
+        for index, rec in enumerate(raw_recommendations):
+            if not isinstance(rec, dict):
+                continue
+            product_id = rec.get("product_id") or rec.get("productId")
+            if not isinstance(product_id, str) or not product_id:
+                continue
+            position_value = rec.get("rank")
+            position = int(position_value) if isinstance(position_value, int) else index + 1
+            await _record_recommendation_attribution_event(
+                event_type="impression",
+                product_id=product_id,
+                session_id=payload.session_id,
+                recommendation_request_id=recommendation_request_id,
+                position=position,
+            )
+        result["recommendationRequestId"] = recommendation_request_id
         rec_count = len(result.get("recommendations", []))
         return types.ServerResult(
             types.CallToolResult(
@@ -1116,6 +1280,32 @@ async def clear_checkout_events() -> dict[str, str]:
 # REST API ENDPOINTS FOR WIDGET
 # =============================================================================
 # These endpoints allow the widget to make direct HTTP calls without MCP/JSON-RPC
+
+
+class RecommendationClickRequest(BaseModel):
+    """Request body for recommendation click tracking."""
+
+    product_id: str = Field(..., alias="productId")
+    recommendation_request_id: str = Field(..., alias="recommendationRequestId")
+    session_id: str | None = Field(None, alias="sessionId")
+    position: int | None = None
+    source: str = Field(default="apps_sdk_widget")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@app.post("/recommendations/click", tags=["metrics"])
+async def api_recommendation_click(request: RecommendationClickRequest) -> dict[str, bool]:
+    """Track a recommendation click event for attribution analytics."""
+    await _record_recommendation_attribution_event(
+        event_type="click",
+        product_id=request.product_id,
+        session_id=request.session_id,
+        recommendation_request_id=request.recommendation_request_id,
+        position=request.position,
+        source=request.source,
+    )
+    return {"recorded": True}
 
 
 class CartAddRequest(BaseModel):
@@ -1617,4 +1807,36 @@ async def api_checkout(request: CartCheckoutRequest) -> dict[str, Any]:
 
     # Process checkout with customer name for personalized post-purchase messages
     result = await checkout(cart_id, customer_name=request.customer_name)
+
+    if result.get("success") is True:
+        order_id = str(result.get("orderId") or "")
+        for item in request.cart_items:
+            if not isinstance(item, dict):
+                continue
+            recommendation_request_id = item.get("recommendationRequestId") or item.get(
+                "recommendation_request_id"
+            )
+            product_id = item.get("id") or item.get("productId")
+            if not isinstance(recommendation_request_id, str) or not recommendation_request_id:
+                continue
+            if not isinstance(product_id, str) or not product_id:
+                continue
+            quantity_raw = item.get("quantity")
+            price_raw = item.get("basePrice") if "basePrice" in item else item.get("base_price")
+            quantity = quantity_raw if isinstance(quantity_raw, int) and quantity_raw > 0 else 1
+            unit_price = price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
+            position_raw = item.get("recommendationPosition")
+            position = position_raw if isinstance(position_raw, int) else None
+
+            await _record_recommendation_attribution_event(
+                event_type="purchase",
+                product_id=product_id,
+                session_id=request.cart_id,
+                recommendation_request_id=recommendation_request_id,
+                position=position,
+                order_id=order_id or None,
+                quantity=quantity,
+                revenue_cents=unit_price * quantity,
+                source="apps_sdk_checkout",
+            )
     return result

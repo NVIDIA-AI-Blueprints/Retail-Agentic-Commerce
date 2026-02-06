@@ -134,6 +134,33 @@ export function App() {
     }
   }, []);
 
+  const trackRecommendationClick = useCallback(
+    async (product: Product) => {
+      if (!product.recommendationRequestId) {
+        return;
+      }
+      try {
+        const apiBaseUrl = getApiBaseUrl();
+        await fetch(`${apiBaseUrl}/recommendations/click`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            productId: product.id,
+            recommendationRequestId: product.recommendationRequestId,
+            sessionId: cartState.cartId || sessionId || undefined,
+            position: product.recommendationPosition,
+            source: product.recommendationSource ?? "apps_sdk_widget",
+          }),
+        });
+      } catch (error) {
+        console.warn("[Widget] Failed to track recommendation click:", error);
+      }
+    },
+    [getApiBaseUrl, cartState.cartId, sessionId]
+  );
+
   // Create or update ACP checkout session
   const syncCheckoutSession = useCallback(
     async (items: CartItem[], currentSessionId: string | null): Promise<{sessionId: string | null; sessionData: ACPSessionResponse | null}> => {
@@ -275,34 +302,50 @@ export function App() {
   }, [acpSession, cartItems, sessionId, isPendingCartUpdate]);
 
   // Add item to cart
-  const handleAddToCart = useCallback((product: Product) => {
-    setCartItems((prev) => {
-      const existingItem = prev.find((item) => item.id === product.id);
-      let newItems: CartItem[];
-      if (existingItem) {
-        newItems = prev.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      } else {
-        newItems = [
-          ...prev,
-          {
-            id: product.id,
-            name: product.name,
-            basePrice: product.basePrice,
-            quantity: 1,
-            variant: product.variant,
-            size: product.size,
-          },
-        ];
-      }
-      // Notify server after state update
-      notifyCartUpdate(newItems);
-      return newItems;
-    });
-  }, [notifyCartUpdate]);
+  const handleAddToCart = useCallback(
+    (product: Product) => {
+      void trackRecommendationClick(product);
+      setCartItems((prev) => {
+        const existingItem = prev.find((item) => item.id === product.id);
+        let newItems: CartItem[];
+        if (existingItem) {
+          newItems = prev.map((item) =>
+            item.id === product.id
+              ? {
+                  ...item,
+                  quantity: item.quantity + 1,
+                  recommendationRequestId:
+                    item.recommendationRequestId ?? product.recommendationRequestId,
+                  recommendationPosition:
+                    item.recommendationPosition ?? product.recommendationPosition,
+                  recommendationSource:
+                    item.recommendationSource ?? product.recommendationSource,
+                }
+              : item
+          );
+        } else {
+          newItems = [
+            ...prev,
+            {
+              id: product.id,
+              name: product.name,
+              basePrice: product.basePrice,
+              quantity: 1,
+              variant: product.variant,
+              size: product.size,
+              recommendationRequestId: product.recommendationRequestId,
+              recommendationPosition: product.recommendationPosition,
+              recommendationSource: product.recommendationSource,
+            },
+          ];
+        }
+        // Notify server after state update
+        notifyCartUpdate(newItems);
+        return newItems;
+      });
+    },
+    [notifyCartUpdate, trackRecommendationClick]
+  );
 
   // Update item quantity
   const handleUpdateQuantity = useCallback(
@@ -343,6 +386,7 @@ export function App() {
   // Navigate to product detail page
   const handleProductClick = useCallback(
     async (product: Product) => {
+      void trackRecommendationClick(product);
       setSelectedProduct(product);
       setCurrentPage("product_detail");
       setProductRecommendations([]);
@@ -360,6 +404,7 @@ export function App() {
             name: item.name,
             price: item.basePrice,
           })),
+          sessionId: cartState.cartId || sessionId || undefined,
         };
         window.parent.postMessage(message, "*");
       } catch (error) {
@@ -367,7 +412,7 @@ export function App() {
         setIsLoadingRecommendations(false);
       }
     },
-    [cartItems]
+    [cartItems, cartState.cartId, sessionId, trackRecommendationClick]
   );
 
   // Handle recommendations response from parent
@@ -392,7 +437,7 @@ export function App() {
         };
         
         const products: Product[] = event.data.recommendations?.length > 0
-          ? event.data.recommendations.map((rec: EnrichedRec) => ({
+          ? event.data.recommendations.map((rec: EnrichedRec, index: number) => ({
               id: rec.productId ?? rec.product_id ?? `prod_${Date.now()}`,
               sku: rec.sku ?? `SKU-${rec.productId ?? rec.product_id}`,
               name: rec.productName ?? rec.product_name ?? "Product",
@@ -401,6 +446,12 @@ export function App() {
               variant: "Default",
               size: "One Size",
               imageUrl: rec.image_url,
+              recommendationRequestId:
+                typeof event.data.recommendationRequestId === "string"
+                  ? (event.data.recommendationRequestId as string)
+                  : undefined,
+              recommendationPosition: typeof rec.rank === "number" ? rec.rank : index + 1,
+              recommendationSource: source,
             }))
           : [];
         
@@ -450,6 +501,7 @@ export function App() {
             name: item.name,
             price: item.basePrice,
           })),
+          sessionId: cartState.cartId || sessionId || undefined,
         };
         console.log("[Widget] Requesting checkout recommendations:", message);
         window.parent.postMessage(message, "*");
@@ -458,18 +510,28 @@ export function App() {
         setIsLoadingCheckoutRecommendations(false);
       }
     }
-  }, [cartItems]);
+  }, [cartItems, cartState.cartId, sessionId]);
 
   // Add to cart with quantity (for product detail page)
   const handleAddToCartWithQuantity = useCallback(
     (product: Product, quantity: number) => {
+      void trackRecommendationClick(product);
       setCartItems((prev) => {
         const existingItem = prev.find((item) => item.id === product.id);
         let newItems: CartItem[];
         if (existingItem) {
           newItems = prev.map((item) =>
             item.id === product.id
-              ? { ...item, quantity: item.quantity + quantity }
+              ? {
+                  ...item,
+                  quantity: item.quantity + quantity,
+                  recommendationRequestId:
+                    item.recommendationRequestId ?? product.recommendationRequestId,
+                  recommendationPosition:
+                    item.recommendationPosition ?? product.recommendationPosition,
+                  recommendationSource:
+                    item.recommendationSource ?? product.recommendationSource,
+                }
               : item
           );
         } else {
@@ -482,6 +544,9 @@ export function App() {
               quantity,
               variant: product.variant,
               size: product.size,
+              recommendationRequestId: product.recommendationRequestId,
+              recommendationPosition: product.recommendationPosition,
+              recommendationSource: product.recommendationSource,
             },
           ];
         }
@@ -490,7 +555,7 @@ export function App() {
         return newItems;
       });
     },
-    [notifyCartUpdate]
+    [notifyCartUpdate, trackRecommendationClick]
   );
 
   // Handle checkout - makes real API calls to the MCP server

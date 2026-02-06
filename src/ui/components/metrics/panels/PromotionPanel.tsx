@@ -52,25 +52,26 @@ export function PromotionPanel({ data, isLoading }: PromotionPanelProps) {
     );
   }
 
-  // Transform data for pie chart
   const pieData = data.map((item) => ({
     label: item.label,
     value: item.count,
     color: item.color,
   }));
 
-  // Calculate total savings
-  const totalSavings = data.reduce((sum, item) => sum + item.totalSavings, 0);
-  const totalPromotions = data
+  const promotionSpend = data.reduce((sum, item) => sum + item.totalSavings, 0);
+  const discountedLineItems = data
     .filter((d) => d.type !== "NO_PROMO")
     .reduce((sum, d) => sum + d.count, 0);
+  const totalLineItems = data.reduce((sum, item) => sum + item.count, 0);
+  const discountCoverage =
+    totalLineItems > 0 ? Math.round((discountedLineItems / totalLineItems) * 100) : 0;
 
   return (
     <div className="chart-container">
-      <h3 className="chart-title">Promotion Breakdown</h3>
+      <h3 className="chart-title">Promotion Impact</h3>
       <GlassPieChart
         data={pieData}
-        formatValue={(v) => `${v} promotions`}
+        formatValue={(v) => `${v} line items`}
         innerRadius={50}
         outerRadius={85}
       />
@@ -80,7 +81,8 @@ export function PromotionPanel({ data, isLoading }: PromotionPanelProps) {
           paddingTop: "16px",
           borderTop: "1px solid rgba(255, 255, 255, 0.08)",
           display: "flex",
-          justifyContent: "space-around",
+          justifyContent: "space-between",
+          gap: "12px",
         }}
       >
         <div style={{ textAlign: "center" }}>
@@ -91,10 +93,10 @@ export function PromotionPanel({ data, isLoading }: PromotionPanelProps) {
               textTransform: "uppercase",
             }}
           >
-            Total Promotions
+            Discounted Items
           </p>
           <p style={{ fontSize: "20px", fontWeight: 700, color: "#76b900" }}>
-            {totalPromotions.toLocaleString()}
+            {discountedLineItems.toLocaleString()}
           </p>
         </div>
         <div style={{ textAlign: "center" }}>
@@ -105,13 +107,35 @@ export function PromotionPanel({ data, isLoading }: PromotionPanelProps) {
               textTransform: "uppercase",
             }}
           >
-            Total Savings
+            Discount Coverage
+          </p>
+          <p style={{ fontSize: "20px", fontWeight: 700, color: "#76b900" }}>{discountCoverage}%</p>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <p
+            style={{
+              fontSize: "10px",
+              color: "rgba(255, 255, 255, 0.5)",
+              textTransform: "uppercase",
+            }}
+          >
+            Promotion Spend
           </p>
           <p style={{ fontSize: "20px", fontWeight: 700, color: "#76b900" }}>
-            {formatCurrency(totalSavings)}
+            {formatCurrency(promotionSpend)}
           </p>
         </div>
       </div>
+      <p
+        style={{
+          marginTop: "12px",
+          fontSize: "11px",
+          color: "rgba(255, 255, 255, 0.55)",
+          textAlign: "center",
+        }}
+      >
+        Promotion spend is the discount amount granted to buyers.
+      </p>
     </div>
   );
 }

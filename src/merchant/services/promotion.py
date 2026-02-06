@@ -21,6 +21,7 @@ All prices are in CENTS (e.g., 2500 = $25.00).
 import asyncio
 import json
 import logging
+import time
 from enum import StrEnum
 from typing import Any, TypedDict
 
@@ -29,6 +30,7 @@ from sqlmodel import Session, select
 
 from src.merchant.config import get_settings
 from src.merchant.db.models import CompetitorPrice, Product
+from src.merchant.services.agent_outcomes import record_agent_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -501,45 +503,68 @@ async def get_promotion_for_product(
     Returns:
         Dictionary with 'discount' (cents), 'action', 'reason_codes', 'reasoning'.
     """
-    # Layer 1: Compute context
-    context = compute_promotion_context(db, product)
+    started = time.perf_counter()
+    status = "success"
+    error_code: str | None = None
 
-    # Layer 2: Call agent
-    decision = await call_promotion_agent(context, client)
+    try:
+        # Layer 1: Compute context
+        context = compute_promotion_context(db, product)
 
-    # Default to NO_PROMO if agent unavailable
-    if decision is None:
-        action = PromotionAction.NO_PROMO.value
-        reason_codes: list[str] = []
-        reasoning = "Agent unavailable, no discount applied"
-    else:
-        action = decision["action"]
-        reason_codes = decision["reason_codes"]
-        reasoning = decision["reasoning"]
+        # Layer 2: Call agent
+        decision = await call_promotion_agent(context, client)
 
-    # Layer 3: Apply action
-    discount = apply_promotion_action(product.base_price, action)
+        # Default to NO_PROMO if agent unavailable
+        if decision is None:
+            status = "fallback_success"
+            error_code = "agent_unavailable"
+            action = PromotionAction.NO_PROMO.value
+            reason_codes: list[str] = []
+            reasoning = "Agent unavailable, no discount applied"
+        else:
+            action = decision["action"]
+            reason_codes = decision["reason_codes"]
+            reasoning = decision["reasoning"]
 
-    # Final validation (fail closed if discount violates margin)
-    if not validate_discount_against_margin(
-        product.base_price, discount, product.min_margin
-    ):
-        logger.warning(
-            "Discount %d violates margin for product %s, reverting to NO_PROMO",
-            discount,
-            product.id,
+        # Layer 3: Apply action
+        discount = apply_promotion_action(product.base_price, action)
+
+        # Final validation (fail closed if discount violates margin)
+        if not validate_discount_against_margin(
+            product.base_price, discount, product.min_margin
+        ):
+            logger.warning(
+                "Discount %d violates margin for product %s, reverting to NO_PROMO",
+                discount,
+                product.id,
+            )
+            status = "fallback_success"
+            error_code = "margin_protected"
+            discount = 0
+            action = PromotionAction.NO_PROMO.value
+            reason_codes = ["MARGIN_PROTECTED"]
+            reasoning = "Discount reverted to protect margin constraint"
+
+        return {
+            "discount": discount,
+            "action": action,
+            "reason_codes": reason_codes,
+            "reasoning": reasoning,
+        }
+    except Exception:
+        status = "error_internal"
+        error_code = "internal_exception"
+        raise
+    finally:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        record_agent_outcome(
+            agent_type="promotion",
+            channel="acp",
+            status=status,
+            latency_ms=latency_ms,
+            session_id=None,
+            error_code=error_code,
         )
-        discount = 0
-        action = PromotionAction.NO_PROMO.value
-        reason_codes = ["MARGIN_PROTECTED"]
-        reasoning = "Discount reverted to protect margin constraint"
-
-    return {
-        "discount": discount,
-        "action": action,
-        "reason_codes": reason_codes,
-        "reasoning": reasoning,
-    }
 
 
 async def get_promotions_for_products(

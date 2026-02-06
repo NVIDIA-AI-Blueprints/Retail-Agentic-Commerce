@@ -21,6 +21,33 @@ class CheckoutStatus(StrEnum):
     CANCELED = "canceled"
 
 
+class AgentInvocationStatus(StrEnum):
+    """Normalized status for recorded agent invocations."""
+
+    SUCCESS = "success"
+    FALLBACK_SUCCESS = "fallback_success"
+    ERROR_TIMEOUT = "error_timeout"
+    ERROR_UPSTREAM = "error_upstream"
+    ERROR_VALIDATION = "error_validation"
+    ERROR_INTERNAL = "error_internal"
+
+
+class AgentInvocationChannel(StrEnum):
+    """Invocation channel for agent calls."""
+
+    ACP = "acp"
+    APPS_SDK = "apps_sdk"
+    UCP = "ucp"
+
+
+class RecommendationAttributionEventType(StrEnum):
+    """Lifecycle events for recommendation attribution."""
+
+    IMPRESSION = "impression"
+    CLICK = "click"
+    PURCHASE = "purchase"
+
+
 class Customer(SQLModel, table=True):
     """Customer model representing shoppers in the system.
 
@@ -168,3 +195,41 @@ class CheckoutSession(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_utc_now)
     updated_at: datetime = Field(default_factory=_utc_now)
     expires_at: datetime | None = Field(default=None)
+
+
+class AgentInvocationOutcome(SQLModel, table=True):
+    """Recorded outcome for each agent invocation."""
+
+    __tablename__: ClassVar[str] = "agent_invocation_outcome"  # type: ignore[assignment]
+
+    id: int | None = Field(default=None, primary_key=True)
+    timestamp: datetime = Field(default_factory=_utc_now, index=True)
+    agent_type: str = Field(index=True)
+    channel: AgentInvocationChannel = Field(default=AgentInvocationChannel.ACP, index=True)
+    status: AgentInvocationStatus = Field(default=AgentInvocationStatus.SUCCESS, index=True)
+    latency_ms: int = Field(default=0)
+
+    request_id: str | None = Field(default=None, index=True)
+    session_id: str | None = Field(default=None, index=True)
+    error_code: str | None = Field(default=None, index=True)
+
+
+class RecommendationAttributionEvent(SQLModel, table=True):
+    """Recommendation attribution event for conversion funnel analytics."""
+
+    __tablename__: ClassVar[str] = "recommendation_attribution_event"  # type: ignore[assignment]
+
+    id: int | None = Field(default=None, primary_key=True)
+    timestamp: datetime = Field(default_factory=_utc_now, index=True)
+    event_type: RecommendationAttributionEventType = Field(
+        default=RecommendationAttributionEventType.IMPRESSION,
+        index=True,
+    )
+    session_id: str | None = Field(default=None, index=True)
+    recommendation_request_id: str | None = Field(default=None, index=True)
+    product_id: str = Field(index=True)
+    position: int | None = Field(default=None)
+    order_id: str | None = Field(default=None, index=True)
+    quantity: int = Field(default=1)
+    revenue_cents: int = Field(default=0)
+    source: str = Field(default="apps_sdk", index=True)

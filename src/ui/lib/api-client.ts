@@ -13,6 +13,8 @@ import type {
   DelegatePaymentRequest,
   DelegatePaymentResponse,
   APIError,
+  TimeRange,
+  MetricsDashboardAPIResponse,
 } from "@/types";
 
 // =============================================================================
@@ -201,6 +203,20 @@ export async function cancelCheckout(sessionId: string): Promise<CheckoutSession
   });
 
   return handleResponse<CheckoutSessionResponse>(response);
+}
+
+/**
+ * Get aggregated metrics dashboard data.
+ */
+export async function getMetricsDashboard(
+  timeRange: TimeRange
+): Promise<MetricsDashboardAPIResponse> {
+  const response = await fetch(`${API_URL}/metrics/dashboard?time_range=${timeRange}`, {
+    method: "GET",
+    headers: getMerchantHeaders(),
+  });
+
+  return handleResponse<MetricsDashboardAPIResponse>(response);
 }
 
 // =============================================================================

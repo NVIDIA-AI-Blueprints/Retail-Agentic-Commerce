@@ -5,6 +5,7 @@ import { MetricsHeader } from "./MetricsHeader";
 import { KPIPanel } from "./panels/KPIPanel";
 import { RevenuePanel } from "./panels/RevenuePanel";
 import { AgentPerformancePanel } from "./panels/AgentPerformancePanel";
+import { RecommendationAttributionPanel } from "./panels/RecommendationAttributionPanel";
 import { PromotionPanel } from "./panels/PromotionPanel";
 import { ProductHealthPanel } from "./panels/ProductHealthPanel";
 
@@ -20,6 +21,7 @@ export function MetricsDashboard() {
     kpis,
     revenueData,
     agentPerformance,
+    recommendationAttribution,
     promotionBreakdown,
     productHealth,
   } = state;
@@ -46,6 +48,8 @@ export function MetricsDashboard() {
         <AgentPerformancePanel data={agentPerformance} isLoading={isLoading} />
         <PromotionPanel data={promotionBreakdown} isLoading={isLoading} />
       </div>
+
+      <RecommendationAttributionPanel data={recommendationAttribution} isLoading={isLoading} />
 
       {/* Product Health Table */}
       <ProductHealthPanel data={productHealth} isLoading={isLoading} />

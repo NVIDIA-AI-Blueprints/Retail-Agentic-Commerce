@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.merchant.api.routes.checkout import router as checkout_router
 from src.merchant.api.routes.health import router as health_router
+from src.merchant.api.routes.metrics import router as metrics_router
 from src.merchant.api.routes.products import router as products_router
 from src.merchant.api.routes.ucp.a2a import router as ucp_a2a_router
 from src.merchant.api.routes.ucp.agent_card import router as ucp_agent_card_router
@@ -102,6 +103,7 @@ app.add_middleware(RequestLoggingMiddleware)
 # Include routers
 app.include_router(health_router)
 app.include_router(checkout_router)
+app.include_router(metrics_router)
 app.include_router(products_router)
 app.include_router(ucp_discovery_router)
 app.include_router(ucp_checkout_router)

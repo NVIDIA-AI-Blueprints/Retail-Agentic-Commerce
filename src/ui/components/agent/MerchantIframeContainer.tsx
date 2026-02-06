@@ -273,6 +273,7 @@ export function MerchantIframeContainer({
       productName: string;
       cartItems: Array<{ productId: string; name: string; price: number }>;
       source?: string;
+      sessionId?: string;
     }) => {
       const source = data.source || "product_detail";
       // Record start time for minimum delay calculation
@@ -315,6 +316,7 @@ export function MerchantIframeContainer({
           productId: data.productId,
           productName: data.productName,
           cartItems: data.cartItems,
+          sessionId: data.sessionId,
         });
 
         // Parse the result - ensure recommendations is an array
@@ -377,6 +379,10 @@ export function MerchantIframeContainer({
         const messageToSend = {
           type: "RECOMMENDATIONS_RESULT",
           source,
+          recommendationRequestId:
+            typeof result?.recommendationRequestId === "string"
+              ? result.recommendationRequestId
+              : undefined,
           recommendations: rawRecommendations,
           userIntent,
           pipelineTrace: rawPipelineTrace,
@@ -429,6 +435,7 @@ export function MerchantIframeContainer({
           productName: string;
           cartItems: Array<{ productId: string; name: string; price: number }>;
           source?: string;
+          sessionId?: string;
         } = {
           productId: message.productId as string,
           productName: message.productName as string,
@@ -437,6 +444,9 @@ export function MerchantIframeContainer({
         };
         if (message.source) {
           requestData.source = message.source as string;
+        }
+        if (message.sessionId) {
+          requestData.sessionId = message.sessionId as string;
         }
         handleRecommendationRequest(requestData);
         return;

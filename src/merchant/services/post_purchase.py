@@ -20,12 +20,14 @@ Designed for integration with Feature 11 (Webhook Integration).
 import asyncio
 import json
 import logging
+import time
 from enum import StrEnum
 from typing import TypedDict
 
 import httpx
 
 from src.merchant.config import get_settings
+from src.merchant.services.agent_outcomes import record_agent_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -419,31 +421,53 @@ async def generate_shipping_message(
     Returns:
         ShippingMessageResponse with generated or fallback message.
     """
-    if client is None:
-        settings = get_settings()
-        # Use post_purchase_agent_url if configured, otherwise fallback
-        agent_url = getattr(settings, "post_purchase_agent_url", None)
-        if agent_url:
-            client = get_post_purchase_client(
-                agent_url,
-                getattr(settings, "post_purchase_agent_timeout", 15.0),
-            )
-        else:
+    started = time.perf_counter()
+    status = "success"
+    error_code: str | None = None
+
+    try:
+        if client is None:
+            settings = get_settings()
+            # Use post_purchase_agent_url if configured, otherwise fallback
+            agent_url = getattr(settings, "post_purchase_agent_url", None)
+            if agent_url:
+                client = get_post_purchase_client(
+                    agent_url,
+                    getattr(settings, "post_purchase_agent_timeout", 15.0),
+                )
+            else:
+                logger.info(
+                    "Post-purchase agent URL not configured, using fallback template"
+                )
+                status = "fallback_success"
+                error_code = "agent_not_configured"
+                return get_fallback_message(request)
+
+        response = await client.generate_message(request)
+
+        if response is None:
             logger.info(
-                "Post-purchase agent URL not configured, using fallback template"
+                "Post-purchase agent unavailable for order %s, using fallback template",
+                request["order"]["order_id"],
             )
+            status = "fallback_success"
+            error_code = "agent_unavailable"
             return get_fallback_message(request)
 
-    response = await client.generate_message(request)
-
-    if response is None:
-        logger.info(
-            "Post-purchase agent unavailable for order %s, using fallback template",
-            request["order"]["order_id"],
+        return response
+    except Exception:
+        status = "error_internal"
+        error_code = "internal_exception"
+        raise
+    finally:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        record_agent_outcome(
+            agent_type="post_purchase",
+            channel="acp",
+            status=status,
+            latency_ms=latency_ms,
+            error_code=error_code,
         )
-        return get_fallback_message(request)
-
-    return response
 
 
 async def generate_shipping_messages_batch(

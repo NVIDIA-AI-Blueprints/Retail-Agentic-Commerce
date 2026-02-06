@@ -46,56 +46,65 @@ export function AgentPerformancePanel({ data, isLoading }: AgentPerformancePanel
               letterSpacing: "0.5px",
             }}
           >
-            Success Rate
+            App Success Rate
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {data.map((agent) => (
-              <div
-                key={agent.agentType}
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                <span
-                  style={{
-                    fontSize: "11px",
-                    color: "rgba(255, 255, 255, 0.6)",
-                    width: "90px",
-                    flexShrink: 0,
-                  }}
-                >
-                  {agent.label.replace(" Agent", "")}
-                </span>
+            {data.map((agent) => {
+              const hasSuccessRate = agent.successRate !== null;
+              const successRate = agent.successRate ?? 0;
+              const barWidth = hasSuccessRate
+                ? `${Math.max(0, Math.min(successRate, 100))}%`
+                : "100%";
+              return (
                 <div
-                  style={{
-                    flex: 1,
-                    height: "12px",
-                    background: "rgba(255, 255, 255, 0.06)",
-                    borderRadius: "6px",
-                    overflow: "hidden",
-                  }}
+                  key={agent.agentType}
+                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
                 >
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      color: "rgba(255, 255, 255, 0.6)",
+                      width: "90px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {agent.label.replace(" Agent", "")}
+                  </span>
                   <div
                     style={{
-                      width: `${agent.successRate}%`,
-                      height: "100%",
-                      background: `linear-gradient(90deg, #76b900, #5a9200)`,
+                      flex: 1,
+                      height: "12px",
+                      background: "rgba(255, 255, 255, 0.06)",
                       borderRadius: "6px",
-                      transition: "width 800ms ease",
+                      overflow: "hidden",
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        width: barWidth,
+                        height: "100%",
+                        background: hasSuccessRate
+                          ? "linear-gradient(90deg, #76b900, #5a9200)"
+                          : "linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08))",
+                        borderRadius: "6px",
+                        transition: "width 800ms ease",
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "rgba(255, 255, 255, 0.9)",
+                      width: "48px",
+                      textAlign: "right",
+                    }}
+                  >
+                    {hasSuccessRate ? `${successRate.toFixed(1)}%` : "N/A"}
+                  </span>
                 </div>
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "rgba(255, 255, 255, 0.9)",
-                    width: "48px",
-                    textAlign: "right",
-                  }}
-                >
-                  {agent.successRate.toFixed(1)}%
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -115,7 +124,7 @@ export function AgentPerformancePanel({ data, isLoading }: AgentPerformancePanel
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {data.map((agent) => {
               const maxLatency = Math.max(...data.map((d) => d.avgLatency));
-              const widthPercent = (agent.avgLatency / maxLatency) * 100;
+              const widthPercent = maxLatency > 0 ? (agent.avgLatency / maxLatency) * 100 : 0;
               return (
                 <div
                   key={agent.agentType}

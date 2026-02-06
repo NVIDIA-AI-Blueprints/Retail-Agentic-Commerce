@@ -15,5 +15,6 @@ export { GlassPieChart } from "./charts/GlassPieChart";
 export { KPIPanel } from "./panels/KPIPanel";
 export { RevenuePanel } from "./panels/RevenuePanel";
 export { AgentPerformancePanel } from "./panels/AgentPerformancePanel";
+export { RecommendationAttributionPanel } from "./panels/RecommendationAttributionPanel";
 export { PromotionPanel } from "./panels/PromotionPanel";
 export { ProductHealthPanel } from "./panels/ProductHealthPanel";

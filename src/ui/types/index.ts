@@ -969,7 +969,7 @@ export interface RevenueDataPoint {
 export interface AgentPerformanceData {
   agentType: AgentType;
   label: string;
-  successRate: number;
+  successRate: number | null;
   avgLatency: number;
   totalCalls: number;
   errors: number;
@@ -1003,6 +1003,129 @@ export interface ProductHealthData {
 }
 
 /**
+ * Recommendation attribution top product row.
+ */
+export interface RecommendationAttributionTopProductData {
+  productId: string;
+  productName: string;
+  clicks: number;
+  purchases: number;
+  conversionRate: number | null;
+  attributedRevenue: number;
+}
+
+/**
+ * Recommendation attribution funnel metrics.
+ */
+export interface RecommendationAttributionData {
+  impressions: number;
+  clicks: number;
+  purchases: number;
+  clickThroughRate: number | null;
+  conversionRate: number | null;
+  attributedRevenue: number;
+  topProducts: RecommendationAttributionTopProductData[];
+}
+
+/**
+ * Merchant metrics API KPI payload.
+ */
+export interface MetricsAPIKPI {
+  id: string;
+  label: string;
+  value: number;
+  previous_value: number;
+  format: "currency" | "number" | "percent" | "duration";
+  trend: "up" | "down" | "neutral";
+  trend_value: number;
+}
+
+/**
+ * Merchant metrics API promotion payload.
+ */
+export interface MetricsAPIPromotionBreakdown {
+  type: string;
+  label: string;
+  count: number;
+  total_savings: number;
+}
+
+/**
+ * Merchant metrics API product health payload.
+ */
+export interface MetricsAPIProductHealth {
+  id: string;
+  name: string;
+  sku: string;
+  stock_level: number;
+  stock_status: "healthy" | "low" | "critical";
+  base_price: number;
+  competitor_price?: number;
+  price_position: "above" | "at" | "below" | "unknown";
+  needs_attention: boolean;
+  attention_reason?: string;
+}
+
+/**
+ * Merchant metrics API effective window payload.
+ */
+export interface MetricsAPIEffectiveWindow {
+  requested_time_range: TimeRange;
+  start: string;
+  end: string;
+  fallback_applied: boolean;
+}
+
+/**
+ * Merchant metrics API application-level agent outcome payload.
+ */
+export interface MetricsAPIAgentOutcome {
+  agent_type: AgentType;
+  total_calls: number;
+  errors: number;
+  success_rate: number | null;
+  source: "application" | "unavailable";
+}
+
+/**
+ * Merchant metrics API recommendation attribution top product payload.
+ */
+export interface MetricsAPIRecommendationTopProduct {
+  product_id: string;
+  product_name: string;
+  clicks: number;
+  purchases: number;
+  conversion_rate: number | null;
+  attributed_revenue: number;
+}
+
+/**
+ * Merchant metrics API recommendation attribution payload.
+ */
+export interface MetricsAPIRecommendationAttribution {
+  impressions: number;
+  clicks: number;
+  purchases: number;
+  click_through_rate: number | null;
+  conversion_rate: number | null;
+  attributed_revenue: number;
+  top_products: MetricsAPIRecommendationTopProduct[];
+}
+
+/**
+ * Merchant metrics API dashboard response payload.
+ */
+export interface MetricsDashboardAPIResponse {
+  effective_window: MetricsAPIEffectiveWindow;
+  kpis: MetricsAPIKPI[];
+  revenue_data: RevenueDataPoint[];
+  agent_outcomes: MetricsAPIAgentOutcome[];
+  recommendation_attribution: MetricsAPIRecommendationAttribution;
+  promotion_breakdown: MetricsAPIPromotionBreakdown[];
+  product_health: MetricsAPIProductHealth[];
+}
+
+/**
  * Phoenix trace data from telemetry
  */
 export interface PhoenixTraceData {
@@ -1026,6 +1149,7 @@ export interface MetricsState {
   kpis: KPIData[];
   revenueData: RevenueDataPoint[];
   agentPerformance: AgentPerformanceData[];
+  recommendationAttribution: RecommendationAttributionData;
   promotionBreakdown: PromotionBreakdownData[];
   productHealth: ProductHealthData[];
 }

@@ -15,6 +15,9 @@ export interface Product {
   variant?: string;
   size?: string;
   imageUrl?: string;
+  recommendationRequestId?: string;
+  recommendationPosition?: number;
+  recommendationSource?: string;
 }
 
 // =============================================================================
@@ -44,6 +47,9 @@ export interface CartItem {
   variant?: string;
   size?: string;
   imageUrl?: string;
+  recommendationRequestId?: string;
+  recommendationPosition?: number;
+  recommendationSource?: string;
 }
 
 /**
