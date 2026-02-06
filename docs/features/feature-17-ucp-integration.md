@@ -2,7 +2,7 @@
 
 **Priority**: P1
 
-**Status**: 🟡 In Progress (Phase 3 Complete)
+**Status**: 🟡 In Progress (Phase 4 Complete)
 
 **Dependencies**: Features 3, 4, 5, 6, 7, 8
 
@@ -14,6 +14,8 @@ Implement the **Universal Commerce Protocol (UCP)** alongside the existing ACP i
 
 This feature adds UCP-compliant endpoints that share the same intelligent agent layer (NAT agents) and backend services with ACP, showcasing how merchants can support multiple protocols simultaneously without duplicating business logic.
 
+> **Transport Decision:** UCP integration uses **A2A (Agent-to-Agent) transport only**. The UCP spec defines multiple transports (REST, A2A, MCP, Embedded); this implementation uses A2A exclusively as it is the natural fit for agent-to-agent communication. The REST transport was removed after Phase 4 to keep the implementation focused.
+
 > **Note:** UCP integration focuses on the **native merchant backend flow** only. The Apps SDK mode continues to use ACP exclusively.
 
 ---
@@ -23,20 +25,11 @@ This feature adds UCP-compliant endpoints that share the same intelligent agent 
 | Phase | Description | Status |
 |-------|-------------|--------|
 | **Phase 1** | Discovery Endpoint (`GET /.well-known/ucp`) | ✅ Complete |
-| **Phase 2** | Checkout Endpoints (REST) + Checkout-Only Capability Negotiation | ✅ Complete |
+| **Phase 2** | A2A Checkout + Checkout-Only Capability Negotiation | ✅ Complete |
 | **Phase 3** | A2A Transport (JSON-RPC 2.0) | ✅ Complete |
-| **Phase 4** | Full Capability Negotiation (extension pruning) | 🔲 Planned |
+| **Phase 4** | Full Capability Negotiation (extension pruning) + REST removal | ✅ Complete |
 | **Phase 5** | Frontend Protocol Toggle | 🔲 Planned |
 | **Phase 6** | Fulfillment Extension (`dev.ucp.shopping.fulfillment`) | 🔲 Planned |
-
-### Phase 2 Scope Notes
-
-Phase 2 includes **real capability negotiation** but limited to `dev.ucp.shopping.checkout` only:
-- Fetch platform profile from `UCP-Agent` header
-- Compute intersection for checkout capability
-- In-memory profile caching (5-15 min TTL)
-- Minimal response shape: `ucp`, `id`, `status`, `currency`, `line_items`, `totals`, `messages`
-- Skip `fulfillment`, `payment`, `order`, `links`, `continue_url` until later phases
 
 ### Phase 6: Fulfillment Extension (Deferred)
 
@@ -46,7 +39,7 @@ The `dev.ucp.shopping.fulfillment` extension requires modeling:
 - **Fulfillment Options**: Selectable shipping options with pricing (`totals[]`)
 - **Option Selection**: `selected_destination_id`, `selected_option_id` handling
 
-This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising unsupported capability surface.
+This is deferred until Phase 6 to keep scope tight and avoid advertising unsupported capability surface.
 
 ### Phase 1 Deliverables (Complete)
 
@@ -55,29 +48,14 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 | `src/merchant/api/routes/ucp/discovery.py` | Discovery endpoint (public, no auth) |
 | `src/merchant/api/ucp_schemas.py` | Pydantic schemas for UCP profile |
 | `src/merchant/services/ucp.py` | `build_business_profile()` helper |
-| `src/merchant/config.py` | 9 new UCP configuration fields |
+| `src/merchant/config.py` | UCP configuration fields |
 | `src/merchant/main.py` | Register UCP discovery router |
 | `tests/merchant/api/test_ucp_discovery.py` | 11 unit tests |
 | `AGENTS.md`, `README.md`, `env.example` | Documentation updates |
 
 - Ruff linting and Pyright type checking passed
 
-### Phase 2 Deliverables (Complete)
-
-| File | Description |
-|------|-------------|
-| `src/merchant/api/routes/ucp/checkout.py` | UCP checkout REST endpoints (create, get, update, complete, cancel) |
-| `src/merchant/api/ucp_schemas.py` | Extended with checkout request/response schemas |
-| `src/merchant/services/ucp.py` | Capability negotiation, profile caching, transformations |
-| `src/merchant/db/models.py` | Added `protocol` field to CheckoutSession |
-| `tests/merchant/api/test_ucp_checkout.py` | Unit tests for endpoints and negotiation |
-
-- Real capability negotiation (checkout-only)
-- In-memory profile caching (10 min TTL)
-- Spec-aligned error codes (400, 422, 424)
-- Ruff linting and Pyright type checking passed
-
-### Phase 3 Deliverables (Complete)
+### Phase 2-3 Deliverables (Complete)
 
 | File | Description |
 |------|-------------|
@@ -85,7 +63,9 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 | `src/merchant/api/routes/ucp/agent_card.py` | Agent Card discovery (`GET /.well-known/agent-card.json`) |
 | `src/merchant/api/a2a_schemas.py` | Pydantic schemas for A2A messages and parts |
 | `src/merchant/services/a2a.py` | A2A service layer: action routing, context management, idempotency, agent card builder |
-| `src/merchant/services/ucp.py` | Updated `build_business_profile()` with A2A transport + `spec` fields |
+| `src/merchant/api/ucp_schemas.py` | Extended with checkout request/response schemas |
+| `src/merchant/services/ucp.py` | Capability negotiation, profile caching, transformations |
+| `src/merchant/db/models.py` | Added `protocol` field to CheckoutSession |
 | `src/merchant/main.py` | Registered A2A and Agent Card routers |
 | `tests/merchant/api/test_ucp_a2a.py` | 21 unit tests covering all actions and error cases |
 
@@ -95,7 +75,32 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 - contextId-to-session mapping for multi-turn conversations
 - messageId-based idempotency via existing `IdempotencyStore`
 - Agent Card with map-keyed capabilities per `checkout-a2a.md`
-- UCP discovery updated with A2A transport entry (version + spec fields)
+- Real capability negotiation (checkout-only in Phase 2, full in Phase 4)
+- In-memory profile caching (10 min TTL)
+- Ruff linting and Pyright type checking passed
+
+### Phase 4 Deliverables (Complete)
+
+| File | Description |
+|------|-------------|
+| `src/merchant/api/ucp_schemas.py` | Multi-parent extends, UCPMessageSeverity + severity field, payment_handlers in UCPResponseMetadata |
+| `src/merchant/services/ucp.py` | NegotiationFailureError, full intersection with per-cap version compat, iterative extension pruning, response filtering, severity mapping, payment_handlers param; A2A-only discovery (REST transport removed) |
+| `src/merchant/config.py` | Added ucp_continue_url setting; removed ucp_service_path (was REST-only) |
+| `src/merchant/services/a2a.py` | negotiate_a2a_capabilities returns tuple, NegotiationFailureError support, payment_handlers through dispatch chain |
+| `src/merchant/api/routes/ucp/a2a.py` | NegotiationFailureError -> JSON-RPC result (not error), payment_handlers unpacking |
+| `tests/merchant/api/test_ucp_negotiation.py` | 24 unit tests: intersection, pruning, multi-parent, transitive, filtering, version compat, failure paths, severity, payment_handlers |
+| `tests/merchant/api/test_ucp_a2a.py` | Updated response shape assertions for payment_handlers, A2A-only discovery |
+| `tests/merchant/api/test_ucp_discovery.py` | Updated for A2A-only transport |
+
+- Spec-compliant three-step intersection algorithm (intersection, iterative pruning, response filtering)
+- Negotiation failure responses return JSON-RPC result per spec (CAPABILITIES_INCOMPATIBLE, VERSION_UNSUPPORTED)
+- Discovery failures remain as JSON-RPC errors
+- Per-capability version compatibility checks
+- Multi-parent extension support (str | list[str])
+- Severity field populated on all error messages
+- Payment handlers included in every checkout response
+- **REST transport removed** -- UCP uses A2A transport exclusively
+- Deleted: `src/merchant/api/routes/ucp/checkout.py`, `tests/merchant/api/test_ucp_checkout.py`
 - Ruff linting and Pyright type checking passed
 
 ---
@@ -112,9 +117,9 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 │  └────────────────┴────────────────┘                                    │
 │                                                                          │
 │  When ACP selected:                    When UCP selected:                │
-│  - POST /checkout_sessions             - POST /checkout-sessions         │
+│  - POST /checkout_sessions             - POST /a2a (JSON-RPC 2.0)       │
 │  - ACP status values                   - UCP status values               │
-│  - ACP response format                 - UCP response with A2A/ucp obj   │
+│  - ACP response format                 - UCP response via A2A DataPart   │
 │                                                                          │
 │  ✓ Same client agent UI                ✓ Same client agent UI           │
 │  ✓ Same NAT agents (Promo/Reco/Post)   ✓ Same NAT agents                │
@@ -125,6 +130,7 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 **Key Points:**
 - **Client Agent flow is unchanged** - same product cards, checkout modal, shipping selection
 - **Toggle switches backend protocol** - Merchant Panel tab determines which endpoints are called
+- **UCP uses A2A transport** - all checkout operations go through `POST /a2a` with JSON-RPC 2.0
 - **Merchant Activity Panel visualization** - shows ACP or UCP protocol events based on active tab
 - **Agents and payments are shared** - same NAT agents, same PSP vault tokens
 
@@ -134,12 +140,11 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 
 1. Implement UCP v2026-01-11 specification alongside existing ACP v2026-01-16
 2. Add UCP discovery endpoint for profile negotiation
-3. Create UCP-specific checkout endpoints with hyphenated paths
-4. Add A2A transport support for agent-to-agent communication
-5. Implement capability negotiation with platform profiles
-6. Add UCP tab to Merchant Activity Panel for protocol event visualization
-7. Ensure NAT agents serve both protocols through shared business logic layer
-8. Support UCP payment handler specifications
+3. Implement A2A transport for agent-to-agent UCP communication (JSON-RPC 2.0)
+4. Implement capability negotiation with platform profiles
+5. Add UCP tab to Merchant Activity Panel for protocol event visualization
+6. Ensure NAT agents serve both protocols through shared business logic layer
+7. Support UCP payment handler specifications
 
 ---
 
@@ -148,8 +153,8 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 ### In Scope
 - **Protocol toggle** in Merchant Activity Panel (ACP ↔ UCP tabs)
 - UCP discovery endpoint (`GET /.well-known/ucp`)
-- UCP checkout session endpoints (hyphenated: `/checkout-sessions`)
-- **A2A transport** for agent-to-agent communication (JSON-RPC 2.0)
+- **A2A transport** for agent-to-agent communication (JSON-RPC 2.0) -- sole UCP transport
+- Agent Card discovery (`GET /.well-known/agent-card.json`)
 - Capability negotiation algorithm (intersection, extension pruning)
 - UCP-specific status values (`incomplete`, `requires_escalation`, `ready_for_complete`, `complete_in_progress`, `completed`, `canceled`)
 - `continue_url` handoff rules for `requires_escalation`
@@ -165,6 +170,7 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 - Ruff linting and Pyright type checking compliance
 
 ### Out of Scope
+- UCP REST transport (intentionally excluded -- A2A only)
 - UCP Cart capability (future enhancement)
 - UCP Order capability (future enhancement)
 - UCP Identity Linking (OAuth) capability
@@ -189,8 +195,8 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 │  │   ACP Endpoints      │     │   UCP Endpoints          │ │
 │  │                      │     │                          │ │
 │  │  /checkout_sessions  │     │  /.well-known/ucp        │ │
-│  │  (underscore)        │     │  /checkout-sessions      │ │
-│  │                      │     │  (hyphen)                │ │
+│  │  (REST)              │     │  /.well-known/agent-card │ │
+│  │                      │     │  /a2a (JSON-RPC 2.0)     │ │
 │  │  Header:             │     │  Header:                 │ │
 │  │  API-Version         │     │  UCP-Agent: profile="..." │ │
 │  └──────────┬───────────┘     └──────────┬───────────────┘ │
@@ -232,66 +238,49 @@ This is deferred until Phase 6 to keep Phase 2 scope tight and avoid advertising
 | Endpoint | Method | Purpose | Headers |
 |----------|--------|---------|---------|
 | `/.well-known/ucp` | GET | UCP profile discovery | None |
-| `/checkout-sessions` | POST | Create UCP checkout | `UCP-Agent: profile="..."`, `Idempotency-Key` |
-| `/checkout-sessions/{id}` | GET | Get UCP checkout | `UCP-Agent: profile="..."` |
-| `/checkout-sessions/{id}` | PUT | Update UCP checkout | `UCP-Agent: profile="..."`, `Idempotency-Key` |
-| `/checkout-sessions/{id}/complete` | POST | Complete UCP checkout | `UCP-Agent: profile="..."`, `Idempotency-Key` |
-| `/checkout-sessions/{id}/cancel` | POST | Cancel UCP checkout | `UCP-Agent: profile="..."`, `Idempotency-Key` |
+| `/.well-known/agent-card.json` | GET | A2A Agent Card discovery | None |
+| `/a2a` | POST | A2A JSON-RPC 2.0 (all checkout operations) | `UCP-Agent`, `X-A2A-Extensions` |
 
-**Header note:** `UCP-Agent` uses RFC 8941 dictionary structured field format. `Idempotency-Key` is required for retry safety on mutating operations.
+### A2A Checkout Actions
+
+| Action | Description |
+|--------|-------------|
+| `create_checkout` | Create a new checkout session |
+| `get_checkout` | Retrieve checkout state |
+| `add_to_checkout` | Add items to existing checkout |
+| `remove_from_checkout` | Remove items from checkout |
+| `update_checkout` | Full replacement update |
+| `complete_checkout` | Place the order (with payment DataPart) |
+| `cancel_checkout` | Cancel session |
 
 ### Capability Negotiation Flow
 
 ```
-Platform Request
+Platform Request (A2A message/send)
   ↓
 Extract UCP-Agent header: profile="https://platform.example/profile.json"
   ↓
 Fetch Platform Profile (HTTP GET)
   ↓
 Parse Platform Capabilities
-  {
-    "ucp": {
-      "version": "2026-01-11",
-      "capabilities": {
-        "dev.ucp.shopping.checkout": [...],
-        "dev.ucp.shopping.fulfillment": [...]
-      }
-    }
-  }
   ↓
 Load Business Profile (static or cached)
-  {
-    "ucp": {
-      "version": "2026-01-11",
-      "capabilities": {
-        "dev.ucp.shopping.checkout": [...],
-        "dev.ucp.shopping.fulfillment": [...],
-        "dev.ucp.shopping.discount": [...]
-      }
-    }
-  }
   ↓
 Compute Capability Intersection
   - Include capabilities present in both profiles
+  - Per-capability version check (platform <= business)
   - Remove extensions whose parents aren't in intersection
   - Repeat until stable
   ↓
 Result: Negotiated Capabilities
-  {
-    "dev.ucp.shopping.checkout": [{"version": "2026-01-11"}],
-    "dev.ucp.shopping.fulfillment": [{"version": "2026-01-11"}]
-  }
   ↓
-Store in Session Context
-  ↓
-Include in Every Response (ucp.capabilities)
+Include in Every A2A Response (ucp.capabilities + payment_handlers)
   - Only negotiated capabilities relevant to the operation (checkout + extensions)
 ```
 
 ### A2A Transport (Agent-to-Agent)
 
-The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP operations map to A2A methods.
+The A2A transport uses JSON-RPC 2.0 for structured agent communication. All UCP checkout operations go through `POST /a2a`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -304,8 +293,14 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 │        │  {                                    │                         │
 │        │    "jsonrpc": "2.0",                 │                         │
 │        │    "id": "req_123",                  │                         │
-│        │    "method": "a2a.ucp.checkout.create", │                      │
-│        │    "params": { ... }                 │                         │
+│        │    "method": "message/send",         │                         │
+│        │    "params": {                       │                         │
+│        │      "message": {                    │                         │
+│        │        "parts": [{                   │                         │
+│        │          "data": { "action": "create_checkout", ... }          │
+│        │        }]                            │                         │
+│        │      }                               │                         │
+│        │    }                                  │                         │
 │        │  }                                    │                         │
 │        │                                       │                         │
 │        │  JSON-RPC 2.0 Response               │                         │
@@ -313,130 +308,13 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 │        │  {                                    │                         │
 │        │    "jsonrpc": "2.0",                 │                         │
 │        │    "id": "req_123",                  │                         │
-│        │    "result": { "ucp": {...}, "status": "ready_for_complete" } │
+│        │    "result": {                       │                         │
+│        │      "parts": [{                     │                         │
+│        │        "data": { "a2a.ucp.checkout": { ... } }                 │
+│        │      }]                              │                         │
+│        │    }                                  │                         │
 │        │  }                                    │                         │
 └─────────────────────────────────────────────────────────────────────────┘
-```
-
-**A2A Method Mapping:**
-
-| REST Endpoint | A2A Method |
-|---------------|------------|
-| `POST /checkout-sessions` | `a2a.ucp.checkout.create` |
-| `GET /checkout-sessions/{id}` | `a2a.ucp.checkout.get` |
-| `PUT /checkout-sessions/{id}` | `a2a.ucp.checkout.update` |
-| `POST /checkout-sessions/{id}/complete` | `a2a.ucp.checkout.complete` |
-| `POST /checkout-sessions/{id}/cancel` | `a2a.ucp.checkout.cancel` |
-
-**A2A Payment Flow:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "payment_456",
-  "method": "a2a.ucp.checkout.complete",
-  "params": {
-    "id": "checkout_abc123",
-    "payment": {
-      "handler": "com.example.wallet",
-      "token": "tok_xyz789"
-    }
-  }
-}
-```
-
-### UCP Response Format
-
-```json
-{
-  "ucp": {
-    "version": "2026-01-11",
-    "capabilities": {
-      "dev.ucp.shopping.checkout": [{"version": "2026-01-11"}],
-      "dev.ucp.shopping.fulfillment": [{"version": "2026-01-11"}]
-    },
-    "payment_handlers": {
-      "com.example.processor_tokenizer": [
-        {"id": "processor_tokenizer", "version": "2026-01-11"}
-      ]
-    }
-  },
-  "id": "checkout_abc123",
-  "status": "ready_for_complete",
-  "currency": "USD",
-  "buyer": {
-    "first_name": "John",
-    "last_name": "Doe",
-    "email": "john@example.com"
-  },
-  "line_items": [
-    {
-      "id": "li_1",
-      "item": {
-        "id": "product_1",
-        "title": "Blue T-Shirt",
-        "price": 1999
-      },
-      "quantity": 1,
-      "totals": [
-        {"type": "subtotal", "label": "Line item subtotal", "amount": 1999}
-      ]
-    }
-  ],
-  "totals": [
-    {"type": "subtotal", "label": "Subtotal", "amount": 1999},
-    {"type": "fulfillment", "label": "Shipping", "amount": 500},
-    {"type": "tax", "label": "Tax", "amount": 200},
-    {"type": "total", "label": "Total", "amount": 2699}
-  ],
-  "fulfillment": {
-    "methods": [
-      {
-        "id": "method_1",
-        "type": "shipping",
-        "line_item_ids": ["li_1"],
-        "selected_destination_id": "dest_1",
-        "destinations": [
-          {
-            "id": "dest_1",
-            "first_name": "John",
-            "last_name": "Doe",
-            "street_address": "123 Main St",
-            "address_locality": "San Francisco",
-            "address_region": "CA",
-            "postal_code": "94102",
-            "address_country": "US"
-          }
-        ],
-        "groups": [
-          {
-            "id": "group_1",
-            "line_item_ids": ["li_1"],
-            "selected_option_id": "standard",
-            "options": [
-              {
-                "id": "standard",
-                "title": "Standard Shipping",
-                "totals": [{"type": "total", "amount": 500}]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "payment": {
-    "instruments": []
-  },
-  "messages": [],
-  "links": [
-    {
-      "type": "terms_of_service",
-      "url": "https://merchant.example.com/terms"
-    }
-  ],
-  "continue_url": "https://merchant.example.com/checkout-sessions/abc123"
-}
 ```
 
 ### Status Mapping
@@ -458,9 +336,9 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 
 1. **Create UCP Router Module** (`src/merchant/api/routes/ucp/`)
    - [x] `discovery.py` - UCP profile endpoint ✅ Phase 1
-   - [x] `checkout.py` - UCP checkout endpoints (REST)
    - [x] `a2a.py` - A2A transport endpoints (JSON-RPC 2.0) ✅ Phase 3
-   - [ ] `negotiation.py` - Capability negotiation logic
+   - [x] `agent_card.py` - Agent Card discovery ✅ Phase 3
+   - [x] Full capability negotiation in `ucp.py` ✅ Phase 4
 
 2. **Implement A2A Transport** (`src/merchant/api/routes/ucp/a2a.py`) ✅ Phase 3
    - [x] JSON-RPC 2.0 request parsing
@@ -469,40 +347,26 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
    - [x] Error handling with JSON-RPC error codes
 
 3. **Implement UCP Discovery** ✅ Phase 1 Complete
-   - [x] Static business profile configuration
+   - [x] Static business profile configuration (A2A transport only)
    - [x] Capability declarations (checkout, fulfillment, discount)
    - [x] Payment handler specifications
    - [x] Signing keys for webhooks
 
-4. **Implement Capability Negotiation**
+4. **Implement Capability Negotiation** ✅ Phase 4
    - [x] Platform profile fetching (HTTP GET)
    - [x] Profile caching strategy
-   - [x] Intersection algorithm
-   - [ ] Extension pruning logic
-   - [x] Version validation
+   - [x] Full intersection algorithm with per-capability version checks
+   - [x] Iterative extension pruning logic
+   - [x] Response capability filtering (checkout-relevant only)
 
-5. **Create UCP Checkout Endpoints (REST)**
-   - [x] POST `/checkout-sessions` (create)
-   - [x] GET `/checkout-sessions/{id}` (get)
-   - [x] PUT `/checkout-sessions/{id}` (update)
-   - [x] POST `/checkout-sessions/{id}/complete` (complete)
-   - [x] POST `/checkout-sessions/{id}/cancel` (cancel)
-
-6. **Add Protocol Abstraction Layer**
-   - [x] Normalize UCP requests to internal format
+5. **Add Protocol Abstraction Layer**
    - [x] Transform internal format to UCP responses
    - [x] Inject negotiated capabilities in responses
    - [x] Handle UCP-specific status values
+   - [x] Include payment_handlers in every response
 
-7. **Update Database Schema**
+6. **Update Database Schema**
    - [x] Add `protocol` field to checkout_sessions table ("acp" | "ucp")
-   - [ ] Add `negotiated_capabilities` JSONB field
-   - [ ] Migration script for existing sessions
-
-8. **Payment Handler Integration**
-   - [ ] UCP payment handler specifications
-   - [ ] Map PSP vault tokens to UCP credential format
-   - [ ] Support multiple handler types
 
 ### Frontend Tasks
 
@@ -526,25 +390,24 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 4. **Client Agent Integration** (No UI changes - same native flow)
    - [ ] Read active protocol from Merchant Panel toggle
    - [ ] Send `UCP-Agent` header when UCP is active
-   - [ ] Route requests to UCP or ACP endpoints based on toggle
+   - [ ] Route requests to `/a2a` endpoint when UCP is active
    - [ ] Handle UCP-specific status values and messages
 
 ### Testing Tasks (Mandatory per `.cursor/skills/features/SKILL.md`)
 
 1. **Unit Tests** (`tests/merchant/test_ucp_*.py`)
    - [x] `test_ucp_discovery.py` - Discovery endpoint tests ✅ Phase 1
-   - [x] `test_ucp_checkout.py` - UCP checkout CRUD tests
    - [x] `test_ucp_a2a.py` - A2A transport tests (JSON-RPC 2.0) ✅ Phase 3
-   - [ ] `test_ucp_negotiation.py` - Capability negotiation tests
-   - [ ] Happy path, edge cases, failure cases for each
+   - [x] `test_ucp_negotiation.py` - Capability negotiation tests ✅ Phase 4
+   - [x] Happy path, edge cases, failure cases ✅ Phase 4
 
-2. **Linting & Type Checking** ✅ Phase 1 Complete
+2. **Linting & Type Checking** ✅
    - [x] `ruff check src/merchant/api/routes/ucp/`
    - [x] `ruff format src/merchant/api/routes/ucp/`
    - [x] `pyright src/merchant/api/routes/ucp/`
 
 3. **Integration Tests**
-   - [ ] End-to-end UCP checkout flow
+   - [ ] End-to-end UCP checkout flow via A2A
    - [ ] A2A transport with NAT agents
    - [ ] Protocol toggle behavior
 
@@ -554,30 +417,35 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 
 ### Unit Tests
 
-1. **Capability Negotiation Tests**
+1. **Capability Negotiation Tests** ✅ Phase 4
    - [x] Test intersection with matching capabilities
-   - [ ] Test extension pruning (orphaned extensions)
-   - [x] Test version compatibility validation
+   - [x] Test extension pruning (orphaned extensions)
+   - [x] Test multi-parent extensions
+   - [x] Test transitive pruning chains
+   - [x] Test per-capability version compatibility
    - [x] Test platform profile fetching errors
 
-2. **UCP Endpoint Tests**
-   - [x] Test create checkout with UCP headers
-   - [x] Test update checkout (PUT method)
-   - [x] Test complete checkout with payment handlers
+2. **A2A Endpoint Tests** ✅ Phase 3
+   - [x] Test create checkout via A2A
+   - [x] Test add/remove/update checkout
+   - [x] Test complete checkout with payment DataPart
    - [x] Test cancel checkout
 
-3. **Protocol Transformation Tests**
-   - [x] Test UCP → internal format normalization
-   - [x] Test internal → UCP format transformation
-   - [x] Test status value mapping
-   - [ ] Test error message severity mapping
+3. **Negotiation Failure Tests** ✅ Phase 4
+   - [x] CAPABILITIES_INCOMPATIBLE returns JSON-RPC result (not error)
+   - [x] VERSION_UNSUPPORTED returns JSON-RPC result (not error)
+   - [x] Discovery failures return JSON-RPC errors
+
+4. **Response Shape Tests** ✅ Phase 4
+   - [x] Test error message severity mapping
+   - [x] Test payment_handlers in response
+   - [x] Test response capability filtering
 
 ### Integration Tests
 
 1. **End-to-End UCP Flow**
-   - [ ] Create session with platform profile
+   - [ ] Create session via A2A with platform profile
    - [ ] Verify capability negotiation
-   - [ ] Update session with fulfillment
    - [ ] Complete with payment instrument
    - [ ] Verify order created
 
@@ -586,38 +454,32 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
    - [ ] Verify Recommendation Agent invoked for UCP sessions
    - [ ] Verify Post-Purchase Agent triggers for UCP orders
 
-3. **Dual Protocol Support**
-   - [ ] Create ACP and UCP sessions simultaneously
-   - [ ] Verify agents serve both protocols
-   - [ ] Verify separate protocol logs in UI
-
 ---
 
 ## Acceptance Criteria
 
 ### Business Requirements
-- [x] UCP discovery endpoint returns valid business profile ✅ Phase 1
-- [ ] Platform profile is fetched and validated on each request
-- [ ] Capability negotiation correctly computes intersection
-- [ ] Orphaned extensions are removed from negotiated capabilities
+- [x] UCP discovery endpoint returns valid business profile (A2A transport) ✅ Phase 1
+- [x] Platform profile is fetched and validated on each request ✅ Phase 4
+- [x] Capability negotiation correctly computes intersection ✅ Phase 4
+- [x] Orphaned extensions are removed from negotiated capabilities ✅ Phase 4
 - [ ] NAT agents are invoked for UCP sessions (same as ACP)
 - [x] Payment handler specifications are advertised in profile ✅ Phase 1
-- [ ] UCP checkout flow completes successfully (create → update → complete)
+- [ ] UCP checkout flow completes successfully via A2A
 
 ### Technical Requirements
-- [ ] UCP endpoints use hyphenated paths (`/checkout-sessions`)
-- [ ] UCP responses include `ucp` metadata object
-- [ ] UCP status values match specification
-- [ ] UCP error messages include severity field
-- [ ] `continue_url` provided for `requires_escalation` responses
-- [ ] Platform profile is cached with appropriate TTL
-- [ ] Version compatibility is validated
-- [ ] UCP sessions are stored with `protocol: "ucp"` field
+- [x] A2A endpoint handles all checkout operations via JSON-RPC 2.0
+- [x] UCP responses include `ucp` metadata object with capabilities + payment_handlers
+- [x] UCP status values match specification
+- [x] UCP error messages include severity field
+- [x] Platform profile is cached with appropriate TTL
+- [x] Per-capability version compatibility is validated
+- [x] UCP sessions are stored with `protocol: "ucp"` field
 
 ### UI Requirements
 - [ ] Merchant Activity Panel has UCP tab
-- [ ] UCP tab displays capability negotiation results
-- [ ] UCP tab shows UCP-formatted JSON events
+- [ ] UCP tab displays A2A JSON-RPC request/response events
+- [ ] UCP tab shows capability negotiation results
 - [ ] Protocol logger distinguishes UCP from ACP events
 - [ ] Agent Activity panel shows agent decisions for both protocols
 
@@ -653,12 +515,12 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. UCP oper
 ## Success Metrics
 
 - [x] UCP discovery endpoint returns 200 with valid profile ✅ Phase 1
-- [ ] All UCP checkout endpoints return 2xx status codes
-- [ ] Capability negotiation succeeds in 100% of valid cases
+- [x] Capability negotiation succeeds in 100% of valid cases ✅ Phase 4
+- [ ] All A2A checkout actions return correct JSON-RPC responses
 - [ ] NAT agents respond in <10s for UCP sessions (same as ACP)
 - [ ] Zero protocol confusion errors in logs
 - [ ] UCP tab correctly displays all protocol events
-- [ ] Demo successfully shows dual protocol support (ACP + UCP)
+- [ ] Demo successfully shows dual protocol support (ACP + UCP via A2A)
 
 ---
 

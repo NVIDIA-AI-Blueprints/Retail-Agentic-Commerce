@@ -10,27 +10,22 @@ from typing import Any, cast
 import httpx
 
 from src.merchant.api.schemas import (
-    BuyerInput,
     CheckoutSessionResponse,
-    CreateCheckoutRequest,
-    ItemInput,
     LineItem,
     MessageError,
     MessageInfo,
     Total,
     TotalTypeEnum,
-    UpdateCheckoutRequest,
 )
 from src.merchant.api.ucp_schemas import (
     UCPBusinessProfile,
-    UCPBuyerInput,
     UCPCapabilityVersion,
     UCPCheckoutResponse,
     UCPCheckoutStatus,
-    UCPCreateCheckoutRequest,
     UCPItem,
     UCPLineItem,
     UCPMessage,
+    UCPMessageSeverity,
     UCPMessageType,
     UCPMetadata,
     UCPPaymentHandler,
@@ -39,7 +34,6 @@ from src.merchant.api.ucp_schemas import (
     UCPSigningKey,
     UCPTotal,
     UCPTotalType,
-    UCPUpdateCheckoutRequest,
 )
 from src.merchant.config import get_settings
 
@@ -48,14 +42,30 @@ CHECKOUT_CAPABILITY = "dev.ucp.shopping.checkout"
 _profile_cache: dict[str, tuple[dict[str, Any], datetime]] = {}
 
 
+class NegotiationFailureError(Exception):
+    """Raised when capability negotiation fails.
+
+    Covers ``CAPABILITIES_INCOMPATIBLE`` (empty intersection) and
+    ``VERSION_UNSUPPORTED`` (platform UCP version too new).
+
+    Per spec these are NOT transport errors -- callers return a JSON-RPC
+    result (not error) with a UCP error body.
+    """
+
+    def __init__(self, code: str, content: str) -> None:
+        super().__init__(content)
+        self.code = code
+        self.content = content
+
+
 def build_business_profile(request_base_url: str | None = None) -> UCPBusinessProfile:
     """Build static UCP business profile from configuration.
 
-    Returns a minimal discovery profile with:
-    - dev.ucp.shopping service (REST transport)
+    Returns a discovery profile with:
+    - dev.ucp.shopping service (A2A transport)
     - dev.ucp.shopping.checkout capability
     - dev.ucp.shopping.fulfillment extension
-    - dev.ucp.shopping.discount capability
+    - dev.ucp.shopping.discount extension
     - Optional static payment handler block
     - Top-level signing_keys for webhook verification
 
@@ -67,8 +77,6 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
     base_url = settings.ucp_base_url or request_base_url
     if not base_url:
         raise ValueError("ucp_base_url not configured and no request base URL provided")
-
-    service_endpoint = f"{base_url.rstrip('/')}{settings.ucp_service_path}"
 
     signing_keys: list[UCPSigningKey] | None = None
     if settings.ucp_signing_key_x:
@@ -93,12 +101,6 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
                     UCPService(
                         version=settings.ucp_version,
                         spec="https://ucp.dev/specification/overview",
-                        transport="rest",
-                        endpoint=service_endpoint,
-                    ),
-                    UCPService(
-                        version=settings.ucp_version,
-                        spec="https://ucp.dev/specification/overview",
                         transport="a2a",
                         endpoint=agent_card_url,
                     ),
@@ -115,7 +117,13 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
                     )
                 ],
                 "dev.ucp.shopping.discount": [
-                    UCPCapabilityVersion(version=settings.ucp_version)
+                    UCPCapabilityVersion(
+                        version=settings.ucp_version,
+                        extends=[
+                            "dev.ucp.shopping.checkout",
+                            "dev.ucp.shopping.cart",
+                        ],
+                    )
                 ],
             },
             payment_handlers={
@@ -178,57 +186,131 @@ async def fetch_platform_profile(profile_url: str) -> dict[str, Any]:
     return profile
 
 
+def _get_extends_list(cap: UCPCapabilityVersion) -> list[str]:
+    """Normalize ``extends`` to a list (handles str | list[str] | None)."""
+    if cap.extends is None:
+        return []
+    if isinstance(cap.extends, str):
+        return [cap.extends]
+    return list(cap.extends)
+
+
+def _parse_cap_version(version_str: str) -> datetime:
+    """Parse a YYYY-MM-DD capability version into a datetime for comparison."""
+    return datetime.strptime(version_str, "%Y-%m-%d")
+
+
+def _platform_cap_version_ok(
+    platform_versions: list[dict[str, Any]],
+    business_version: str,
+) -> bool:
+    """Return True if any platform capability version <= the business version."""
+    business_dt = _parse_cap_version(business_version)
+    for pv in platform_versions:
+        raw_version = pv.get("version")
+        if not isinstance(raw_version, str):
+            continue
+        try:
+            if _parse_cap_version(raw_version) <= business_dt:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def compute_capability_intersection(
-    business_profile: UCPBusinessProfile, platform_profile: dict[str, Any]
+    business_profile: UCPBusinessProfile,
+    platform_profile: dict[str, Any],
 ) -> dict[str, list[UCPCapabilityVersion]]:
-    """Compute capability intersection (checkout-only, Phase 2)."""
+    """Spec-compliant capability intersection with extension pruning.
+
+    Algorithm (per UCP overview spec):
+      1. Compute intersection: include business capability if the platform
+         also declares it AND the platform's capability version is compatible
+         (platform version <= business version).
+      2. Prune orphaned extensions: remove any capability whose ``extends``
+         parents are all absent from the intersection.
+      3. Repeat step 2 until stable (handles transitive chains).
+    """
     business_caps = business_profile.ucp.capabilities
     platform_caps = platform_profile.get("ucp", {}).get("capabilities", {})
 
     if not isinstance(platform_caps, dict):
         raise ValueError("Profile missing 'ucp.capabilities' key")
 
-    if CHECKOUT_CAPABILITY in business_caps and CHECKOUT_CAPABILITY in platform_caps:
-        return {CHECKOUT_CAPABILITY: business_caps[CHECKOUT_CAPABILITY]}
+    # --- Step 1: Compute intersection with per-capability version check ---
+    platform_caps_dict = cast(dict[str, Any], platform_caps)
+    intersection: dict[str, list[UCPCapabilityVersion]] = {}
+    for cap_name, business_versions in business_caps.items():
+        platform_versions_raw: Any = platform_caps_dict.get(cap_name)
+        if platform_versions_raw is None:
+            continue
+        if not isinstance(platform_versions_raw, list):
+            continue
+        platform_versions_list: list[dict[str, Any]] = cast(
+            list[dict[str, Any]], platform_versions_raw
+        )
+        biz_version = business_versions[0].version if business_versions else ""
+        if _platform_cap_version_ok(platform_versions_list, biz_version):
+            intersection[cap_name] = business_versions
 
-    return {}
+    # --- Steps 2-3: Iterative extension pruning ---
+    changed = True
+    while changed:
+        changed = False
+        to_remove: list[str] = []
+        for cap_name, versions in intersection.items():
+            for ver in versions:
+                parents = _get_extends_list(ver)
+                if parents and not any(p in intersection for p in parents):
+                    to_remove.append(cap_name)
+                    break
+        for cap_name in to_remove:
+            del intersection[cap_name]
+            changed = True
+
+    return intersection
 
 
-def normalize_ucp_create_request(
-    request: UCPCreateCheckoutRequest,
-) -> CreateCheckoutRequest:
-    """Convert UCP create request to internal ACP format."""
-    return CreateCheckoutRequest(
-        items=[
-            ItemInput(id=line_item.item.id, quantity=line_item.quantity)
-            for line_item in request.line_items
-        ],
-        buyer=convert_ucp_buyer(request.buyer),
-    )
+def filter_capabilities_for_checkout(
+    negotiated: dict[str, list[UCPCapabilityVersion]],
+) -> dict[str, list[UCPCapabilityVersion]]:
+    """Filter negotiated capabilities to only those relevant to checkout.
 
-
-def normalize_ucp_update_request(
-    request: UCPUpdateCheckoutRequest,
-) -> UpdateCheckoutRequest:
-    """Convert UCP update request to internal ACP format."""
-    return UpdateCheckoutRequest(
-        items=[
-            ItemInput(id=line_item.item.id, quantity=line_item.quantity)
-            for line_item in request.line_items
-        ],
-        buyer=convert_ucp_buyer(request.buyer),
-    )
+    Per spec, responses MUST include only capabilities that are in the
+    negotiated intersection AND relevant to the operation type.
+    For checkout: the root checkout capability plus extensions whose
+    ``extends`` references checkout.
+    """
+    result: dict[str, list[UCPCapabilityVersion]] = {}
+    for cap_name, versions in negotiated.items():
+        if cap_name == CHECKOUT_CAPABILITY:
+            result[cap_name] = versions
+            continue
+        for ver in versions:
+            parents = _get_extends_list(ver)
+            if CHECKOUT_CAPABILITY in parents:
+                result[cap_name] = versions
+                break
+    return result
 
 
 def transform_to_ucp_response(
     acp_response: CheckoutSessionResponse,
     negotiated_capabilities: dict[str, list[UCPCapabilityVersion]],
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> UCPCheckoutResponse:
-    """Convert ACP response to UCP format with negotiated capabilities."""
+    """Convert ACP response to UCP format with negotiated capabilities.
+
+    Capabilities are filtered to only those relevant to checkout before
+    being included in the response.
+    """
+    filtered = filter_capabilities_for_checkout(negotiated_capabilities)
     return UCPCheckoutResponse(
         ucp=UCPResponseMetadata(
             version=get_settings().ucp_version,
-            capabilities=negotiated_capabilities,
+            capabilities=filtered,
+            payment_handlers=payment_handlers,
         ),
         id=acp_response.id,
         status=_map_ucp_status(acp_response.status.value),
@@ -238,17 +320,6 @@ def transform_to_ucp_response(
         ],
         totals=_convert_totals(acp_response.totals),
         messages=_convert_messages(acp_response.messages),
-    )
-
-
-def convert_ucp_buyer(buyer: UCPBuyerInput | None) -> BuyerInput | None:
-    if buyer is None:
-        return None
-    return BuyerInput(
-        first_name=buyer.first_name,
-        last_name=buyer.last_name,
-        email=buyer.email,
-        phone_number=buyer.phone,
     )
 
 
@@ -319,6 +390,7 @@ def _convert_messages(messages: list[MessageInfo | MessageError]) -> list[UCPMes
                     code=message.code.value,
                     path=message.param,
                     content=message.content,
+                    severity=UCPMessageSeverity.RECOVERABLE,
                 )
             )
             continue

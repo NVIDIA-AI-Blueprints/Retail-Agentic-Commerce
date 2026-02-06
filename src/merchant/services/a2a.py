@@ -22,7 +22,7 @@ from src.merchant.api.schemas import (
     PaymentProviderEnum,
     UpdateCheckoutRequest,
 )
-from src.merchant.api.ucp_schemas import UCPCapabilityVersion
+from src.merchant.api.ucp_schemas import UCPCapabilityVersion, UCPPaymentHandler
 from src.merchant.config import get_settings
 from src.merchant.services.checkout import (
     SessionNotFoundError,
@@ -34,6 +34,7 @@ from src.merchant.services.checkout import (
 )
 from src.merchant.services.idempotency import get_idempotency_store
 from src.merchant.services.ucp import (
+    NegotiationFailureError,
     build_business_profile,
     compute_capability_intersection,
     fetch_platform_profile,
@@ -171,19 +172,29 @@ def store_message_idempotency(
 # ---------------------------------------------------------------------------
 
 
+# Type alias for negotiation result
+_A2ANegotiationResult = tuple[
+    dict[str, list[UCPCapabilityVersion]],
+    dict[str, list[UCPPaymentHandler]] | None,
+]
+
+
 async def negotiate_a2a_capabilities(
     ucp_agent_header: str,
     request_base_url: str,
-) -> dict[str, list[UCPCapabilityVersion]]:
+) -> _A2ANegotiationResult:
     """Run UCP capability negotiation from UCP-Agent header value.
 
-    Raises ValueError / httpx.RequestError on failure (caller maps to
-    JSON-RPC error codes).
+    Returns (negotiated_capabilities, payment_handlers).
+
+    Raises:
+        ValueError / httpx.RequestError  -- discovery failures (JSON-RPC error)
+        NegotiationFailureError          -- negotiation failures (JSON-RPC result)
     """
     profile_url = parse_ucp_agent_header(ucp_agent_header)
     platform_profile = await fetch_platform_profile(profile_url)
 
-    # Version validation
+    # Protocol-level version validation
     ucp_block = platform_profile.get("ucp", {})
     platform_version = ucp_block.get("version")
     if not isinstance(platform_version, str):
@@ -193,13 +204,22 @@ async def negotiate_a2a_capabilities(
     parsed_platform = datetime.strptime(platform_version, "%Y-%m-%d").date()
     parsed_business = datetime.strptime(settings.ucp_version, "%Y-%m-%d").date()
     if parsed_platform > parsed_business:
-        raise ValueError("Platform profile version unsupported")
+        raise NegotiationFailureError(
+            code="VERSION_UNSUPPORTED",
+            content=(
+                f"Platform UCP version {platform_version} is not supported. "
+                f"This business implements version {settings.ucp_version}."
+            ),
+        )
 
     business_profile = build_business_profile(request_base_url=request_base_url)
     negotiated = compute_capability_intersection(business_profile, platform_profile)
     if not negotiated:
-        raise ValueError("Platform does not support checkout capability")
-    return negotiated
+        raise NegotiationFailureError(
+            code="CAPABILITIES_INCOMPATIBLE",
+            content="No compatible capabilities in intersection",
+        )
+    return negotiated, business_profile.ucp.payment_handlers
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +268,7 @@ async def handle_create(
     _context_id: str,
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> dict[str, Any]:
     """Handle create_checkout action."""
     items_raw: Any = data.get("line_items") or data.get("items") or []
@@ -274,7 +295,7 @@ async def handle_create(
     acp_response = await create_checkout_session(db, request, protocol="ucp")
 
     set_checkout_id_for_context(_context_id, acp_response.id)
-    return _to_checkout_data_part(acp_response, negotiated)
+    return _to_checkout_data_part(acp_response, negotiated, payment_handlers)
 
 
 async def handle_update(
@@ -283,6 +304,7 @@ async def handle_update(
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
     action: str = "update_checkout",
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> dict[str, Any]:
     """Handle add_to_checkout, remove_from_checkout, and update_checkout."""
     session_id = get_checkout_id_for_context(context_id)
@@ -337,13 +359,14 @@ async def handle_update(
         request = UpdateCheckoutRequest(items=items if items else None)
 
     acp_response = await update_checkout_session(db, session_id, request)
-    return _to_checkout_data_part(acp_response, negotiated)
+    return _to_checkout_data_part(acp_response, negotiated, payment_handlers)
 
 
 def handle_get(
     context_id: str,
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> dict[str, Any]:
     """Handle get_checkout action."""
     session_id = get_checkout_id_for_context(context_id)
@@ -351,7 +374,7 @@ def handle_get(
         raise SessionNotFoundError(session_id="unknown")
 
     acp_response = get_checkout_session(db, session_id)
-    return _to_checkout_data_part(acp_response, negotiated)
+    return _to_checkout_data_part(acp_response, negotiated, payment_handlers)
 
 
 def _resolve_payment_provider(handler_id: str) -> PaymentProviderEnum:
@@ -377,6 +400,7 @@ def handle_complete(
     context_id: str,
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> dict[str, Any]:
     """Handle complete_checkout action with payment data from DataParts.
 
@@ -411,7 +435,7 @@ def handle_complete(
     payment_data = PaymentDataInput(token=token_val, provider=provider)
 
     acp_response = complete_checkout_session(db, session_id, payment_data, buyer=None)
-    result = _to_checkout_data_part(acp_response, negotiated)
+    result = _to_checkout_data_part(acp_response, negotiated, payment_handlers)
 
     if acp_response.order:
         result[UCP_CHECKOUT_KEY]["order"] = {
@@ -426,6 +450,7 @@ def handle_cancel(
     context_id: str,
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> dict[str, Any]:
     """Handle cancel_checkout action."""
     session_id = get_checkout_id_for_context(context_id)
@@ -433,7 +458,7 @@ def handle_cancel(
         raise SessionNotFoundError(session_id="unknown")
 
     acp_response = cancel_checkout_session(db, session_id)
-    return _to_checkout_data_part(acp_response, negotiated)
+    return _to_checkout_data_part(acp_response, negotiated, payment_handlers)
 
 
 # ---------------------------------------------------------------------------
@@ -444,9 +469,10 @@ def handle_cancel(
 def _to_checkout_data_part(
     acp_response: CheckoutSessionResponse,
     negotiated: dict[str, list[UCPCapabilityVersion]],
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> dict[str, Any]:
     """Convert an ACP response into a dict suitable for a DataPart."""
-    ucp_response = transform_to_ucp_response(acp_response, negotiated)
+    ucp_response = transform_to_ucp_response(acp_response, negotiated, payment_handlers)
     checkout_dict = ucp_response.model_dump(mode="json", by_alias=True)
     return {UCP_CHECKOUT_KEY: checkout_dict}
 
@@ -473,6 +499,7 @@ async def dispatch_action(
     context_id: str,
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
 ) -> dict[str, Any]:
     """Route an action string to the appropriate handler.
 
@@ -482,19 +509,28 @@ async def dispatch_action(
         raise ValueError(f"Unknown action: {action}")
 
     if action == "create_checkout":
-        return await handle_create(data, context_id, db, negotiated)
+        return await handle_create(data, context_id, db, negotiated, payment_handlers)
 
     if action in ("add_to_checkout", "remove_from_checkout", "update_checkout"):
-        return await handle_update(data, context_id, db, negotiated, action=action)
+        return await handle_update(
+            data,
+            context_id,
+            db,
+            negotiated,
+            action=action,
+            payment_handlers=payment_handlers,
+        )
 
     if action == "get_checkout":
-        return handle_get(context_id, db, negotiated)
+        return handle_get(context_id, db, negotiated, payment_handlers)
 
     if action == "complete_checkout":
-        return handle_complete(message.parts, context_id, db, negotiated)
+        return handle_complete(
+            message.parts, context_id, db, negotiated, payment_handlers
+        )
 
     # cancel_checkout
-    return handle_cancel(context_id, db, negotiated)
+    return handle_cancel(context_id, db, negotiated, payment_handlers)
 
 
 # ---------------------------------------------------------------------------

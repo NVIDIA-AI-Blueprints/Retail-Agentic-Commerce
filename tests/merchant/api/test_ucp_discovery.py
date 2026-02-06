@@ -19,13 +19,13 @@ class TestUCPDiscovery:
         assert "version" in data["ucp"]
 
     def test_profile_includes_shopping_service(self, client: TestClient) -> None:
-        """Profile includes dev.ucp.shopping service with fully qualified URL."""
+        """Profile includes dev.ucp.shopping service with A2A transport."""
         response = client.get("/.well-known/ucp")
         data = response.json()
         services = data["ucp"]["services"]
         assert "dev.ucp.shopping" in services
         service = services["dev.ucp.shopping"][0]
-        assert service["transport"] == "rest"
+        assert service["transport"] == "a2a"
         assert service["endpoint"].startswith("http")
 
     def test_profile_includes_checkout_capability(self, client: TestClient) -> None:
@@ -96,8 +96,8 @@ class TestUCPDiscovery:
     def test_service_endpoint_uses_request_base_url_when_not_configured(
         self, client: TestClient
     ) -> None:
-        """Service endpoint derived from request base URL when ucp_base_url is None."""
+        """A2A service endpoint derived from request base URL when ucp_base_url is None."""
         response = client.get("/.well-known/ucp")
         data = response.json()
         service = data["ucp"]["services"]["dev.ucp.shopping"][0]
-        assert "/ucp/v1" in service["endpoint"]
+        assert "agent-card.json" in service["endpoint"]
