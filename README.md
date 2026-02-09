@@ -104,7 +104,149 @@ flowchart TB
     SEARCH --> MILVUS
 ```
 
-## Quick Start
+## Docker Deployment
+
+The project uses three Docker Compose files:
+- **`docker-compose-nim.yml`**: NVIDIA NIM microservices (Nemotron LLM and Embedding models)
+- **`docker-compose.infra.yml`**: Infrastructure (Milvus, Phoenix) - can run standalone for local development
+- **`docker-compose.yml`**: Application services (Merchant, PSP, Agents, UI)
+
+### Prerequisites
+
+- Docker 24+
+- Docker Compose v2
+- NVIDIA API key (for AI agents)
+
+### Quick Start (Public Endpoints Deployment)
+
+1. **Configure environment:**
+
+   ```bash
+   cp env.example .env
+   ```
+
+   Edit `.env` and add your NVIDIA API key ([get one here](https://build.nvidia.com/settings/api-keys)):
+
+   ```env
+   NVIDIA_API_KEY=nvapi-xxx
+   ```
+
+2. **Start infrastructure and application services:**
+
+   ```bash
+   docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
+   ```
+
+   This starts all services including:
+   - nginx (reverse proxy on port 80)
+   - Merchant API, PSP, Apps SDK
+   - NAT Agents (Promotion, Post-Purchase, Recommendation, Search)
+   - Milvus (vector database) and Phoenix (observability)
+   - **milvus-seeder** (automatically seeds product embeddings)
+
+3. **Verify application services:**
+
+   ```bash
+   curl http://localhost/api/health      # Merchant API
+   curl http://localhost/psp/health      # PSP Service
+   curl http://localhost/apps-sdk/health # Apps SDK
+   ```
+
+4. **Access the UI** at **http://localhost**
+
+### Service Routes
+
+| Route | Service | Description |
+|-------|---------|-------------|
+| `/` | UI | Demo frontend |
+| `/api/*` | Merchant API | ACP/UCP checkout, products, orders |
+| `/psp/*` | PSP Service | Payment delegation |
+| `/apps-sdk/*` | Apps SDK | MCP server for AI agents |
+
+### Infrastructure Endpoints
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Milvus | 19530 | Vector database gRPC |
+| Milvus Health | 9091 | Health check endpoint |
+| Phoenix | 6006 | LLM tracing UI |
+| MinIO Console | 9001 | Object storage UI |
+
+### Monitoring
+
+```bash
+docker compose ps                    # Service status
+docker compose logs -f merchant      # Follow merchant logs
+docker compose logs nginx            # Check nginx routing
+```
+
+### Stopping Services
+
+```bash
+# Stop application services only
+docker compose down
+
+# Stop everything (infrastructure + application)
+docker compose -f docker-compose.infra.yml -f docker-compose.yml down
+
+# Stop and remove volumes (full cleanup)
+docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
+```
+
+### Building Images
+
+To rebuild images after code changes:
+
+```bash
+docker compose build                 # Rebuild all
+docker compose build merchant        # Rebuild specific service
+docker compose up -d                 # Restart with new images
+```
+
+## Local Development with Infrastructure
+
+For local development, you can run just the infrastructure (Milvus + Phoenix) in Docker while running application services locally. This is useful for debugging and faster iteration.
+
+### 1. Start Infrastructure
+
+```bash
+# Start Milvus and Phoenix
+docker compose -f docker-compose.infra.yml up -d
+
+# Verify services are running
+curl -s http://localhost:9091/healthz   # Milvus health
+curl -s http://localhost:6006/          # Phoenix UI
+```
+
+### 2. Seed the Vector Database
+
+The Recommendation and Search agents require product embeddings in Milvus.
+
+> **Note**: In Docker deployment, seeding is **automatic** via the `milvus-seeder` container.
+> Manual seeding is only required for local development.
+
+```bash
+cd src/agents
+source .venv/bin/activate
+uv run python scripts/seed_milvus.py
+```
+
+The seeder script:
+- Waits for Milvus to be ready (with retry logic)
+- Skips seeding if data already exists
+- Supports both NVIDIA API Catalog and local NIM for embeddings
+
+### 3. Run Services Locally
+
+Now start the application services in separate terminals (see [Quick Start](#quick-start) below).
+
+### 4. Stop Infrastructure
+
+```bash
+docker compose -f docker-compose.infra.yml down
+```
+
+## Quick Start (Manual Setup)
 
 ### Prerequisites
 
@@ -287,168 +429,6 @@ docs/
 ├── features.md        # Feature status
 └── specs/             # Protocol specs
 ```
-
-## Docker Deployment
-
-The project uses three Docker Compose files:
-- **`docker-compose-nim.yml`**: NVIDIA NIM microservices (Nemotron LLM and Embedding models) - start first!
-- **`docker-compose.infra.yml`**: Infrastructure (Milvus, Phoenix) - can run standalone for local development
-- **`docker-compose.yml`**: Application services (Merchant, PSP, Agents, UI)
-
-### Prerequisites
-
-- Docker 24+
-- Docker Compose v2
-- NVIDIA GPU(s) with sufficient VRAM (for local NIMs)
-- NVIDIA API key (for AI agents)
-
-### Quick Start (Full Docker Deployment)
-
-1. **Configure environment:**
-
-   ```bash
-   cp env.example .env
-   # Edit .env and add your NVIDIA_API_KEY
-   ```
-
-2. **Start NVIDIA NIMs first (downloads large models - 15-30+ min):**
-
-   ```bash
-   docker compose -f docker-compose-nim.yml up -d
-   ```
-
-3. **Start infrastructure and application services:**
-
-   ```bash
-   docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
-   ```
-
-   This starts all services including:
-   - nginx (reverse proxy on port 80)
-   - Merchant API, PSP, Apps SDK
-   - NAT Agents (Promotion, Post-Purchase, Recommendation, Search)
-   - Milvus (vector database) and Phoenix (observability)
-   - **milvus-seeder** (automatically seeds product embeddings)
-
-4. **Verify NIM health** (wait for models to load):
-
-   ```bash
-   curl http://localhost:8010/v1/health/ready  # Nemotron Nano LLM
-   curl http://localhost:8011/v1/health/ready  # Embedding Model
-   ```
-
-5. **Verify application services:**
-
-   ```bash
-   curl http://localhost/api/health      # Merchant API
-   curl http://localhost/psp/health      # PSP Service
-   curl http://localhost/apps-sdk/health # Apps SDK
-   ```
-
-6. **Access the UI** at **http://localhost**
-
-### Service Routes
-
-| Route | Service | Description |
-|-------|---------|-------------|
-| `/` | UI | Demo frontend |
-| `/api/*` | Merchant API | ACP/UCP checkout, products, orders |
-| `/psp/*` | PSP Service | Payment delegation |
-| `/apps-sdk/*` | Apps SDK | MCP server for AI agents |
-
-### NIM Endpoints
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Nemotron Nano LLM | 8010 | LLM inference (nvidia/nemotron-3-nano) |
-| Embedding Model | 8011 | Text embeddings (nv-embedqa-e5-v5) |
-
-### Infrastructure Endpoints
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Milvus | 19530 | Vector database gRPC |
-| Milvus Health | 9091 | Health check endpoint |
-| Phoenix | 6006 | LLM tracing UI |
-| MinIO Console | 9001 | Object storage UI |
-
-### Monitoring
-
-```bash
-docker compose ps                    # Service status
-docker compose logs -f merchant      # Follow merchant logs
-docker compose logs nginx            # Check nginx routing
-```
-
-### Stopping Services
-
-```bash
-# Stop application services only
-docker compose down
-
-# Stop everything (infrastructure + application + NIMs)
-docker compose -f docker-compose.infra.yml -f docker-compose.yml down
-docker compose -f docker-compose-nim.yml down
-
-# Stop and remove volumes (full cleanup)
-docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
-docker compose -f docker-compose-nim.yml down -v
-```
-
-### Building Images
-
-To rebuild images after code changes:
-
-```bash
-docker compose build                 # Rebuild all
-docker compose build merchant        # Rebuild specific service
-docker compose up -d                 # Restart with new images
-```
-
-## Local Development with Infrastructure
-
-For local development, you can run just the infrastructure (Milvus + Phoenix) in Docker while running application services locally. This is useful for debugging and faster iteration.
-
-### 1. Start Infrastructure
-
-```bash
-# Start Milvus and Phoenix
-docker compose -f docker-compose.infra.yml up -d
-
-# Verify services are running
-curl -s http://localhost:9091/healthz   # Milvus health
-curl -s http://localhost:6006/          # Phoenix UI
-```
-
-### 2. Seed the Vector Database
-
-The Recommendation and Search agents require product embeddings in Milvus.
-
-> **Note**: In Docker deployment, seeding is **automatic** via the `milvus-seeder` container.
-> Manual seeding is only required for local development.
-
-```bash
-cd src/agents
-source .venv/bin/activate
-uv run python scripts/seed_milvus.py
-```
-
-The seeder script:
-- Waits for Milvus to be ready (with retry logic)
-- Skips seeding if data already exists
-- Supports both NVIDIA API Catalog and local NIM for embeddings
-
-### 3. Run Services Locally
-
-Now start the application services in separate terminals (see [Quick Start](#quick-start) above).
-
-### 4. Stop Infrastructure
-
-```bash
-docker compose -f docker-compose.infra.yml down
-```
-
-
 
 ## Documentation
 
