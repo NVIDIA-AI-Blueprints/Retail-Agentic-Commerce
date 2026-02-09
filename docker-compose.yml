@@ -55,8 +55,9 @@ services:
       - PROMOTION_AGENT_URL=http://promotion-agent:8002
       - POST_PURCHASE_AGENT_URL=http://post-purchase-agent:8003
       - RECOMMENDATION_AGENT_URL=http://recommendation-agent:8004
-      # Webhook delivery to client agent
-      - WEBHOOK_URL=${WEBHOOK_URL:-http://ui:3000/api/webhooks/acp}
+      # Webhook delivery to client agent (Docker-internal URL by default).
+      # Uses a dedicated env var so local WEBHOOK_URL (localhost) does not break container routing.
+      - WEBHOOK_URL=${WEBHOOK_URL_DOCKER:-http://ui:3000/api/webhooks/acp}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-whsec_demo_secret}
     volumes:
       - acp-data:/data
