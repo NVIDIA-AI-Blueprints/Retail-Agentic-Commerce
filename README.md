@@ -134,10 +134,10 @@ The project uses three Docker Compose files:
 2. **Start infrastructure and application services:**
 
    ```bash
-   docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
+   docker compose -f docker-compose.infra.yml -f docker-compose.yml up --build -d
    ```
 
-   This starts all services including:
+   This builds images and starts all services including:
    - nginx (reverse proxy on port 80)
    - Merchant API, PSP, Apps SDK
    - NAT Agents (Promotion, Post-Purchase, Recommendation, Search)
@@ -195,12 +195,12 @@ docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
 
 ### Building Images
 
-To rebuild images after code changes:
+Images are automatically built/rebuilt when using `--build` flag. To rebuild manually:
 
 ```bash
-docker compose build                 # Rebuild all
-docker compose build merchant        # Rebuild specific service
-docker compose up -d                 # Restart with new images
+docker compose -f docker-compose.infra.yml -f docker-compose.yml build                # Rebuild all
+docker compose -f docker-compose.infra.yml -f docker-compose.yml build merchant       # Rebuild specific service
+docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d                # Restart with new images
 ```
 
 ## Local Development with Infrastructure
