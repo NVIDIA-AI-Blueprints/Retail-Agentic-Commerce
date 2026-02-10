@@ -122,6 +122,8 @@ The project uses three Docker Compose files:
 1. **Configure environment:**
 
    ```bash
+   git clone https://github.com/NVIDIA/Retail-Agentic-Commerce.git
+   cd Retail-Agentic-Commerce
    cp env.example .env
    ```
 
@@ -255,11 +257,9 @@ docker compose -f docker-compose.infra.yml down
 - [uv](https://docs.astral.sh/uv/) package manager
 - Docker (optional, for Recommendation Agent)
 
-### 1. Clone and Configure
+### 1. Configure
 
 ```bash
-git clone https://github.com/NVIDIA/Retail-Agentic-Commerce.git
-cd Retail-Agentic-Commerce
 cp env.example .env
 ```
 
@@ -353,6 +353,7 @@ pnpm dev
 # Terminal 9: Apps SDK Widget (port 3001) - for development
 cd src/apps_sdk/web
 pnpm install
+pnpm build
 pnpm dev
 ```
 
