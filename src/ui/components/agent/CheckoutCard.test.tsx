@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { CheckoutCard } from "./CheckoutCard";
 import type { Product } from "@/types";
 
@@ -224,6 +224,54 @@ describe("CheckoutCard", () => {
       // The Select should be disabled during processing
       const selectTrigger = screen.getByRole("combobox");
       expect(selectTrigger).toHaveAttribute("aria-disabled", "true");
+    });
+  });
+
+  describe("coupon input", () => {
+    it("renders coupon textbox and apply button", () => {
+      render(<CheckoutCard checkout={mockCheckout} />);
+
+      expect(screen.getByLabelText("Coupon code")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /apply coupon/i })).toBeInTheDocument();
+    });
+
+    it("calls onApplyCoupon with normalized code", () => {
+      const onApplyCoupon = vi.fn();
+      render(<CheckoutCard checkout={mockCheckout} onApplyCoupon={onApplyCoupon} />);
+
+      const input = screen.getByLabelText("Coupon code");
+      fireEvent.change(input, { target: { value: "save10" } });
+      screen.getByRole("button", { name: /apply coupon/i }).click();
+
+      expect(onApplyCoupon).toHaveBeenCalledWith("SAVE10");
+    });
+
+    it("shows one invalid-code message when warning duplicates rejected entry", () => {
+      const checkoutWithDuplicateWarning = {
+        ...mockCheckout,
+        discounts: {
+          codes: ["SAVE1"],
+          applied: [],
+          rejected: [
+            {
+              code: "SAVE1",
+              reason: "discount_code_invalid",
+              message: "Code 'SAVE1' is not recognized.",
+            },
+          ],
+        },
+        messages: [
+          {
+            type: "warning" as const,
+            code: "discount_code_invalid",
+            content: "Code 'SAVE1' is not recognized.",
+          },
+        ],
+      };
+
+      render(<CheckoutCard checkout={checkoutWithDuplicateWarning} />);
+
+      expect(screen.getAllByText("Code 'SAVE1' is not recognized.")).toHaveLength(1);
     });
   });
 

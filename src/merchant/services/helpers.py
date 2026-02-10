@@ -14,27 +14,41 @@ from sqlmodel import Session
 from src.merchant.api.schemas import (
     Address,
     AddressInput,
+    Allocation,
+    AppliedDiscount,
     Buyer,
     BuyerInput,
+    Capabilities,
     CheckoutSessionResponse,
     CheckoutStatusEnum,
     ContentTypeEnum,
+    Coupon,
+    DiscountsResponse,
+    ErrorCodeEnum,
+    ExtensionDeclaration,
     Item,
     LineItem,
     Link,
     LinkTypeEnum,
+    MessageError,
     MessageInfo,
+    MessageTypeEnum,
+    MessageWarning,
     Order,
     PaymentMethodEnum,
     PaymentProvider,
     PaymentProviderEnum,
     PromotionMetadata,
+    RejectedDiscount,
     ShippingFulfillmentOption,
     Total,
     TotalTypeEnum,
 )
 from src.merchant.db.models import CheckoutSession, Product
-from src.merchant.services.promotion import get_promotion_for_product
+from src.merchant.services.promotion import (
+    get_promotion_for_product,
+    validate_discount_against_margin,
+)
 
 # =============================================================================
 # Constants
@@ -43,6 +57,19 @@ from src.merchant.services.promotion import get_promotion_for_product
 TAX_RATE = 0.10  # 10% tax rate
 DEFAULT_CURRENCY = "usd"
 DEFAULT_SHOP_URL = "https://shop.example.com"
+DISCOUNT_EXTENSION_SCHEMA_URL = (
+    "https://agenticcommerce.dev/schemas/discount/2026-01-27.json"
+)
+DISCOUNT_EXTENSION_DECLARATION = ExtensionDeclaration(
+    name="discount",
+    extends=[
+        "$.CheckoutSessionCreateRequest.discounts",
+        "$.CheckoutSessionUpdateRequest.discounts",
+        "$.CheckoutSession.discounts",
+    ],
+    schema_url=DISCOUNT_EXTENSION_SCHEMA_URL,
+)
+COUPON_SAVE10 = "SAVE10"
 
 
 # =============================================================================
@@ -128,6 +155,235 @@ def dict_to_address(data: dict[str, Any]) -> Address:
 # =============================================================================
 
 
+def _recompute_line_item_totals(line_item: dict[str, Any]) -> None:
+    """Recompute subtotal, tax, and total after discount updates."""
+    subtotal = max(0, int(line_item["base_amount"]) - int(line_item["discount"]))
+    tax = int(subtotal * TAX_RATE)
+    line_item["subtotal"] = subtotal
+    line_item["tax"] = tax
+    line_item["total"] = subtotal + tax
+
+
+def _normalize_discount_codes(codes: list[str] | None) -> list[str]:
+    """Normalize submitted discount codes."""
+    if not codes:
+        return []
+    normalized: list[str] = []
+    for raw_code in codes:
+        code = raw_code.strip().upper()
+        if code:
+            normalized.append(code)
+    return normalized
+
+
+def _promotion_percent_from_action(action: str | None) -> float | None:
+    """Infer promotion percentage from action metadata."""
+    if not action:
+        return None
+    if action.startswith("DISCOUNT_") and action.endswith("_PCT"):
+        parts = action.split("_")
+        if len(parts) >= 3 and parts[1].isdigit():
+            return float(parts[1])
+    return None
+
+
+def _build_automatic_applied_discounts(
+    line_items: list[dict[str, Any]],
+) -> list[AppliedDiscount]:
+    """Build automatic discount entries from promotion metadata."""
+    applied: list[AppliedDiscount] = []
+    for idx, line_item in enumerate(line_items):
+        promotion_discount = int(
+            line_item.get("promotion_discount", line_item.get("discount", 0))
+        )
+        if promotion_discount <= 0:
+            continue
+
+        promotion_data = line_item.get("promotion") or {}
+        action = str(promotion_data.get("action", "AUTOMATIC_PROMOTION"))
+        percent_off = _promotion_percent_from_action(action)
+        coupon = Coupon(
+            id=f"promo_{line_item['id']}",
+            name=action.replace("_", " ").title(),
+            percent_off=percent_off,
+            currency=DEFAULT_CURRENCY,
+        )
+        applied.append(
+            AppliedDiscount(
+                id=f"applied_promo_{line_item['id']}",
+                coupon=coupon,
+                amount=promotion_discount,
+                automatic=True,
+                method="each",
+                priority=idx + 1,
+                allocations=[
+                    Allocation(path=f"$.line_items[{idx}]", amount=promotion_discount)
+                ],
+            )
+        )
+    return applied
+
+
+def apply_discount_codes(
+    line_items: list[dict[str, Any]],
+    products_by_id: dict[str, Product],
+    submitted_codes: list[str] | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+    """Apply coupon discounts on top of promotion discounts.
+
+    This MVP intentionally supports only SAVE10 while preserving
+    compatibility with the ACP discount extension response shape.
+    """
+    normalized_codes = _normalize_discount_codes(submitted_codes)
+
+    # Reset coupon discount before re-applying submitted codes.
+    for line_item in line_items:
+        promotion_discount = int(
+            line_item.get("promotion_discount", line_item.get("discount", 0))
+        )
+        line_item["promotion_discount"] = promotion_discount
+        line_item["coupon_discount"] = 0
+        line_item["discount"] = promotion_discount
+        _recompute_line_item_totals(line_item)
+
+    applied: list[AppliedDiscount] = _build_automatic_applied_discounts(line_items)
+    rejected: list[RejectedDiscount] = []
+    warning_messages: list[dict[str, Any]] = []
+    save10_applied = False
+
+    for code_index, code in enumerate(normalized_codes):
+        if code != COUPON_SAVE10:
+            message = f"Code '{code}' is not recognized."
+            rejected.append(
+                RejectedDiscount(
+                    code=code,
+                    reason="discount_code_invalid",
+                    message=message,
+                )
+            )
+            warning_messages.append(
+                {
+                    "type": MessageTypeEnum.WARNING.value,
+                    "code": "discount_code_invalid",
+                    "param": f"$.discounts.codes[{code_index}]",
+                    "content_type": ContentTypeEnum.PLAIN.value,
+                    "content": message,
+                }
+            )
+            continue
+
+        if save10_applied:
+            message = f"Code '{code}' is already applied."
+            rejected.append(
+                RejectedDiscount(
+                    code=code,
+                    reason="discount_code_already_applied",
+                    message=message,
+                )
+            )
+            warning_messages.append(
+                {
+                    "type": MessageTypeEnum.WARNING.value,
+                    "code": "discount_code_already_applied",
+                    "param": f"$.discounts.codes[{code_index}]",
+                    "content_type": ContentTypeEnum.PLAIN.value,
+                    "content": message,
+                }
+            )
+            continue
+
+        coupon_amount_total = 0
+        allocations: list[Allocation] = []
+        for line_index, line_item in enumerate(line_items):
+            product_id = str(line_item["item"]["id"])
+            product = products_by_id.get(product_id)
+            if product is None:
+                continue
+
+            promotion_discount = int(line_item.get("promotion_discount", 0))
+            subtotal_before_coupon = max(
+                0, int(line_item["base_amount"]) - promotion_discount
+            )
+            raw_coupon_discount = int(subtotal_before_coupon * 0.10)
+            if raw_coupon_discount <= 0:
+                continue
+
+            max_total_discount = max(
+                0,
+                int(line_item["base_amount"])
+                - int(line_item["base_amount"] * product.min_margin),
+            )
+            remaining_discount_budget = max(0, max_total_discount - promotion_discount)
+            coupon_discount = min(raw_coupon_discount, remaining_discount_budget)
+
+            proposed_total_discount = promotion_discount + coupon_discount
+            if coupon_discount <= 0 or not validate_discount_against_margin(
+                int(line_item["base_amount"]),
+                proposed_total_discount,
+                product.min_margin,
+            ):
+                continue
+
+            line_item["coupon_discount"] = coupon_discount
+            line_item["discount"] = proposed_total_discount
+            _recompute_line_item_totals(line_item)
+
+            coupon_amount_total += coupon_discount
+            allocations.append(
+                Allocation(path=f"$.line_items[{line_index}]", amount=coupon_discount)
+            )
+
+        if coupon_amount_total <= 0:
+            message = f"Code '{code}' could not be applied because pricing constraints were not met."
+            rejected.append(
+                RejectedDiscount(
+                    code=code,
+                    reason="discount_code_combination_disallowed",
+                    message=message,
+                )
+            )
+            warning_messages.append(
+                {
+                    "type": MessageTypeEnum.WARNING.value,
+                    "code": "discount_code_combination_disallowed",
+                    "param": f"$.discounts.codes[{code_index}]",
+                    "content_type": ContentTypeEnum.PLAIN.value,
+                    "content": message,
+                }
+            )
+            continue
+
+        applied.append(
+            AppliedDiscount(
+                id=f"applied_coupon_{code.lower()}",
+                code=code,
+                coupon=Coupon(
+                    id="coupon_save10",
+                    name="Save 10%",
+                    percent_off=10.0,
+                    currency=DEFAULT_CURRENCY,
+                ),
+                amount=coupon_amount_total,
+                automatic=False,
+                method="each",
+                priority=100,
+                allocations=allocations,
+            )
+        )
+        save10_applied = True
+
+    discounts_payload = DiscountsResponse(
+        codes=normalized_codes,
+        applied=applied,
+        rejected=rejected,
+    )
+    return (
+        line_items,
+        discounts_payload.model_dump(),
+        warning_messages,
+    )
+
+
 def calculate_line_item(
     product: Product,
     quantity: int,
@@ -162,6 +418,8 @@ def calculate_line_item(
         "name": product.name,
         "base_amount": base_amount,
         "discount": total_discount,
+        "promotion_discount": total_discount,
+        "coupon_discount": 0,
         "subtotal": subtotal,
         "tax": tax,
         "total": total,
@@ -228,7 +486,9 @@ def recalculate_line_item_from_existing(
     """
     # Extract per-unit discount from existing line item
     existing_quantity = existing_line_item["item"]["quantity"]
-    existing_discount = existing_line_item.get("discount", 0)
+    existing_discount = existing_line_item.get(
+        "promotion_discount", existing_line_item.get("discount", 0)
+    )
 
     # Calculate per-unit discount (avoid division by zero)
     if existing_quantity > 0:
@@ -437,6 +697,37 @@ def dict_to_total(data: dict[str, Any]) -> Total:
     )
 
 
+def dict_to_message(
+    data: dict[str, Any],
+) -> MessageInfo | MessageWarning | MessageError:
+    """Convert dictionary to message response model."""
+    message_type = data.get("type", MessageTypeEnum.INFO.value)
+    if message_type == MessageTypeEnum.ERROR.value:
+        raw_code = data.get("code", ErrorCodeEnum.INVALID.value)
+        try:
+            code = ErrorCodeEnum(raw_code)
+        except ValueError:
+            code = ErrorCodeEnum.INVALID
+        return MessageError(
+            code=code,
+            param=data.get("param"),
+            content_type=ContentTypeEnum(data["content_type"]),
+            content=data["content"],
+        )
+    if message_type == MessageTypeEnum.WARNING.value:
+        return MessageWarning(
+            code=data.get("code", "warning"),
+            param=data.get("param"),
+            content_type=ContentTypeEnum(data["content_type"]),
+            content=data["content"],
+        )
+    return MessageInfo(
+        param=data.get("param", "$"),
+        content_type=ContentTypeEnum(data["content_type"]),
+        content=data["content"],
+    )
+
+
 # =============================================================================
 # Link Functions
 # =============================================================================
@@ -519,6 +810,9 @@ def session_to_response(session: CheckoutSession) -> CheckoutSessionResponse:
     )
     messages_data: list[dict[str, Any]] = json.loads(session.messages_json)
     links_data: list[dict[str, Any]] = json.loads(session.links_json)
+    metadata_data: dict[str, Any] = (
+        json.loads(session.metadata_json) if session.metadata_json else {}
+    )
 
     # Convert to response models
     line_items = [dict_to_line_item(item) for item in line_items_data]
@@ -549,18 +843,23 @@ def session_to_response(session: CheckoutSession) -> CheckoutSessionResponse:
         )
 
     # Convert messages
-    messages: list[MessageInfo] = [
-        MessageInfo(
-            param=msg_data["param"],
-            content_type=ContentTypeEnum(msg_data["content_type"]),
-            content=msg_data["content"],
+    messages = [dict_to_message(msg_data) for msg_data in messages_data]
+
+    discounts = None
+    raw_discounts = metadata_data.get("discounts")
+    if isinstance(raw_discounts, dict):
+        discounts = DiscountsResponse.model_validate(raw_discounts)
+    else:
+        discounts = DiscountsResponse(
+            codes=[],
+            applied=_build_automatic_applied_discounts(line_items_data),
+            rejected=[],
         )
-        for msg_data in messages_data
-    ]
 
     return CheckoutSessionResponse(
         id=session.id,
         buyer=buyer,
+        capabilities=Capabilities(extensions=[DISCOUNT_EXTENSION_DECLARATION]),
         payment_provider=PaymentProvider(
             provider=PaymentProviderEnum.STRIPE,
             supported_payment_methods=[PaymentMethodEnum.CARD],
@@ -572,7 +871,8 @@ def session_to_response(session: CheckoutSession) -> CheckoutSessionResponse:
         fulfillment_options=list(fulfillment_options),  # Cast for type compatibility
         fulfillment_option_id=session.selected_fulfillment_option_id,
         totals=totals,
-        messages=list(messages),  # Cast for type compatibility
+        discounts=discounts,
+        messages=list(messages),
         links=links,
         order=order,
     )

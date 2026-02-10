@@ -145,6 +145,38 @@ export interface ACPLineItem {
   promotion?: PromotionMetadata;
 }
 
+export interface ACPDiscountAllocation {
+  path: string;
+  amount: number;
+}
+
+export interface ACPAppliedDiscount {
+  id: string;
+  code?: string;
+  amount: number;
+  automatic?: boolean;
+  coupon: {
+    id: string;
+    name: string;
+    percent_off?: number;
+    amount_off?: number;
+    currency?: string;
+  };
+  allocations?: ACPDiscountAllocation[];
+}
+
+export interface ACPRejectedDiscount {
+  code: string;
+  reason: string;
+  message?: string;
+}
+
+export interface ACPDiscounts {
+  codes: string[];
+  applied: ACPAppliedDiscount[];
+  rejected?: ACPRejectedDiscount[];
+}
+
 /**
  * ACP Total entry
  */
@@ -163,6 +195,19 @@ export interface ACPSessionResponse {
   currency: string;
   line_items: ACPLineItem[];
   totals: ACPTotal[];
+  discounts?: ACPDiscounts;
+  messages?: Array<{
+    type: "info" | "warning" | "error";
+    content: string;
+    code?: string;
+  }>;
+  capabilities?: {
+    extensions?: Array<{
+      name: string;
+      extends?: string[];
+      schema?: string;
+    }>;
+  };
   // Other fields we don't need for promotion display
 }
 
@@ -273,10 +318,10 @@ export function cartStateFromSession(
   const total = findTotal("total");
 
   // Calculate discount from line items (sum of individual discounts)
-  const discount = session.line_items?.reduce(
-    (sum, li) => sum + (li.discount || 0),
-    0
-  ) ?? 0;
+  const totalsDiscount = findTotal("items_discount") + findTotal("discount");
+  const discountFromLines =
+    session.line_items?.reduce((sum, li) => sum + (li.discount || 0), 0) ?? 0;
+  const discount = totalsDiscount > 0 ? totalsDiscount : discountFromLines;
 
   return {
     cartId: session.id || cartId,

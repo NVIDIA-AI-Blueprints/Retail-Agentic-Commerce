@@ -336,6 +336,36 @@ describe("useCheckoutFlow", () => {
     });
   });
 
+  describe("applyCouponCode", () => {
+    it("updates session with discounts codes payload", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+
+      const { result } = renderHook(() => useCheckoutFlow());
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      await act(async () => {
+        await result.current.applyCouponCode("save10");
+      });
+
+      expect(apiClient.updateCheckoutSession).toHaveBeenCalledWith(
+        "cs_test123",
+        expect.objectContaining({
+          discounts: {
+            codes: ["SAVE10"],
+          },
+        })
+      );
+    });
+  });
+
   // Mock payment and billing data for tests
   const mockPaymentInfo = {
     cardNumber: "4242424242424242",

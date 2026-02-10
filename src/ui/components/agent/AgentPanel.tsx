@@ -400,6 +400,7 @@ export function AgentPanel() {
     selectProduct,
     updateQuantity,
     selectShipping,
+    applyCouponCode,
     submitPayment,
     reset,
     clearError,
@@ -439,6 +440,13 @@ export function AgentPanel() {
       updateQuantity(quantity);
     },
     [updateQuantity]
+  );
+
+  const handleApplyCoupon = useCallback(
+    (couponCode: string) => {
+      applyCouponCode(couponCode);
+    },
+    [applyCouponCode]
   );
 
   // Handle error retry
@@ -563,10 +571,12 @@ export function AgentPanel() {
           total: li.total,
         })),
         subtotal,
-        discount: 0,
+        discount: sessionTotals.find((t) => t.type === "items_discount")?.amount ?? 0,
         tax: sessionTotals.find((t) => t.type === "tax")?.amount ?? 0,
         shipping,
         total,
+        ...(context.session.discounts ? { discounts: context.session.discounts } : {}),
+        ...(context.session.messages ? { messages: context.session.messages } : {}),
         fulfillmentOptions,
         selectedFulfillmentOptionId: context.selectedShippingId,
         paymentProvider: {
@@ -692,6 +702,7 @@ export function AgentPanel() {
                 onContinue={handleContinueToPayment}
                 onQuantityChange={handleQuantityChange}
                 onShippingChange={handleShippingChange}
+                onApplyCoupon={handleApplyCoupon}
               />
             )}
 

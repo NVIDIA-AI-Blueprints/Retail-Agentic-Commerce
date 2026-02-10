@@ -10,6 +10,7 @@ import pytest
 
 from src.merchant.db.models import Product
 from src.merchant.services.helpers import (
+    apply_discount_codes,
     calculate_line_item,
     recalculate_line_item_from_existing,
 )
@@ -440,3 +441,75 @@ class TestUpdateSessionSkipsPromotionAgent:
         # Existing product should be found
         assert "prod_existing" in existing_by_product_id
         assert existing_by_product_id["prod_existing"]["discount"] == 100
+
+
+class TestCouponStacking:
+    """Tests for coupon stacking and margin protection logic."""
+
+    def test_save10_stacks_on_existing_promotion(self, sample_product: Product) -> None:
+        """SAVE10 applies on top of promotion discount when margin allows."""
+        line_items = [
+            {
+                "id": "li_1",
+                "item": {"id": sample_product.id, "quantity": 1},
+                "base_amount": 2500,
+                "promotion_discount": 250,
+                "coupon_discount": 0,
+                "discount": 250,
+                "subtotal": 2250,
+                "tax": 225,
+                "total": 2475,
+                "promotion": {"action": "DISCOUNT_10_PCT"},
+            }
+        ]
+
+        updated_items, discounts, warnings = apply_discount_codes(
+            line_items=line_items,
+            products_by_id={sample_product.id: sample_product},
+            submitted_codes=["SAVE10"],
+        )
+
+        assert warnings == []
+        assert discounts["codes"] == ["SAVE10"]
+        assert any(
+            applied.get("code") == "SAVE10" for applied in discounts.get("applied", [])
+        )
+        assert updated_items[0]["discount"] > 250
+
+    def test_margin_guard_clamps_coupon_discount(self, sample_product: Product) -> None:
+        """Coupon is clamped when stacked discount would break margin."""
+        constrained_product = Product(
+            id=sample_product.id,
+            sku=sample_product.sku,
+            name=sample_product.name,
+            base_price=sample_product.base_price,
+            stock_count=sample_product.stock_count,
+            min_margin=0.96,
+            image_url=sample_product.image_url,
+        )
+        line_items = [
+            {
+                "id": "li_2",
+                "item": {"id": constrained_product.id, "quantity": 1},
+                "base_amount": 2500,
+                "promotion_discount": 100,
+                "coupon_discount": 0,
+                "discount": 100,
+                "subtotal": 2400,
+                "tax": 240,
+                "total": 2640,
+                "promotion": {"action": "DISCOUNT_5_PCT"},
+            }
+        ]
+
+        updated_items, discounts, warnings = apply_discount_codes(
+            line_items=line_items,
+            products_by_id={constrained_product.id: constrained_product},
+            submitted_codes=["SAVE10"],
+        )
+
+        assert discounts["codes"] == ["SAVE10"]
+        assert len(discounts["applied"]) == 1  # only automatic promotion remains
+        assert len(discounts["rejected"]) == 1
+        assert warnings[0]["type"] == "warning"
+        assert updated_items[0]["discount"] == 100

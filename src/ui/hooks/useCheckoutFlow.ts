@@ -558,6 +558,53 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
   );
 
   /**
+   * Apply coupon code and update session discounts
+   */
+  const applyCouponCode = useCallback(
+    async (couponCode: string) => {
+      if (!context.sessionId) {
+        return;
+      }
+
+      dispatch({ type: "SET_LOADING", isLoading: true });
+
+      const normalized = couponCode.trim().toUpperCase();
+      const eventId = loggerRef.current?.logEvent(
+        "session_update",
+        "POST",
+        `/checkout_sessions/${truncateId(context.sessionId)}`,
+        normalized ? `Apply coupon: ${normalized}` : "Clear coupons"
+      );
+
+      try {
+        const session = await updateCheckoutSession(context.sessionId, {
+          discounts: {
+            codes: normalized ? [normalized] : [],
+          },
+        });
+
+        if (eventId) {
+          const total = session.totals.find((t) => t.type === "total")?.amount ?? 0;
+          loggerRef.current?.completeEvent(
+            eventId,
+            "success",
+            `Total: $${(total / 100).toFixed(2)}`,
+            200
+          );
+        }
+
+        dispatch({ type: "SESSION_UPDATED", session });
+      } catch (error) {
+        if (eventId) {
+          loggerRef.current?.completeEvent(eventId, "error", "Coupon update failed", 400);
+        }
+        dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+      }
+    },
+    [context.sessionId]
+  );
+
+  /**
    * Submit payment - delegates to PSP and completes checkout
    * Accepts optional payment info and billing address to support immediate submission
    * without waiting for context state to update
@@ -800,6 +847,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
     selectProduct,
     updateQuantity,
     selectShipping,
+    applyCouponCode,
     submitPayment,
     reset,
     clearError,

@@ -1525,6 +1525,7 @@ class ACPCreateSessionRequest(BaseModel):
     items: list[dict[str, Any]] = Field(...)
     buyer: dict[str, str] | None = Field(None)
     fulfillment_address: dict[str, str] | None = Field(None, alias="fulfillmentAddress")
+    discounts: dict[str, list[str]] | None = Field(None)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -1536,6 +1537,7 @@ class ACPUpdateSessionRequest(BaseModel):
     items: list[dict[str, Any]] | None = Field(None)
     fulfillment_option_id: str | None = Field(None, alias="fulfillmentOptionId")
     fulfillment_address: dict[str, str] | None = Field(None, alias="fulfillmentAddress")
+    discounts: dict[str, list[str]] | None = Field(None)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -1572,6 +1574,8 @@ async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]
                 body["buyer"] = request.buyer
             if request.fulfillment_address:
                 body["fulfillment_address"] = request.fulfillment_address
+            if request.discounts is not None:
+                body["discounts"] = request.discounts
 
             response = await client.post(
                 f"{merchant_api_url}/checkout_sessions",
@@ -1671,6 +1675,8 @@ async def acp_update_session(
         update_parts.append("shipping")
     if request.fulfillment_address:
         update_parts.append("address")
+    if request.discounts is not None:
+        update_parts.append("discounts")
     update_summary = ", ".join(update_parts) or "session"
 
     try:
@@ -1683,6 +1689,8 @@ async def acp_update_session(
                 body["fulfillment_option_id"] = request.fulfillment_option_id
             if request.fulfillment_address is not None:
                 body["fulfillment_address"] = request.fulfillment_address
+            if request.discounts is not None:
+                body["discounts"] = request.discounts
 
             response = await client.post(
                 f"{merchant_api_url}/checkout_sessions/{session_id}",

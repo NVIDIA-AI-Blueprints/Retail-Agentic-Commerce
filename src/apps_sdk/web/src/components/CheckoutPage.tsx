@@ -12,7 +12,13 @@ import {
   AlertCircle,
   ChevronDown,
 } from "lucide-react";
-import type { CartItem, CartState, Product, CheckoutResult } from "@/types";
+import type {
+  ACPSessionResponse,
+  CartItem,
+  CartState,
+  Product,
+  CheckoutResult,
+} from "@/types";
 import { formatPrice, getProductImage } from "@/types";
 import { RecommendationSkeleton } from "@/components/RecommendationSkeleton";
 import { PaymentSheet, type PaymentFormData } from "@/components/PaymentSheet";
@@ -54,6 +60,7 @@ interface CheckoutPageProps {
   cartItems: CartItem[];
   /** Cart state with totals from backend - isCalculating indicates pending update */
   cartState: CartState;
+  sessionData: ACPSessionResponse | null;
   recommendations: Product[];
   isLoadingRecommendations: boolean;
   isProcessing: boolean;
@@ -67,6 +74,8 @@ interface CheckoutPageProps {
   onClearResult: () => void;
   /** Called when shipping option changes - parent handles backend call */
   onShippingUpdate: (fulfillmentOptionId: string) => Promise<void>;
+  /** Called when coupon code is applied */
+  onApplyCoupon: (couponCode: string) => Promise<void>;
 }
 
 /**
@@ -226,6 +235,7 @@ function RecommendationCard({
 export function CheckoutPage({
   cartItems,
   cartState,
+  sessionData,
   recommendations,
   isLoadingRecommendations,
   isProcessing,
@@ -238,12 +248,15 @@ export function CheckoutPage({
   onQuickAdd,
   onClearResult,
   onShippingUpdate,
+  onApplyCoupon,
 }: CheckoutPageProps) {
   const isEmpty = cartItems.length === 0;
   const [selectedDelivery, setSelectedDelivery] = useState<string>("standard");
   const [isDeliveryOpen, setIsDeliveryOpen] = useState(false);
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
   const [isUpdatingShipping, setIsUpdatingShipping] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
   const currentDelivery = DELIVERY_OPTIONS.find((d) => d.id === selectedDelivery) || DELIVERY_OPTIONS[0];
 
@@ -257,6 +270,29 @@ export function CheckoutPage({
   const tax = cartState.tax;
   const totalDiscount = cartState.discount;
   const total = cartState.total;
+  const isCalculatingDiscounts = isCalculating || isApplyingCoupon;
+  const appliedDiscounts = sessionData?.discounts?.applied ?? [];
+  const rejectedDiscounts = sessionData?.discounts?.rejected ?? [];
+  const warningMessages = (sessionData?.messages ?? []).filter(
+    (message) => message.type === "warning"
+  );
+  const rejectedMessages = rejectedDiscounts.map(
+    (discount) => discount.message ?? `Code ${discount.code} could not be applied.`
+  );
+  const dedupedWarningMessages = warningMessages.filter((message) => {
+    const content = message.content.trim();
+    const matchesRejectedMessage = rejectedMessages.some(
+      (rejectedMessage) => rejectedMessage === content
+    );
+    const mentionsRejectedCode = rejectedDiscounts.some((discount) =>
+      content.includes(`'${discount.code}'`)
+    );
+    return !matchesRejectedMessage && !mentionsRejectedCode;
+  });
+
+  useEffect(() => {
+    setCouponCode(sessionData?.discounts?.codes?.[0] ?? "");
+  }, [sessionData?.discounts]);
 
   // Handle delivery selection - calls parent to update backend
   const handleSelectDelivery = useCallback(
@@ -300,6 +336,15 @@ export function CheckoutPage({
   const handlePay = useCallback((formData: PaymentFormData) => {
     onCheckout(formData);
   }, [onCheckout]);
+
+  const handleApplyCoupon = useCallback(async () => {
+    setIsApplyingCoupon(true);
+    try {
+      await onApplyCoupon(couponCode.trim());
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  }, [couponCode, onApplyCoupon]);
 
   // Close payment sheet when checkout result comes back
   useEffect(() => {
@@ -511,6 +556,61 @@ export function CheckoutPage({
                   </div>
                 </section>
 
+                {/* Coupon section */}
+                <section className="space-y-2 border-t border-default/50 pt-3">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-text-tertiary">
+                    Coupon
+                  </h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter code (e.g. SAVE10)"
+                      value={couponCode}
+                      onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                      className="w-full rounded-xl border border-default bg-surface-elevated px-4 py-3 text-sm text-text placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                      disabled={isCalculatingDiscounts}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      className="rounded-xl border border-default bg-surface px-4 py-3 text-sm font-medium text-text transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={isCalculatingDiscounts || couponCode.trim().length === 0}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  {appliedDiscounts.length > 0 && (
+                    <div className="space-y-1">
+                      {appliedDiscounts.map((discount) => (
+                        <p key={discount.id} className="text-xs text-text-secondary">
+                          {discount.automatic ? "Auto offer" : `Code ${discount.code}`}: -
+                          {formatPrice(discount.amount)}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {(rejectedDiscounts.length > 0 || dedupedWarningMessages.length > 0) && (
+                    <div className="space-y-1">
+                      {rejectedDiscounts.map((discount) => (
+                        <p
+                          key={`${discount.code}-${discount.reason}`}
+                          className="text-xs text-amber-600 dark:text-amber-400"
+                        >
+                          {discount.message ?? `Code ${discount.code} could not be applied.`}
+                        </p>
+                      ))}
+                      {dedupedWarningMessages.map((message, index) => (
+                        <p
+                          key={`${message.code ?? "warning"}-${index}`}
+                          className="text-xs text-amber-600 dark:text-amber-400"
+                        >
+                          {message.content}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
                 {/* Order summary - all values from backend */}
                 <section className="space-y-2 border-t border-default/50 pt-3">
                   {isCalculating && (
@@ -562,12 +662,12 @@ export function CheckoutPage({
               <button
                 className="flex w-full items-center justify-center gap-2.5 rounded-full bg-primary px-6 py-4 text-base font-semibold text-white shadow-lg transition-all hover:bg-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-primary/20"
                 onClick={handleOpenPayment}
-                disabled={isCalculating}
+                disabled={isCalculatingDiscounts}
               >
                 <Lock className="h-4 w-4" strokeWidth={2} />
                 <span className="flex-1 text-center">Complete Purchase</span>
                 <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-medium">
-                  {isCalculating ? "..." : formatPrice(total)}
+                  {isCalculatingDiscounts ? "..." : formatPrice(total)}
                 </span>
               </button>
             </div>

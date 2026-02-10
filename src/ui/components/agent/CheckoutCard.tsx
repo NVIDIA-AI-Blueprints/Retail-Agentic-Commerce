@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Card, Text, Button, Stack, Flex, Divider, Select } from "@kui/foundations-react-external";
 import { CreditCard } from "@/components/icons";
@@ -63,6 +64,26 @@ interface LegacyCheckoutSession {
     provider: string;
     supportedPaymentMethods: string[];
   };
+  discounts?: {
+    codes: string[];
+    applied: Array<{
+      id: string;
+      code?: string;
+      amount: number;
+      coupon: { name: string };
+      automatic?: boolean;
+    }>;
+    rejected?: Array<{
+      code: string;
+      reason: string;
+      message?: string;
+    }>;
+  };
+  messages?: Array<{
+    type: "info" | "warning" | "error";
+    content: string;
+    code?: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,6 +97,7 @@ interface CheckoutCardProps {
   onContinue?: () => void;
   onQuantityChange?: (quantity: number) => void;
   onShippingChange?: (optionId: string) => void;
+  onApplyCoupon?: (couponCode: string) => void;
 }
 
 /**
@@ -90,7 +112,9 @@ export function CheckoutCard({
   onContinue,
   onQuantityChange,
   onShippingChange,
+  onApplyCoupon,
 }: CheckoutCardProps) {
+  const [couponInput, setCouponInput] = useState("");
   const lineItem = checkout.lineItems[0];
   const fulfillmentOptions = (checkout.fulfillmentOptions ?? []) as LegacyFulfillmentOption[];
   const selectedOption = fulfillmentOptions.find(
@@ -133,6 +157,31 @@ export function CheckoutCard({
   const handleShippingChange = (value: string) => {
     onShippingChange?.(value);
   };
+
+  useEffect(() => {
+    setCouponInput(checkout.discounts?.codes?.[0] ?? "");
+  }, [checkout.discounts]);
+
+  const handleApplyCoupon = () => {
+    onApplyCoupon?.(couponInput.trim());
+  };
+
+  const appliedDiscounts = checkout.discounts?.applied ?? [];
+  const rejectedDiscounts = checkout.discounts?.rejected ?? [];
+  const warningMessages = (checkout.messages ?? []).filter((m) => m.type === "warning");
+  const rejectedMessages = rejectedDiscounts.map(
+    (rejected) => rejected.message ?? `Code ${rejected.code} could not be applied.`
+  );
+  const dedupedWarningMessages = warningMessages.filter((message) => {
+    const content = message.content.trim();
+    const matchesRejectedMessage = rejectedMessages.some(
+      (rejectedMessage) => rejectedMessage === content
+    );
+    const mentionsRejectedCode = rejectedDiscounts.some((rejected) =>
+      content.includes(`'${rejected.code}'`)
+    );
+    return !matchesRejectedMessage && !mentionsRejectedCode;
+  });
 
   // Build shipping options for Select component
   const shippingItems: Array<{ value: string; children: string }> = fulfillmentOptions.map(
@@ -250,6 +299,68 @@ export function CheckoutCard({
                 </Flex>
               </Flex>
             )
+          )}
+        </Stack>
+
+        <Divider />
+
+        {/* Coupon input */}
+        <Stack gap="2">
+          <Text kind="label/semibold/sm" className="text-primary">
+            Coupon code
+          </Text>
+          <Flex gap="2">
+            <div className="nv-input nv-text-input-root flex-1">
+              <input
+                type="text"
+                value={couponInput}
+                onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+                placeholder="Enter code (e.g. SAVE10)"
+                className="nv-text-input-element"
+                disabled={isProcessing}
+                aria-label="Coupon code"
+              />
+            </div>
+            <Button
+              kind="secondary"
+              onClick={handleApplyCoupon}
+              disabled={isProcessing || couponInput.trim().length === 0}
+              aria-label="Apply coupon"
+            >
+              Apply
+            </Button>
+          </Flex>
+          {appliedDiscounts.length > 0 && (
+            <Stack gap="1">
+              {appliedDiscounts.map((applied) => (
+                <Text key={applied.id} kind="body/regular/sm" className="text-secondary">
+                  {applied.automatic ? "Auto offer" : `Code ${applied.code}`}:{" "}
+                  -{formatCurrency(applied.amount)}
+                </Text>
+              ))}
+            </Stack>
+          )}
+          {(rejectedDiscounts.length > 0 || dedupedWarningMessages.length > 0) && (
+            <Stack gap="1">
+              {rejectedDiscounts.map((rejected) => (
+                <Text
+                  key={`${rejected.code}-${rejected.reason}`}
+                  kind="body/regular/sm"
+                  className="text-amber-600 dark:text-amber-400"
+                >
+                  {rejected.message ?? `Code ${rejected.code} could not be applied.`}
+                </Text>
+              ))}
+              {dedupedWarningMessages.map((message, index) => (
+                <Text
+                  key={`${message.code ?? "warning"}-${index}`}
+                  kind="body/regular/sm"
+                  className="text-amber-600 dark:text-amber-400"
+                >
+                  {message.content}
+                </Text>
+              ))}
+            </Stack>
           )}
         </Stack>
 

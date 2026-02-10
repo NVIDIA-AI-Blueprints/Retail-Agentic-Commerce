@@ -67,6 +67,7 @@ class MessageTypeEnum(StrEnum):
     """Message types."""
 
     INFO = "info"
+    WARNING = "warning"
     ERROR = "error"
 
 
@@ -168,6 +169,16 @@ class CreateCheckoutRequest(BaseModel):
     fulfillment_address: AddressInput | None = Field(
         default=None, description="Shipping address"
     )
+    capabilities: dict[str, object] | None = Field(
+        default=None, description="Agent capabilities declaration"
+    )
+    discounts: dict[str, list[str]] | None = Field(
+        default=None, description="Discount extension request payload"
+    )
+    coupons: list[str] | None = Field(
+        default=None,
+        description="DEPRECATED alias for discounts.codes",
+    )
 
 
 class UpdateCheckoutRequest(BaseModel):
@@ -182,6 +193,13 @@ class UpdateCheckoutRequest(BaseModel):
     )
     fulfillment_option_id: str | None = Field(
         default=None, description="Selected fulfillment option ID"
+    )
+    discounts: dict[str, list[str]] | None = Field(
+        default=None, description="Discount extension request payload"
+    )
+    coupons: list[str] | None = Field(
+        default=None,
+        description="DEPRECATED alias for discounts.codes",
     )
 
 
@@ -313,6 +331,89 @@ class Total(BaseModel):
     amount: Annotated[int, Field(ge=0, description="Amount in minor units")]
 
 
+class Allocation(BaseModel):
+    """Allocation breakdown for a discount."""
+
+    path: str = Field(..., description="JSONPath to allocation target")
+    amount: Annotated[int, Field(ge=0, description="Allocated amount")]
+
+
+class Coupon(BaseModel):
+    """Coupon or promotion metadata for an applied discount."""
+
+    id: str = Field(..., description="Coupon identifier")
+    name: str = Field(..., description="Coupon display name")
+    percent_off: float | None = Field(default=None, description="Percentage discount")
+    amount_off: int | None = Field(default=None, description="Fixed discount amount")
+    currency: str | None = Field(
+        default=None, description="Currency for fixed discounts"
+    )
+
+
+class AppliedDiscount(BaseModel):
+    """Discount successfully applied to the checkout session."""
+
+    id: str = Field(..., description="Applied discount ID")
+    code: str | None = Field(default=None, description="Submitted discount code")
+    coupon: Coupon = Field(..., description="Underlying coupon details")
+    amount: Annotated[int, Field(ge=0, description="Applied amount")]
+    automatic: bool = Field(default=False, description="Whether discount was automatic")
+    method: str | None = Field(default=None, description="Allocation method")
+    priority: int | None = Field(default=None, description="Stacking priority")
+    allocations: list[Allocation] | None = Field(
+        default=None, description="Allocation breakdown"
+    )
+
+
+class RejectedDiscount(BaseModel):
+    """Discount code that could not be applied."""
+
+    code: str = Field(..., description="Rejected discount code")
+    reason: str = Field(..., description="Rejection reason code")
+    message: str | None = Field(
+        default=None, description="Human-readable rejection reason"
+    )
+
+
+class DiscountsResponse(BaseModel):
+    """Discount extension response payload."""
+
+    codes: list[str] = Field(
+        default_factory=list, description="Submitted discount codes (echo)"
+    )
+    applied: list[AppliedDiscount] = Field(
+        default_factory=list, description="Successfully applied discounts"
+    )
+    rejected: list[RejectedDiscount] = Field(
+        default_factory=list, description="Rejected discount codes"
+    )
+
+
+class ExtensionDeclaration(BaseModel):
+    """Active extension declaration for checkout sessions."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str = Field(..., description="Extension identifier")
+    extends: list[str] = Field(
+        default_factory=list, description="JSONPath fields extended by this extension"
+    )
+    schema_url: str | None = Field(
+        default=None,
+        alias="schema",
+        serialization_alias="schema",
+        description="Schema URL for this extension",
+    )
+
+
+class Capabilities(BaseModel):
+    """Minimal seller capabilities for extension negotiation."""
+
+    extensions: list[ExtensionDeclaration] = Field(
+        default_factory=list, description="Active protocol extensions"
+    )
+
+
 class MessageInfo(BaseModel):
     """Info message."""
 
@@ -332,8 +433,18 @@ class MessageError(BaseModel):
     content: str = Field(..., description="Message content")
 
 
+class MessageWarning(BaseModel):
+    """Warning message."""
+
+    type: MessageTypeEnum = MessageTypeEnum.WARNING
+    code: str = Field(..., description="Warning code")
+    param: str | None = Field(default=None, description="JSONPath to related component")
+    content_type: ContentTypeEnum = Field(..., description="Content format")
+    content: str = Field(..., description="Message content")
+
+
 # Union type for messages
-Message = MessageInfo | MessageError
+Message = MessageInfo | MessageWarning | MessageError
 
 
 class Link(BaseModel):
@@ -356,6 +467,9 @@ class CheckoutSessionResponse(BaseModel):
 
     id: str = Field(..., description="Checkout session ID")
     buyer: Buyer | None = Field(default=None, description="Buyer information")
+    capabilities: Capabilities | None = Field(
+        default=None, description="Session capabilities"
+    )
     payment_provider: PaymentProvider = Field(
         ..., description="Payment provider config"
     )
@@ -372,7 +486,10 @@ class CheckoutSessionResponse(BaseModel):
         default=None, description="Selected fulfillment option"
     )
     totals: list[Total] = Field(..., description="Price totals")
-    messages: list[MessageInfo | MessageError] = Field(
+    discounts: DiscountsResponse | None = Field(
+        default=None, description="Discount extension response"
+    )
+    messages: list[MessageInfo | MessageWarning | MessageError] = Field(
         ..., description="Info and error messages"
     )
     links: list[Link] = Field(..., description="HATEOAS links")

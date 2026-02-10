@@ -114,6 +114,40 @@ class TestCreateCheckoutSession:
         assert data["payment_provider"]["provider"] == "stripe"
         assert "card" in data["payment_provider"]["supported_payment_methods"]
 
+    def test_create_session_includes_capabilities_and_discounts(
+        self, auth_client: TestClient
+    ) -> None:
+        """Session response includes discount extension capabilities payload."""
+        response = auth_client.post(
+            "/checkout_sessions",
+            json={"items": [{"id": "prod_1", "quantity": 1}]},
+        )
+        data = response.json()
+
+        assert response.status_code == 201
+        assert data["capabilities"]["extensions"][0]["name"] == "discount"
+        assert data["discounts"]["codes"] == []
+        assert isinstance(data["discounts"]["applied"], list)
+        assert isinstance(data["discounts"]["rejected"], list)
+
+    def test_create_session_applies_save10_coupon(
+        self, auth_client: TestClient
+    ) -> None:
+        """Submitting SAVE10 applies a stacked coupon discount."""
+        response = auth_client.post(
+            "/checkout_sessions",
+            json={
+                "items": [{"id": "prod_1", "quantity": 1}],
+                "discounts": {"codes": ["save10"]},
+            },
+        )
+        data = response.json()
+
+        assert response.status_code == 201
+        assert data["discounts"]["codes"] == ["SAVE10"]
+        assert any(d.get("code") == "SAVE10" for d in data["discounts"]["applied"])
+        assert data["line_items"][0]["discount"] > 0
+
     def test_create_session_includes_totals(self, auth_client: TestClient) -> None:
         """Happy path: Response includes calculated totals."""
         response = auth_client.post(
@@ -447,6 +481,27 @@ class TestUpdateCheckoutSession:
         new_total = next(t["amount"] for t in data["totals"] if t["type"] == "total")
 
         assert new_total == original_total * 2
+
+    def test_update_session_rejects_invalid_coupon(
+        self, auth_client: TestClient
+    ) -> None:
+        """Invalid coupon codes are rejected and surfaced in warning messages."""
+        create_response = auth_client.post(
+            "/checkout_sessions",
+            json={"items": [{"id": "prod_1", "quantity": 1}]},
+        )
+        session_id = create_response.json()["id"]
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}",
+            json={"discounts": {"codes": ["NOTREAL"]}},
+        )
+        data = response.json()
+
+        assert response.status_code == 200
+        assert data["discounts"]["codes"] == ["NOTREAL"]
+        assert data["discounts"]["rejected"][0]["reason"] == "discount_code_invalid"
+        assert any(msg["type"] == "warning" for msg in data["messages"])
 
     def test_update_nonexistent_session_returns_404(
         self, auth_client: TestClient

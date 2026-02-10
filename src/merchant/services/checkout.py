@@ -26,6 +26,7 @@ from src.merchant.services.helpers import (
     DEFAULT_CURRENCY,
     DEFAULT_SHOP_URL,
     address_input_to_dict,
+    apply_discount_codes,
     buyer_input_to_dict,
     calculate_line_item_with_promotion,
     calculate_totals,
@@ -90,6 +91,35 @@ class InvalidStateTransitionError(CheckoutServiceError):
 # =============================================================================
 
 
+def _extract_discount_codes_from_request(
+    discounts: dict[str, list[str]] | None,
+    coupons: list[str] | None,
+) -> list[str] | None:
+    """Extract submitted discount codes from request fields."""
+    if discounts is not None:
+        return discounts.get("codes", [])
+    if coupons is not None:
+        return coupons
+    return None
+
+
+def _get_existing_discount_codes(session: CheckoutSession) -> list[str]:
+    """Read previously submitted discount codes from session metadata."""
+    if not session.metadata_json:
+        return []
+    try:
+        metadata = json.loads(session.metadata_json)
+    except json.JSONDecodeError:
+        return []
+    raw_discounts = metadata.get("discounts", {})
+    if not isinstance(raw_discounts, dict):
+        return []
+    raw_codes = raw_discounts.get("codes", [])
+    if not isinstance(raw_codes, list):
+        return []
+    return [str(code) for code in raw_codes]
+
+
 async def create_checkout_session(
     db: Session, request: CreateCheckoutRequest, protocol: str = "acp"
 ) -> CheckoutSessionResponse:
@@ -119,15 +149,26 @@ async def create_checkout_session(
 
     # Build line items from products with promotion discounts
     line_items: list[dict[str, Any]] = []
+    products_by_id: dict[str, Product] = {}
     for item in request.items:
         product = db.exec(select(Product).where(Product.id == item.id)).first()
         if product is None:
             logger.warning(f"Product not found: {item.id}")
             raise ProductNotFoundError(item.id)
+        products_by_id[item.id] = product
 
         # Get line item with promotion discount (async call to agent)
         line_item = await calculate_line_item_with_promotion(db, product, item.quantity)
         line_items.append(line_item)
+
+    submitted_codes = _extract_discount_codes_from_request(
+        request.discounts, request.coupons
+    )
+    (
+        line_items,
+        discounts_payload,
+        discount_warning_messages,
+    ) = apply_discount_codes(line_items, products_by_id, submitted_codes)
 
     # Process optional buyer
     buyer_json = None
@@ -164,6 +205,8 @@ async def create_checkout_session(
             "content": "Welcome to checkout! Please complete all required fields.",
         }
     ]
+    messages.extend(discount_warning_messages)
+    metadata = {"discounts": discounts_payload}
 
     # Create database record
     checkout_session = CheckoutSession(
@@ -178,6 +221,7 @@ async def create_checkout_session(
         totals_json=json.dumps(totals),
         messages_json=json.dumps(messages),
         links_json=json.dumps(links),
+        metadata_json=json.dumps(metadata),
     )
 
     db.add(checkout_session)
@@ -266,10 +310,13 @@ async def update_checkout_session(
         update_fields.append("address")
     if request.fulfillment_option_id is not None:
         update_fields.append("shipping")
+    if request.discounts is not None or request.coupons is not None:
+        update_fields.append("discounts")
 
     logger.debug(f"Updating session {session_id} | fields={update_fields}")
 
     # Update items if provided (reuse existing promotion data, no agent call)
+    products_by_id: dict[str, Product] = {}
     if request.items is not None:
         # Build lookup of existing line items by product ID
         existing_line_items: list[dict[str, Any]] = json.loads(session.line_items_json)
@@ -282,6 +329,7 @@ async def update_checkout_session(
             product = db.exec(select(Product).where(Product.id == item.id)).first()
             if product is None:
                 raise ProductNotFoundError(item.id)
+            products_by_id[item.id] = product
 
             # Check if this product has existing promotion data
             existing_li = existing_by_product_id.get(item.id)
@@ -297,6 +345,13 @@ async def update_checkout_session(
                 )
             new_line_items.append(line_item)
         session.line_items_json = json.dumps(new_line_items)
+    else:
+        current_line_items: list[dict[str, Any]] = json.loads(session.line_items_json)
+        for line_item in current_line_items:
+            product_id = str(line_item["item"]["id"])
+            product = db.exec(select(Product).where(Product.id == product_id)).first()
+            if product is not None:
+                products_by_id[product_id] = product
 
     # Update buyer if provided
     if request.buyer is not None:
@@ -325,6 +380,19 @@ async def update_checkout_session(
 
     # Recalculate totals
     current_line_items: list[dict[str, Any]] = json.loads(session.line_items_json)
+    submitted_codes = _extract_discount_codes_from_request(
+        request.discounts, request.coupons
+    )
+    if submitted_codes is None:
+        submitted_codes = _get_existing_discount_codes(session)
+
+    (
+        current_line_items,
+        discounts_payload,
+        discount_warning_messages,
+    ) = apply_discount_codes(current_line_items, products_by_id, submitted_codes)
+    session.line_items_json = json.dumps(current_line_items)
+
     current_fulfillment_options: list[dict[str, Any]] = json.loads(
         session.fulfillment_options_json
     )
@@ -336,18 +404,25 @@ async def update_checkout_session(
     session.totals_json = json.dumps(updated_totals)
 
     # Check if ready for payment and update status
+    base_message = "Welcome to checkout! Please complete all required fields."
     if check_ready_for_payment(session):
         session.status = CheckoutStatus.READY_FOR_PAYMENT
-        # Update message
-        ready_messages: list[dict[str, Any]] = [
+        base_message = "Ready for payment! Review your order and proceed."
+
+    session.messages_json = json.dumps(
+        [
             {
                 "type": "info",
                 "param": "$",
                 "content_type": "plain",
-                "content": "Ready for payment! Review your order and proceed.",
-            }
+                "content": base_message,
+            },
+            *discount_warning_messages,
         ]
-        session.messages_json = json.dumps(ready_messages)
+    )
+    metadata = json.loads(session.metadata_json) if session.metadata_json else {}
+    metadata["discounts"] = discounts_payload
+    session.metadata_json = json.dumps(metadata)
 
     session.updated_at = datetime.now(UTC)
     db.add(session)

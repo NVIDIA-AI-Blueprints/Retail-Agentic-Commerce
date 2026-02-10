@@ -291,6 +291,42 @@ export function App() {
     [sessionId, getApiBaseUrl]
   );
 
+  // Apply coupon code via ACP session update
+  const handleApplyCoupon = useCallback(
+    async (couponCode: string) => {
+      if (!sessionId) {
+        console.warn("[Widget] No session ID for coupon update");
+        return;
+      }
+
+      const apiBaseUrl = getApiBaseUrl();
+      const normalized = couponCode.trim().toUpperCase();
+      try {
+        const response = await fetch(`${apiBaseUrl}/acp/sessions/${sessionId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            discounts: {
+              codes: normalized ? [normalized] : [],
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as ACPSessionResponse;
+          setAcpSession(data);
+        } else {
+          console.error("[Widget] Coupon update failed:", response.status);
+        }
+      } catch (error) {
+        console.error("[Widget] Failed to update coupon:", error);
+        throw error;
+      }
+    },
+    [sessionId, getApiBaseUrl]
+  );
+
   // Update cart state when ACP session changes - totals come from backend
   useEffect(() => {
     const newCartState = cartStateFromSession(acpSession, cartItems, sessionId || "");
@@ -652,6 +688,7 @@ export function App() {
         <CheckoutPage
           cartItems={cartItems}
           cartState={cartState}
+          sessionData={acpSession}
           recommendations={displayRecommendations}
           isLoadingRecommendations={isLoadingCheckoutRecommendations}
           isProcessing={isCheckingOut}
@@ -664,6 +701,7 @@ export function App() {
           onQuickAdd={handleAddToCart}
           onClearResult={handleClearCart}
           onShippingUpdate={handleShippingUpdate}
+          onApplyCoupon={handleApplyCoupon}
         />
       </div>
     );

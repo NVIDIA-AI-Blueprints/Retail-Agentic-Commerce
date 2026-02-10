@@ -223,6 +223,73 @@ export interface AgentCapabilities {
   };
 }
 
+/**
+ * Extension declaration in capabilities.extensions
+ */
+export interface ExtensionDeclaration {
+  name: string;
+  extends?: string[];
+  schema?: string;
+}
+
+/**
+ * Session capabilities (minimal extension-focused model)
+ */
+export interface CheckoutCapabilities {
+  extensions?: ExtensionDeclaration[];
+}
+
+/**
+ * Discount allocation target
+ */
+export interface DiscountAllocation {
+  path: string;
+  amount: number;
+}
+
+/**
+ * Coupon details for applied discounts
+ */
+export interface CouponDetails {
+  id: string;
+  name: string;
+  percent_off?: number;
+  amount_off?: number;
+  currency?: string;
+}
+
+/**
+ * Applied discount
+ */
+export interface AppliedDiscount {
+  id: string;
+  code?: string;
+  coupon: CouponDetails;
+  amount: number;
+  automatic?: boolean;
+  method?: "each" | "across" | string;
+  priority?: number;
+  allocations?: DiscountAllocation[];
+}
+
+/**
+ * Rejected discount code
+ */
+export interface RejectedDiscount {
+  code: string;
+  reason: string;
+  message?: string;
+}
+
+/**
+ * Discounts extension response
+ */
+export interface DiscountsResponse {
+  codes: string[];
+  applied: AppliedDiscount[];
+  rejected?: RejectedDiscount[];
+}
+
 // =============================================================================
 // Totals & Messages
 // =============================================================================
@@ -253,7 +320,7 @@ export interface Total {
 /**
  * Message types
  */
-export type MessageType = "info" | "error";
+export type MessageType = "info" | "warning" | "error";
 
 /**
  * Error codes
@@ -288,9 +355,20 @@ export interface ErrorMessage {
 }
 
 /**
+ * Warning message
+ */
+export interface WarningMessage {
+  type: "warning";
+  code: string;
+  param?: string;
+  content_type: "plain" | "markdown";
+  content: string;
+}
+
+/**
  * Union type for messages
  */
-export type Message = InfoMessage | ErrorMessage;
+export type Message = InfoMessage | WarningMessage | ErrorMessage;
 
 /**
  * Link types
@@ -418,8 +496,10 @@ export interface CheckoutSessionResponse {
   status: CheckoutStatus;
   currency: string;
   buyer?: Buyer;
+  capabilities?: CheckoutCapabilities;
   payment_provider: PaymentProvider;
   seller_capabilities?: SellerCapabilities;
+  discounts?: DiscountsResponse;
   line_items: LineItem[];
   fulfillment_details?: FulfillmentDetails;
   fulfillment_options: FulfillmentOption[];
@@ -474,6 +554,13 @@ export interface CreateCheckoutRequest {
   items: ItemInput[];
   buyer?: Buyer;
   fulfillment_address?: Address;
+  capabilities?: {
+    extensions?: string[];
+  };
+  discounts?: {
+    codes: string[];
+  };
+  coupons?: string[];
 }
 
 /**
@@ -484,6 +571,10 @@ export interface UpdateCheckoutRequest {
   buyer?: Buyer;
   fulfillment_address?: Address;
   fulfillment_option_id?: string;
+  discounts?: {
+    codes: string[];
+  };
+  coupons?: string[];
 }
 
 /**
