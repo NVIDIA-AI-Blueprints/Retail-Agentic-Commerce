@@ -298,7 +298,9 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
 
     if tool_name == "add-to-cart":
         payload = AddToCartInput.model_validate(args)
-        result = await add_to_cart(payload.product_id, payload.quantity, payload.cart_id)
+        result = await add_to_cart(
+            payload.product_id, payload.quantity, payload.cart_id
+        )
         return types.ServerResult(
             types.CallToolResult(
                 content=[
@@ -417,7 +419,9 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             if not isinstance(product_id, str) or not product_id:
                 continue
             position_value = rec.get("rank")
-            position = int(position_value) if isinstance(position_value, int) else index + 1
+            position = (
+                int(position_value) if isinstance(position_value, int) else index + 1
+            )
             await _record_recommendation_attribution_event(
                 event_type="impression",
                 product_id=product_id,
