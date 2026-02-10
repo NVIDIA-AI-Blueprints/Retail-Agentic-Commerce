@@ -114,6 +114,7 @@ services:
       # Server-side URLs (internal Docker network) - used by proxy routes
       - MERCHANT_API_URL=http://merchant:8000
       - PSP_API_URL=http://psp:8001
+      - PHOENIX_API_URL=${PHOENIX_API_URL:-http://phoenix:6006}
       # Server-side API keys (NOT exposed to browser) - used by proxy routes
       - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
       - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}
@@ -121,6 +122,7 @@ services:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-whsec_demo_secret}
     networks:
       - acp-network
+      - acp-infra-network
     restart: unless-stopped
 
   # =============================================================================
