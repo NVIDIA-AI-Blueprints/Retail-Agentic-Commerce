@@ -375,6 +375,14 @@ class RejectedDiscount(BaseModel):
     )
 
 
+def _default_applied_discounts() -> list[AppliedDiscount]:
+    return []
+
+
+def _default_rejected_discounts() -> list[RejectedDiscount]:
+    return []
+
+
 class DiscountsResponse(BaseModel):
     """Discount extension response payload."""
 
@@ -382,10 +390,12 @@ class DiscountsResponse(BaseModel):
         default_factory=list, description="Submitted discount codes (echo)"
     )
     applied: list[AppliedDiscount] = Field(
-        default_factory=list, description="Successfully applied discounts"
+        default_factory=_default_applied_discounts,
+        description="Successfully applied discounts",
     )
     rejected: list[RejectedDiscount] = Field(
-        default_factory=list, description="Rejected discount codes"
+        default_factory=_default_rejected_discounts,
+        description="Rejected discount codes",
     )
 
 
@@ -406,11 +416,16 @@ class ExtensionDeclaration(BaseModel):
     )
 
 
+def _default_extensions() -> list[ExtensionDeclaration]:
+    return []
+
+
 class Capabilities(BaseModel):
     """Minimal seller capabilities for extension negotiation."""
 
     extensions: list[ExtensionDeclaration] = Field(
-        default_factory=list, description="Active protocol extensions"
+        default_factory=_default_extensions,
+        description="Active protocol extensions",
     )
 
 

@@ -10,7 +10,7 @@ hybrid architecture (see services/promotion.py).
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlmodel import Session, select
 
@@ -108,15 +108,20 @@ def _get_existing_discount_codes(session: CheckoutSession) -> list[str]:
     if not session.metadata_json:
         return []
     try:
-        metadata = json.loads(session.metadata_json)
+        metadata_obj = json.loads(session.metadata_json)
     except json.JSONDecodeError:
         return []
-    raw_discounts = metadata.get("discounts", {})
-    if not isinstance(raw_discounts, dict):
+    if not isinstance(metadata_obj, dict):
         return []
-    raw_codes = raw_discounts.get("codes", [])
-    if not isinstance(raw_codes, list):
+    metadata = cast(dict[str, Any], metadata_obj)
+    raw_discounts_obj = metadata.get("discounts", {})
+    if not isinstance(raw_discounts_obj, dict):
         return []
+    raw_discounts = cast(dict[str, Any], raw_discounts_obj)
+    raw_codes_obj = raw_discounts.get("codes", [])
+    if not isinstance(raw_codes_obj, list):
+        return []
+    raw_codes = cast(list[Any], raw_codes_obj)
     return [str(code) for code in raw_codes]
 
 
@@ -420,7 +425,14 @@ async def update_checkout_session(
             *discount_warning_messages,
         ]
     )
-    metadata = json.loads(session.metadata_json) if session.metadata_json else {}
+    metadata: dict[str, Any] = {}
+    if session.metadata_json:
+        try:
+            metadata_obj = json.loads(session.metadata_json)
+        except json.JSONDecodeError:
+            metadata_obj = {}
+        if isinstance(metadata_obj, dict):
+            metadata = cast(dict[str, Any], metadata_obj)
     metadata["discounts"] = discounts_payload
     session.metadata_json = json.dumps(metadata)
 

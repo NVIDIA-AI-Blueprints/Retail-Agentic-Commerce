@@ -334,8 +334,8 @@ export function CheckoutCard({
             <Stack gap="1">
               {appliedDiscounts.map((applied) => (
                 <Text key={applied.id} kind="body/regular/sm" className="text-secondary">
-                  {applied.automatic ? "Auto offer" : `Code ${applied.code}`}:{" "}
-                  -{formatCurrency(applied.amount)}
+                  {applied.automatic ? "Auto offer" : `Code ${applied.code}`}: -
+                  {formatCurrency(applied.amount)}
                 </Text>
               ))}
             </Stack>

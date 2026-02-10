@@ -14,6 +14,7 @@ from src.merchant.api.schemas import (
     LineItem,
     MessageError,
     MessageInfo,
+    MessageWarning,
     Total,
     TotalTypeEnum,
 )
@@ -380,7 +381,9 @@ def _convert_totals(totals: list[Total]) -> list[UCPTotal]:
     return converted
 
 
-def _convert_messages(messages: list[MessageInfo | MessageError]) -> list[UCPMessage]:
+def _convert_messages(
+    messages: list[MessageInfo | MessageWarning | MessageError],
+) -> list[UCPMessage]:
     converted: list[UCPMessage] = []
     for message in messages:
         if isinstance(message, MessageError):
@@ -391,6 +394,18 @@ def _convert_messages(messages: list[MessageInfo | MessageError]) -> list[UCPMes
                     path=message.param,
                     content=message.content,
                     severity=UCPMessageSeverity.RECOVERABLE,
+                )
+            )
+            continue
+
+        if isinstance(message, MessageWarning):
+            converted.append(
+                UCPMessage(
+                    type=UCPMessageType.WARNING,
+                    code=message.code,
+                    path=message.param,
+                    content=message.content,
+                    severity=UCPMessageSeverity.REQUIRES_BUYER_REVIEW,
                 )
             )
             continue

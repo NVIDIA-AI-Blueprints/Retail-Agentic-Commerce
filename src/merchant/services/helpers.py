@@ -7,7 +7,7 @@ calculating line items, totals, and generating IDs.
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from sqlmodel import Session
 
@@ -67,7 +67,7 @@ DISCOUNT_EXTENSION_DECLARATION = ExtensionDeclaration(
         "$.CheckoutSessionUpdateRequest.discounts",
         "$.CheckoutSession.discounts",
     ],
-    schema_url=DISCOUNT_EXTENSION_SCHEMA_URL,
+    schema=DISCOUNT_EXTENSION_SCHEMA_URL,
 )
 COUPON_SAVE10 = "SAVE10"
 
@@ -199,7 +199,7 @@ def _build_automatic_applied_discounts(
         if promotion_discount <= 0:
             continue
 
-        promotion_data = line_item.get("promotion") or {}
+        promotion_data = cast(dict[str, Any], line_item.get("promotion") or {})
         action = str(promotion_data.get("action", "AUTOMATIC_PROMOTION"))
         percent_off = _promotion_percent_from_action(action)
         coupon = Coupon(
