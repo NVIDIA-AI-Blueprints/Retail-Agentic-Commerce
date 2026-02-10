@@ -6,31 +6,71 @@ Run with:
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import json
 import logging
-import os
 import time
-from collections import deque
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
-from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
-import httpx
 import mcp.types as types
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import BaseModel, ConfigDict, Field
-from sse_starlette.sse import EventSourceResponse
-from starlette.responses import FileResponse, HTMLResponse, Response
 
 from src.apps_sdk.config import get_apps_sdk_settings
+from src.apps_sdk.events import (
+    emit_agent_activity_event,
+    emit_checkout_event,
+)
+from src.apps_sdk.events import (
+    router as events_router,
+)
+from src.apps_sdk.recommendation_helpers import (
+    call_recommendation_agent,
+)
+from src.apps_sdk.recommendation_helpers import (
+    cart_meta as _cart_meta,
+)
+from src.apps_sdk.recommendation_helpers import (
+    checkout_meta as _checkout_meta,
+)
+from src.apps_sdk.recommendation_helpers import (
+    classify_outcome_status as _classify_outcome_status,
+)
+from src.apps_sdk.recommendation_helpers import (
+    recommendations_meta as _recommendations_meta,
+)
+from src.apps_sdk.recommendation_helpers import (
+    record_apps_sdk_outcome as _record_apps_sdk_outcome,
+)
+from src.apps_sdk.recommendation_helpers import (
+    record_recommendation_attribution_event as _record_recommendation_attribution_event,
+)
+from src.apps_sdk.recommendation_helpers import (
+    search_meta as _search_meta,
+)
+from src.apps_sdk.rest_endpoints import active_sessions
+from src.apps_sdk.rest_endpoints import router as rest_router
+from src.apps_sdk.schemas import (
+    AddToCartInput,
+    CartItemInput,
+    CartOutput,
+    CheckoutInput,
+    CheckoutOutput,
+    GetCartInput,
+    GetRecommendationsInput,
+    GetRecommendationsOutput,
+    PipelineTraceOutput,
+    ProductOutput,
+    RecommendationItemOutput,
+    RemoveFromCartInput,
+    SearchProductsInput,
+    SearchProductsOutput,
+    UpdateCartQuantityInput,
+    UserOutput,
+)
 from src.apps_sdk.tools import (
     add_to_cart,
     checkout,
@@ -38,6 +78,16 @@ from src.apps_sdk.tools import (
     remove_from_cart,
     search_products,
     update_cart_quantity,
+)
+from src.apps_sdk.widget_endpoints import (
+    DIST_DIR,
+    PUBLIC_DIR,
+    health_check,
+    serve_widget,
+    serve_widget_assets,
+)
+from src.apps_sdk.widget_endpoints import (
+    router as widget_router,
 )
 
 settings = get_apps_sdk_settings()
@@ -66,599 +116,13 @@ mcp = FastMCP(
 
 
 # =============================================================================
-# INPUT SCHEMAS (Pydantic Models)
-# =============================================================================
-
-
-class AddToCartInput(BaseModel):
-    """Schema for add-to-cart tool."""
-
-    product_id: str = Field(..., alias="productId", description="Product ID to add")
-    quantity: int = Field(default=1, ge=1, description="Quantity to add")
-    cart_id: str | None = Field(
-        None, alias="cartId", description="Existing cart ID or None for new cart"
-    )
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class RemoveFromCartInput(BaseModel):
-    """Schema for remove-from-cart tool."""
-
-    product_id: str = Field(..., alias="productId", description="Product ID to remove")
-    cart_id: str = Field(..., alias="cartId", description="Cart ID")
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class UpdateCartQuantityInput(BaseModel):
-    """Schema for update-cart-quantity tool."""
-
-    product_id: str = Field(..., alias="productId", description="Product ID to update")
-    quantity: int = Field(..., ge=0, description="New quantity (0 to remove)")
-    cart_id: str = Field(..., alias="cartId", description="Cart ID")
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class GetCartInput(BaseModel):
-    """Schema for get-cart tool."""
-
-    cart_id: str = Field(..., alias="cartId", description="Cart ID")
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class CheckoutInput(BaseModel):
-    """Schema for checkout tool."""
-
-    cart_id: str = Field(..., alias="cartId", description="Cart ID to checkout")
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class SearchProductsInput(BaseModel):
-    """Schema for search-products tool (entry point for widget discovery)."""
-
-    query: str = Field(..., description="Search query for products")
-    category: str | None = Field(None, description="Optional category filter")
-    limit: int = Field(default=3, ge=1, le=50, description="Max results (1-50)")
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class CartItemInput(BaseModel):
-    """Schema for a cart item in recommendation requests."""
-
-    product_id: str = Field(..., alias="productId", description="Product ID")
-    name: str = Field(..., description="Product name")
-    price: int = Field(..., description="Product price in cents")
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class GetRecommendationsInput(BaseModel):
-    """Schema for get-recommendations tool."""
-
-    product_id: str = Field(
-        ..., alias="productId", description="Product ID to get recommendations for"
-    )
-    product_name: str = Field(..., alias="productName", description="Product name")
-    cart_items: list[CartItemInput] = Field(
-        default=[],
-        alias="cartItems",
-        description="Current cart items for context",
-    )
-    session_id: str | None = Field(
-        None,
-        alias="sessionId",
-        description="Optional cart/session identifier for attribution tracking",
-    )
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-# =============================================================================
-# OUTPUT SCHEMAS (Pydantic Models for Tool Responses)
-# =============================================================================
-
-
-class ProductOutput(BaseModel):
-    """Schema for a product in search results."""
-
-    id: str = Field(..., description="Product ID")
-    sku: str = Field(..., description="Stock keeping unit")
-    name: str = Field(..., description="Product name")
-    basePrice: int = Field(..., alias="basePrice", description="Price in cents")
-    stockCount: int = Field(..., alias="stockCount", description="Available stock")
-    variant: str | None = Field(None, description="Product variant (e.g., color)")
-    size: str | None = Field(None, description="Product size")
-    imageUrl: str | None = Field(
-        None, alias="imageUrl", description="Product image URL"
-    )
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class UserOutput(BaseModel):
-    """Schema for user information in search results."""
-
-    id: str = Field(..., description="User ID")
-    name: str = Field(..., description="User display name")
-    email: str = Field(..., description="User email")
-    loyaltyPoints: int = Field(
-        ..., alias="loyaltyPoints", description="Loyalty points balance"
-    )
-    tier: str = Field(..., description="Loyalty tier (e.g., Gold, Silver)")
-    memberSince: str = Field(
-        ..., alias="memberSince", description="Membership start date"
-    )
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class SearchProductsOutput(BaseModel):
-    """Output schema for search-products tool."""
-
-    products: list[ProductOutput] = Field(..., description="List of matching products")
-    query: str = Field(..., description="Original search query")
-    category: str | None = Field(None, description="Category filter applied")
-    totalResults: int = Field(
-        ..., alias="totalResults", description="Total number of results"
-    )
-    user: UserOutput | None = Field(None, description="Current user information")
-    theme: str | None = Field(None, description="UI theme preference")
-    locale: str | None = Field(None, description="User locale")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class CartItemOutput(BaseModel):
-    """Schema for a cart item."""
-
-    id: str = Field(..., description="Product ID")
-    sku: str = Field(..., description="Stock keeping unit")
-    name: str = Field(..., description="Product name")
-    basePrice: int = Field(..., alias="basePrice", description="Price in cents")
-    stockCount: int = Field(..., alias="stockCount", description="Available stock")
-    variant: str | None = Field(None, description="Product variant")
-    size: str | None = Field(None, description="Product size")
-    imageUrl: str | None = Field(
-        None, alias="imageUrl", description="Product image URL"
-    )
-    quantity: int = Field(..., description="Quantity in cart")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class CartOutput(BaseModel):
-    """Output schema for cart operations (add, remove, update, get)."""
-
-    cartId: str = Field(..., alias="cartId", description="Cart identifier")
-    items: list[CartItemOutput] = Field(default=[], description="Items in cart")
-    itemCount: int = Field(default=0, alias="itemCount", description="Total item count")
-    subtotal: int = Field(default=0, description="Subtotal in cents")
-    shipping: int = Field(default=0, description="Shipping cost in cents")
-    tax: int = Field(default=0, description="Tax amount in cents")
-    total: int = Field(default=0, description="Total amount in cents")
-    error: str | None = Field(None, description="Error message if operation failed")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class CheckoutOutput(BaseModel):
-    """Output schema for checkout tool."""
-
-    success: bool = Field(..., description="Whether checkout succeeded")
-    status: str = Field(
-        ..., description="Order status: 'confirmed', 'failed', or 'pending'"
-    )
-    orderId: str | None = Field(
-        None, alias="orderId", description="Order identifier if successful"
-    )
-    message: str = Field(..., description="Human-readable result message")
-    total: int | None = Field(None, description="Order total in cents")
-    itemCount: int | None = Field(
-        None, alias="itemCount", description="Number of items in order"
-    )
-    orderUrl: str | None = Field(
-        None, alias="orderUrl", description="URL to view order details"
-    )
-    error: str | None = Field(None, description="Error message if checkout failed")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class RecommendationItemOutput(BaseModel):
-    """Schema for a single recommendation item."""
-
-    productId: str = Field(..., alias="productId", description="Product ID")
-    productName: str = Field(..., alias="productName", description="Product name")
-    rank: int = Field(..., description="Ranking position (1-3)")
-    reasoning: str = Field(..., description="Why this was recommended")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class PipelineTraceOutput(BaseModel):
-    """Schema for ARAG pipeline trace."""
-
-    candidatesFound: int = Field(
-        ..., alias="candidatesFound", description="Total candidates found"
-    )
-    afterNliFilter: int = Field(
-        ..., alias="afterNliFilter", description="Candidates after NLI filtering"
-    )
-    finalRanked: int = Field(..., alias="finalRanked", description="Final ranked count")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class GetRecommendationsOutput(BaseModel):
-    """Output schema for get-recommendations tool."""
-
-    recommendations: list[RecommendationItemOutput] = Field(
-        default=[], description="List of recommended products"
-    )
-    userIntent: str | None = Field(
-        None, alias="userIntent", description="Inferred user intent"
-    )
-    pipelineTrace: PipelineTraceOutput | None = Field(
-        None, alias="pipelineTrace", description="ARAG pipeline trace"
-    )
-    recommendationRequestId: str | None = Field(
-        None,
-        alias="recommendationRequestId",
-        description="Identifier for click/purchase attribution across this recommendation set",
-    )
-    error: str | None = Field(None, description="Error message if request failed")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-# =============================================================================
-# WIDGET METADATA HELPERS
-# =============================================================================
-
-
-def _search_meta() -> dict[str, Any]:
-    """Metadata for search products (entry point tool).
-
-    This is the primary entry point that exposes the widget URI to clients.
-    Clients discover the widget location by calling search-products and
-    reading _meta.openai/outputTemplate from the response.
-    """
-    return {
-        "openai/outputTemplate": "ui://widget/merchant-app.html",
-        "openai/toolInvocation/invoking": "Searching products...",
-        "openai/toolInvocation/invoked": "Products found",
-        "openai/widgetAccessible": True,
-    }
-
-
-def _cart_meta(cart_id: str) -> dict[str, Any]:
-    """Metadata for cart widget."""
-    return {
-        "openai/outputTemplate": "ui://widget/merchant-app.html",
-        "openai/toolInvocation/invoking": "Updating cart...",
-        "openai/toolInvocation/invoked": "Cart updated",
-        "openai/widgetAccessible": True,
-        "openai/widgetSessionId": cart_id,
-    }
-
-
-def _checkout_meta(success: bool) -> dict[str, Any]:
-    """Metadata for checkout completion."""
-    return {
-        "openai/outputTemplate": "ui://widget/merchant-app.html",
-        "openai/toolInvocation/invoking": "Processing order...",
-        "openai/toolInvocation/invoked": "Order placed!" if success else "Order failed",
-        "openai/widgetAccessible": True,
-        "openai/closeWidget": success,
-    }
-
-
-def _recommendations_meta() -> dict[str, Any]:
-    """Metadata for recommendations tool."""
-    return {
-        "openai/toolInvocation/invoking": "Getting recommendations...",
-        "openai/toolInvocation/invoked": "Recommendations ready",
-    }
-
-
-def _classify_outcome_status(
-    *,
-    agent_type: str,
-    error_message: str | None,
-) -> tuple[str, str | None]:
-    """Map tool-level error messages to normalized outcome statuses."""
-    if not error_message:
-        return "success", None
-
-    message = error_message.lower()
-    if agent_type == "search" and "no products found" in message:
-        return "success", None
-    if "timeout" in message:
-        return "error_timeout", "timeout"
-    if "unavailable" in message or "connect" in message or "agent error" in message:
-        return "error_upstream", "upstream_error"
-    if "validation" in message:
-        return "error_validation", "validation_error"
-    return "error_internal", "internal_error"
-
-
-async def _record_apps_sdk_outcome(
-    *,
-    agent_type: str,
-    status: str,
-    latency_ms: int,
-    error_code: str | None = None,
-) -> None:
-    """Best-effort metrics handoff to Merchant API for dashboard aggregation."""
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            response = await client.post(
-                f"{settings.merchant_api_url}/metrics/agent-outcomes",
-                headers={
-                    "Authorization": f"Bearer {settings.merchant_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "agent_type": agent_type,
-                    "channel": "apps_sdk",
-                    "status": status,
-                    "latency_ms": max(latency_ms, 0),
-                    "error_code": error_code,
-                },
-            )
-            if response.status_code >= 400:
-                logger.warning(
-                    "Failed to record %s outcome (status=%d): %s",
-                    agent_type,
-                    response.status_code,
-                    response.text,
-                )
-    except Exception as exc:
-        logger.warning("Unable to record %s outcome: %s", agent_type, exc)
-
-
-async def _record_recommendation_attribution_event(
-    *,
-    event_type: str,
-    product_id: str,
-    session_id: str | None = None,
-    recommendation_request_id: str | None = None,
-    position: int | None = None,
-    order_id: str | None = None,
-    quantity: int = 1,
-    revenue_cents: int = 0,
-    source: str = "apps_sdk",
-) -> None:
-    """Best-effort recording of recommendation attribution events."""
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            response = await client.post(
-                f"{settings.merchant_api_url}/metrics/recommendation-attribution",
-                headers={
-                    "Authorization": f"Bearer {settings.merchant_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "event_type": event_type,
-                    "product_id": product_id,
-                    "session_id": session_id,
-                    "recommendation_request_id": recommendation_request_id,
-                    "position": position,
-                    "order_id": order_id,
-                    "quantity": max(quantity, 1),
-                    "revenue_cents": max(revenue_cents, 0),
-                    "source": source,
-                },
-            )
-            if response.status_code >= 400:
-                logger.warning(
-                    "Failed to record recommendation attribution event (%s): %s",
-                    event_type,
-                    response.text,
-                )
-    except Exception as exc:
-        logger.warning(
-            "Unable to record recommendation attribution event (%s): %s",
-            event_type,
-            exc,
-        )
-
-
-def _parse_agent_response(raw_result: Any) -> dict[str, Any]:
-    """Parse the ARAG agent response into a typed dictionary.
-
-    NAT agents return {"value": "<JSON string>"} format.
-
-    Args:
-        raw_result: Raw JSON response from the agent.
-
-    Returns:
-        Parsed dictionary with recommendations, user_intent, pipeline_trace.
-    """
-    parsed: dict[str, Any] = {}
-
-    if isinstance(raw_result, dict):
-        # Cast to properly typed dict for pyright
-        result_dict = cast(dict[str, Any], raw_result)
-        value = result_dict.get("value")
-        if isinstance(value, str):
-            # Value is a JSON string
-            loaded = json.loads(value)
-            if isinstance(loaded, dict):
-                parsed = cast(dict[str, Any], loaded)
-        elif isinstance(value, dict):
-            # Value is already a dict
-            parsed = cast(dict[str, Any], value)
-        elif "recommendations" in result_dict:
-            # Direct response format
-            parsed = result_dict
-    elif isinstance(raw_result, str):
-        loaded = json.loads(raw_result)
-        if isinstance(loaded, dict):
-            parsed = cast(dict[str, Any], loaded)
-
-    return parsed
-
-
-async def call_recommendation_agent(
-    product_id: str,
-    product_name: str,
-    cart_items: list[CartItemInput],
-) -> dict[str, Any]:
-    """Call the ARAG recommendation agent at port 8004.
-
-    Args:
-        product_id: The product ID to get recommendations for.
-        product_name: The product name.
-        cart_items: Current cart items for context.
-
-    Returns:
-        Dictionary with recommendations, userIntent, and pipelineTrace.
-    """
-    # Build cart items for the agent
-    agent_cart_items = [
-        {
-            "product_id": product_id,
-            "name": product_name,
-            "category": "apparel",
-            "price": 2500,  # Default price, could be passed in
-        }
-    ]
-
-    # Add existing cart items
-    for item in cart_items:
-        agent_cart_items.append(
-            {
-                "product_id": item.product_id,
-                "name": item.name,
-                "category": "apparel",
-                "price": item.price,
-            }
-        )
-
-    payload = {
-        "input_message": json.dumps(
-            {
-                "cart_items": agent_cart_items,
-                "session_context": {
-                    "browse_history": ["casual wear", "t-shirts"],
-                    "price_range_viewed": [2000, 5000],
-                },
-            }
-        )
-    }
-
-    try:
-        # Agent can take 20-30 seconds for ARAG pipeline
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{RECOMMENDATION_AGENT_URL}/generate",
-                json=payload,
-            )
-            response.raise_for_status()
-            raw_result = response.json()
-
-            # Parse the agent response
-            # NAT agents return {"value": "<JSON string>"} format
-            parsed_result: dict[str, Any] = _parse_agent_response(raw_result)
-
-            recommendations: list[dict[str, Any]] = list(
-                parsed_result.get("recommendations", [])
-            )
-            # Enrich with product details from merchant API
-            enriched = await enrich_recommendations(recommendations)
-
-            return {
-                "recommendations": enriched,
-                "userIntent": parsed_result.get("user_intent"),
-                "pipelineTrace": parsed_result.get("pipeline_trace"),
-            }
-    except httpx.TimeoutException:
-        logger.error("Recommendation agent timeout")
-        return {"recommendations": [], "error": "Recommendation agent timeout"}
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Recommendation agent HTTP error: {e}")
-        return {
-            "recommendations": [],
-            "error": f"Agent error: {e.response.status_code}",
-        }
-    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
-        logger.warning(f"Recommendation agent not available: {e}")
-        return {"recommendations": [], "error": "Recommendation agent unavailable"}
-    except Exception as e:
-        logger.error(f"Recommendation agent error: {e}")
-        return {"recommendations": [], "error": str(e)}
-
-
-# Merchant API URL for product lookups
-MERCHANT_API_URL = os.environ.get("MERCHANT_API_URL", "http://localhost:8000")
-
-
-async def enrich_recommendations(
-    recommendations: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Enrich recommendations with full product details from merchant API.
-
-    Fetches product details (price, sku, image_url, stock) for each recommendation
-    so the widget can display accurate information.
-
-    Args:
-        recommendations: List of recommendation dicts with product_id and product_name.
-
-    Returns:
-        Enriched recommendations with price, sku, image_url, and stock_count added.
-    """
-    if not recommendations:
-        return recommendations
-
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        for rec in recommendations:
-            product_id = rec.get("product_id")
-            if not product_id:
-                continue
-
-            try:
-                response = await client.get(f"{MERCHANT_API_URL}/products/{product_id}")
-                if response.status_code == 200:
-                    product = response.json()
-                    rec["price"] = product.get("base_price")
-                    rec["sku"] = product.get("sku")
-                    rec["image_url"] = product.get("image_url")
-                    rec["stock_count"] = product.get("stock_count")
-                    # Also ensure product_name matches the database
-                    rec["product_name"] = product.get("name", rec.get("product_name"))
-                else:
-                    logger.warning(f"Product {product_id} not found in merchant API")
-            except Exception as e:
-                logger.warning(f"Failed to enrich product {product_id}: {e}")
-                # Keep original recommendation data if lookup fails
-
-    return recommendations
-
-
-# =============================================================================
 # MCP TOOL REGISTRATION
 # =============================================================================
 
 
 @mcp._mcp_server.list_tools()  # pyright: ignore[reportPrivateUsage]
 async def list_mcp_tools() -> list[types.Tool]:
-    """Register all available MCP tools with JSON Schema input/output contracts.
-
-    The search-products tool is the entry point that exposes the widget URI.
-    Clients discover the widget by calling this tool and reading
-    _meta.openai/outputTemplate from the response.
-
-    Per the Apps SDK spec, each tool advertises:
-    - inputSchema: JSON Schema for input parameters
-    - outputSchema: JSON Schema for structured output
-    - annotations: Hints about tool behavior (destructive, read-only, etc.)
-    """
+    """Register all available MCP tools with JSON Schema input/output contracts."""
     return [
         types.Tool(
             name="search-products",
@@ -784,11 +248,7 @@ async def list_mcp_resources() -> list[types.Resource]:
 
 
 async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
-    """Route and handle all tool calls.
-
-    The search-products tool is the entry point that clients call to discover
-    the widget URI via _meta.openai/outputTemplate in the response.
-    """
+    """Route and handle all tool calls."""
     tool_name = req.params.name
     args = req.params.arguments or {}
 
@@ -836,11 +296,9 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    elif tool_name == "add-to-cart":
+    if tool_name == "add-to-cart":
         payload = AddToCartInput.model_validate(args)
-        result = await add_to_cart(
-            payload.product_id, payload.quantity, payload.cart_id
-        )
+        result = await add_to_cart(payload.product_id, payload.quantity, payload.cart_id)
         return types.ServerResult(
             types.CallToolResult(
                 content=[
@@ -854,7 +312,7 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    elif tool_name == "remove-from-cart":
+    if tool_name == "remove-from-cart":
         payload = RemoveFromCartInput.model_validate(args)
         result = await remove_from_cart(payload.product_id, payload.cart_id)
         return types.ServerResult(
@@ -870,7 +328,7 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    elif tool_name == "update-cart-quantity":
+    if tool_name == "update-cart-quantity":
         payload = UpdateCartQuantityInput.model_validate(args)
         result = await update_cart_quantity(
             payload.product_id, payload.quantity, payload.cart_id
@@ -888,7 +346,7 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    elif tool_name == "get-cart":
+    if tool_name == "get-cart":
         payload = GetCartInput.model_validate(args)
         result = await get_cart(payload.cart_id)
         return types.ServerResult(
@@ -904,7 +362,7 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    elif tool_name == "checkout":
+    if tool_name == "checkout":
         payload = CheckoutInput.model_validate(args)
         result = await checkout(payload.cart_id)
         success = result.get("success", False)
@@ -922,7 +380,7 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    elif tool_name == "get-recommendations":
+    if tool_name == "get-recommendations":
         payload = GetRecommendationsInput.model_validate(args)
         recommendation_request_id = f"rec_{uuid4().hex[:12]}"
         started = time.perf_counter()
@@ -959,9 +417,7 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             if not isinstance(product_id, str) or not product_id:
                 continue
             position_value = rec.get("rank")
-            position = (
-                int(position_value) if isinstance(position_value, int) else index + 1
-            )
+            position = int(position_value) if isinstance(position_value, int) else index + 1
             await _record_recommendation_attribution_event(
                 event_type="impression",
                 product_id=product_id,
@@ -984,7 +440,6 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    # Unknown tool
     return types.ServerResult(
         types.CallToolResult(
             content=[types.TextContent(type="text", text=f"Unknown tool: {tool_name}")],
@@ -1002,29 +457,14 @@ mcp._mcp_server.request_handlers[types.CallToolRequest] = _handle_call_tool  # p
 # FASTAPI APPLICATION
 # =============================================================================
 
-# Path to widget dist directory
-DIST_DIR = Path(__file__).parent / "dist"
-# Path to widget public assets (images)
-PUBLIC_DIR = Path(__file__).parent / "web" / "public"
-
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan context manager.
-
-    Initializes the MCP server session manager within the lifespan context.
-
-    Args:
-        _app: FastAPI application instance (unused but required by protocol).
-
-    Yields:
-        None
-    """
+    """Application lifespan context manager."""
     logger.info("Apps SDK MCP Server starting up...")
     logger.info(f"Widget dist directory: {DIST_DIR}")
     logger.info(f"Search agent URL: {SEARCH_AGENT_URL}")
 
-    # Initialize MCP server's session manager
     async with mcp.session_manager.run():
         logger.info("MCP session manager initialized")
         yield
@@ -1032,7 +472,6 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Apps SDK MCP Server shutting down...")
 
 
-# Create main FastAPI app first so we can define routes before mounting MCP
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -1045,7 +484,6 @@ app = FastAPI(
 mcp_app = mcp.streamable_http_app()
 app.mount("/api", mcp_app)
 
-# Add CORS middleware for development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if settings.debug else [],
@@ -1054,813 +492,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# =============================================================================
-# WIDGET SERVING ROUTES
-# =============================================================================
-
-
-@app.get("/widget/merchant-app.html", tags=["widget"], response_model=None)
-async def serve_widget() -> Response | HTMLResponse:
-    """Serve the merchant app widget HTML.
-
-    Returns:
-        The widget HTML file or a placeholder if not built.
-        Includes no-cache headers to prevent browser caching during development.
-    """
-    # Vite outputs index.html by default
-    widget_path = DIST_DIR / "index.html"
-    if widget_path.exists():
-        content = widget_path.read_text()
-        return Response(
-            content=content,
-            media_type="text/html",
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            },
-        )
-    else:
-        # Return a placeholder if widget not built yet
-        return HTMLResponse(
-            content="""
-            <!DOCTYPE html>
-            <html>
-            <head><title>Widget Not Built</title></head>
-            <body style="background:#1a1a1a;color:white;font-family:sans-serif;padding:40px;text-align:center;">
-                <h1>Widget Not Built</h1>
-                <p>Run <code>cd src/apps_sdk/web && pnpm build</code> to build the widget.</p>
-            </body>
-            </html>
-            """,
-            status_code=200,
-        )
-
-
-@app.get("/widget/{asset:path}", tags=["widget"], response_model=None)
-async def serve_widget_assets(asset: str) -> FileResponse | HTMLResponse:
-    """Serve widget assets (images, etc.).
-
-    Checks both dist/ and web/public/ directories for assets.
-    This allows the widget to load images from the public folder.
-
-    Args:
-        asset: The asset path to serve.
-
-    Returns:
-        The asset file or a 404 error.
-    """
-    # First check dist directory
-    asset_path = DIST_DIR / asset
-    if asset_path.exists() and asset_path.is_file():
-        return FileResponse(asset_path)
-
-    # Then check public directory for images
-    public_asset_path = PUBLIC_DIR / asset
-    if public_asset_path.exists() and public_asset_path.is_file():
-        return FileResponse(public_asset_path)
-
-    return HTMLResponse(content="Asset not found", status_code=404)
-
-
-@app.get("/health", tags=["health"])
-def health_check() -> dict[str, str]:
-    """Health check endpoint.
-
-    Returns:
-        A dictionary with status "ok".
-    """
-    return {"status": "ok"}
-
-
-# =============================================================================
-# SSE EVENT STREAM FOR PROTOCOL INSPECTOR
-# =============================================================================
-# The Protocol Inspector can subscribe to this endpoint to receive real-time
-# checkout events without requiring the widget to send postMessage.
-
-# Event queue for SSE subscribers (simple in-memory, use Redis for production)
-checkout_events: deque[dict[str, Any]] = deque(maxlen=100)
-event_subscribers: list[asyncio.Queue[dict[str, Any]]] = []
-
-
-def emit_checkout_event(
-    event_type: str,
-    endpoint: str,
-    method: str = "POST",
-    status: str = "success",
-    summary: str | None = None,
-    status_code: int | None = None,
-    session_id: str | None = None,
-    order_id: str | None = None,
-    event_id: str | None = None,
-) -> None:
-    """Emit a checkout event to all SSE subscribers.
-
-    Args:
-        event_type: Type of event (session_create, delegate_payment, session_complete, etc.)
-        endpoint: API endpoint called
-        method: HTTP method
-        status: Event status (pending, success, error)
-        summary: Human-readable summary
-        status_code: HTTP status code
-        session_id: Checkout session ID
-        order_id: Order ID (for completed checkouts)
-        event_id: Optional stable event ID for matching pending/complete events
-    """
-    event = {
-        "id": event_id or f"evt_{datetime.now().timestamp()}",
-        "type": event_type,
-        "endpoint": endpoint,
-        "method": method,
-        "status": status,
-        "summary": summary,
-        "statusCode": status_code,
-        "sessionId": session_id,
-        "orderId": order_id,
-        "timestamp": datetime.now().isoformat(),
-    }
-    checkout_events.append(event)
-
-    # Notify all subscribers
-    for queue in event_subscribers:
-        with contextlib.suppress(asyncio.QueueFull):
-            queue.put_nowait(event)
-
-
-def emit_agent_activity_event(
-    agent_type: str,
-    product_id: str,
-    product_name: str,
-    action: str,
-    discount_amount: int,
-    reason_codes: list[str],
-    reasoning: str,
-    stock_count: int = 0,
-    base_price: int = 0,
-) -> None:
-    """Emit an agent activity event to all SSE subscribers.
-
-    Args:
-        agent_type: Type of agent (promotion, recommendation, post_purchase)
-        product_id: Product ID
-        product_name: Product name
-        action: Agent action (e.g., DISCOUNT_10_PCT, NO_PROMO)
-        discount_amount: Discount in cents
-        reason_codes: List of reason codes
-        reasoning: Agent's reasoning
-        stock_count: Product stock count
-        base_price: Product base price in cents
-    """
-    event = {
-        "id": f"agent_{datetime.now().timestamp()}",
-        "agentType": agent_type,
-        "productId": product_id,
-        "productName": product_name,
-        "action": action,
-        "discountAmount": discount_amount,
-        "reasonCodes": reason_codes,
-        "reasoning": reasoning,
-        "stockCount": stock_count,
-        "basePrice": base_price,
-        "timestamp": datetime.now().isoformat(),
-    }
-    checkout_events.append(event)
-
-    # Notify all subscribers
-    for queue in event_subscribers:
-        with contextlib.suppress(asyncio.QueueFull):
-            queue.put_nowait(event)
-
-
-async def event_generator() -> AsyncGenerator[dict[str, Any], None]:
-    """Generator that yields SSE events.
-
-    Note: We intentionally do NOT send historical events on connect.
-    The Protocol Inspector should start fresh on page load/refresh.
-    Events are stored in checkout_events deque for debugging purposes only.
-    """
-    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=50)
-    event_subscribers.append(queue)
-    try:
-        # Stream new events only - no historical events on connect
-        # This ensures Protocol Inspector starts fresh on page refresh
-        while True:
-            event = await queue.get()
-            event_type = "agent_activity" if "agentType" in event else "checkout"
-            yield {"event": event_type, "data": json.dumps(event)}
-    finally:
-        event_subscribers.remove(queue)
-
-
-@app.get("/events", tags=["events"])
-async def checkout_events_stream() -> EventSourceResponse:
-    """SSE endpoint for checkout events.
-
-    The Protocol Inspector can subscribe to this endpoint to receive
-    real-time checkout events without requiring widget postMessage.
-
-    Returns:
-        Server-Sent Events stream of checkout events.
-    """
-    return EventSourceResponse(event_generator())
-
-
-@app.delete("/events", tags=["events"])
-async def clear_checkout_events() -> dict[str, str]:
-    """Clear all stored checkout events.
-
-    This endpoint is useful for resetting the Protocol Inspector
-    during development and demos.
-
-    Returns:
-        Confirmation message.
-    """
-    checkout_events.clear()
-    return {"message": "Checkout events cleared"}
-
-
-# =============================================================================
-# REST API ENDPOINTS FOR WIDGET
-# =============================================================================
-# These endpoints allow the widget to make direct HTTP calls without MCP/JSON-RPC
-
-
-class RecommendationClickRequest(BaseModel):
-    """Request body for recommendation click tracking."""
-
-    product_id: str = Field(..., alias="productId")
-    recommendation_request_id: str = Field(..., alias="recommendationRequestId")
-    session_id: str | None = Field(None, alias="sessionId")
-    position: int | None = None
-    source: str = Field(default="apps_sdk_widget")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-@app.post("/recommendations/click", tags=["metrics"])
-async def api_recommendation_click(
-    request: RecommendationClickRequest,
-) -> dict[str, bool]:
-    """Track a recommendation click event for attribution analytics."""
-    await _record_recommendation_attribution_event(
-        event_type="click",
-        product_id=request.product_id,
-        session_id=request.session_id,
-        recommendation_request_id=request.recommendation_request_id,
-        position=request.position,
-        source=request.source,
-    )
-    return {"recorded": True}
-
-
-class CartAddRequest(BaseModel):
-    """Request body for adding an item to cart."""
-
-    product_id: str = Field(..., alias="productId")
-    quantity: int = Field(default=1, ge=1)
-    cart_id: str | None = Field(None, alias="cartId")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class CartCheckoutRequest(BaseModel):
-    """Request body for checkout."""
-
-    cart_id: str = Field(..., alias="cartId")
-    cart_items: list[dict[str, Any]] = Field(..., alias="cartItems")
-    customer_name: str | None = Field(None, alias="customerName")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-@app.post("/cart/add", tags=["cart"])
-async def api_add_to_cart(request: CartAddRequest) -> dict[str, Any]:
-    """REST endpoint to add an item to the cart.
-
-    Args:
-        request: Cart add request with productId, quantity, cartId.
-
-    Returns:
-        Updated cart state.
-    """
-    # Emit event for Protocol Inspector
-    emit_checkout_event(
-        event_type="session_update",
-        endpoint="/cart/add",
-        method="POST",
-        status="pending",
-        summary=f"Adding {request.product_id} to cart...",
-    )
-
-    result = await add_to_cart(
-        request.product_id,
-        request.quantity,
-        request.cart_id,
-    )
-
-    # Emit completion event
-    emit_checkout_event(
-        event_type="session_update",
-        endpoint="/cart/add",
-        method="POST",
-        status="success",
-        summary=f"Added {request.quantity}x {request.product_id}",
-        status_code=200,
-    )
-
-    return result
-
-
-class CartUpdateRequest(BaseModel):
-    """Request body for updating cart (quantity changes)."""
-
-    cart_id: str = Field(..., alias="cartId")
-    cart_items: list[dict[str, Any]] = Field(..., alias="cartItems")
-    action: str = Field(default="update")  # "update", "remove", "clear"
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class ShippingUpdateRequest(BaseModel):
-    """Request body for updating shipping option."""
-
-    cart_id: str = Field(..., alias="cartId")
-    shipping_option_id: str = Field(..., alias="shippingOptionId")
-    shipping_option_name: str = Field(..., alias="shippingOptionName")
-    shipping_price: int = Field(..., alias="shippingPrice")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-@app.post("/cart/update", tags=["cart"])
-async def api_update_cart(request: CartUpdateRequest) -> dict[str, Any]:
-    """REST endpoint to update cart (quantity changes, removals).
-
-    Emits events to Protocol Inspector for visibility.
-
-    Args:
-        request: Cart update request with cartId, cartItems, and action.
-
-    Returns:
-        Updated cart state.
-    """
-    from src.apps_sdk.tools.cart import calculate_cart_totals, carts, get_cart_meta
-
-    cart_id = request.cart_id or f"cart_{uuid4().hex[:12]}"
-    item_count = len(request.cart_items)
-
-    # Emit event for Protocol Inspector
-    action_summary = {
-        "update": f"Updating cart ({item_count} items)",
-        "remove": "Removing item from cart",
-        "clear": "Clearing cart",
-    }.get(request.action, "Updating cart")
-
-    emit_checkout_event(
-        event_type="session_update",
-        endpoint="/cart/update",
-        method="POST",
-        status="pending",
-        summary=action_summary,
-        session_id=cart_id,
-    )
-
-    # Sync the cart items to server
-    carts[cart_id] = [
-        {
-            "id": item.get("id"),
-            "name": item.get("name"),
-            "basePrice": item.get("basePrice"),
-            "quantity": item.get("quantity"),
-            "variant": item.get("variant"),
-            "size": item.get("size"),
-        }
-        for item in request.cart_items
-    ]
-
-    totals = calculate_cart_totals(carts[cart_id])
-    total_quantity = sum(item["quantity"] for item in carts[cart_id])
-
-    # Emit completion event
-    emit_checkout_event(
-        event_type="session_update",
-        endpoint="/cart/update",
-        method="POST",
-        status="success",
-        summary=f"Cart updated: {total_quantity} items, ${totals['total'] / 100:.2f}",
-        status_code=200,
-        session_id=cart_id,
-    )
-
-    return {
-        "cartId": cart_id,
-        "items": carts[cart_id],
-        "itemCount": total_quantity,
-        **totals,
-        "_meta": get_cart_meta(cart_id),
-    }
-
-
-@app.post("/cart/shipping", tags=["cart"])
-async def api_update_shipping(request: ShippingUpdateRequest) -> dict[str, Any]:
-    """REST endpoint to update shipping option.
-
-    Emits events to Protocol Inspector for visibility.
-
-    Args:
-        request: Shipping update request.
-
-    Returns:
-        Updated shipping state.
-    """
-    # Emit event for Protocol Inspector
-    emit_checkout_event(
-        event_type="session_update",
-        endpoint="/cart/shipping",
-        method="POST",
-        status="pending",
-        summary=f"Updating shipping to {request.shipping_option_name}...",
-        session_id=request.cart_id,
-    )
-
-    # Format price for display
-    price_display = (
-        "Free"
-        if request.shipping_price == 0
-        else f"${request.shipping_price / 100:.2f}"
-    )
-
-    # Emit completion event
-    emit_checkout_event(
-        event_type="session_update",
-        endpoint="/cart/shipping",
-        method="POST",
-        status="success",
-        summary=f"Shipping: {request.shipping_option_name} ({price_display})",
-        status_code=200,
-        session_id=request.cart_id,
-    )
-
-    return {
-        "cartId": request.cart_id,
-        "shippingOptionId": request.shipping_option_id,
-        "shippingOptionName": request.shipping_option_name,
-        "shippingPrice": request.shipping_price,
-    }
-
-
-# =============================================================================
-# ACP PROXY ENDPOINTS
-# =============================================================================
-# These endpoints proxy requests to the Merchant API and emit SSE events
-# for Protocol Inspector visibility. This allows the widget to make real
-# ACP calls while the MCP server handles event emission.
-
-
-class ACPCreateSessionRequest(BaseModel):
-    """Request to create a checkout session via ACP."""
-
-    items: list[dict[str, Any]] = Field(...)
-    buyer: dict[str, str] | None = Field(None)
-    fulfillment_address: dict[str, str] | None = Field(None, alias="fulfillmentAddress")
-    discounts: dict[str, list[str]] | None = Field(None)
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class ACPUpdateSessionRequest(BaseModel):
-    """Request to update a checkout session via ACP."""
-
-    session_id: str = Field(..., alias="sessionId")
-    items: list[dict[str, Any]] | None = Field(None)
-    fulfillment_option_id: str | None = Field(None, alias="fulfillmentOptionId")
-    fulfillment_address: dict[str, str] | None = Field(None, alias="fulfillmentAddress")
-    discounts: dict[str, list[str]] | None = Field(None)
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-# Store active sessions for the widget
-active_sessions: dict[str, str] = {}  # cart_id -> session_id
-
-
-@app.post("/acp/sessions", tags=["acp"])
-async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]:
-    """Create a checkout session on the Merchant API.
-
-    Proxies the request to the Merchant API and emits SSE events.
-
-    Args:
-        request: Session creation request with items and optional buyer info.
-
-    Returns:
-        Checkout session response from merchant API.
-    """
-    # Clear previous session events - new session means fresh protocol trace
-    # This prevents stale events from appearing in Protocol Inspector on fresh start
-    checkout_events.clear()
-
-    settings = get_apps_sdk_settings()
-    merchant_api_url = settings.merchant_api_url
-    merchant_api_key = settings.merchant_api_key
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Build request body
-            body: dict[str, Any] = {"items": request.items}
-            if request.buyer:
-                body["buyer"] = request.buyer
-            if request.fulfillment_address:
-                body["fulfillment_address"] = request.fulfillment_address
-            if request.discounts is not None:
-                body["discounts"] = request.discounts
-
-            response = await client.post(
-                f"{merchant_api_url}/checkout_sessions",
-                headers={
-                    "Authorization": f"Bearer {merchant_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
-            )
-
-            if response.status_code == 201:
-                data = response.json()
-                session_id = data.get("id", "")
-
-                # Emit success event
-                emit_checkout_event(
-                    event_type="session_create",
-                    endpoint="/checkout_sessions",
-                    method="POST",
-                    status="success",
-                    summary=f"Session {session_id[-12:]} created",
-                    status_code=201,
-                    session_id=session_id,
-                )
-
-                # Emit agent activity events for promotion decisions (session create only)
-                line_items = data.get("line_items", [])
-                for line_item in line_items:
-                    promotion = line_item.get("promotion")
-                    if promotion:
-                        item_info = line_item.get("item", {})
-                        product_id = item_info.get("id", "unknown")
-                        product_name = line_item.get("name") or product_id
-                        stock_count = promotion.get("stock_count", 0)
-
-                        emit_agent_activity_event(
-                            agent_type="promotion",
-                            product_id=product_id,
-                            product_name=product_name,
-                            action=promotion.get("action", "NO_PROMO"),
-                            discount_amount=line_item.get("discount", 0),
-                            reason_codes=promotion.get("reason_codes", []),
-                            reasoning=promotion.get("reasoning", ""),
-                            stock_count=stock_count,
-                            base_price=line_item.get("base_amount", 0),
-                        )
-
-                return data
-            else:
-                error_text = response.text
-                emit_checkout_event(
-                    event_type="session_create",
-                    endpoint="/checkout_sessions",
-                    method="POST",
-                    status="error",
-                    summary=f"Failed: {response.status_code}",
-                    status_code=response.status_code,
-                )
-                raise HTTPException(status_code=response.status_code, detail=error_text)
-
-    except httpx.ConnectError as e:
-        emit_checkout_event(
-            event_type="session_create",
-            endpoint="/checkout_sessions",
-            method="POST",
-            status="error",
-            summary="Connection failed",
-            status_code=503,
-        )
-        raise HTTPException(status_code=503, detail=str(e)) from e
-
-
-@app.post("/acp/sessions/{session_id}", tags=["acp"])
-async def acp_update_session(
-    session_id: str, request: ACPUpdateSessionRequest
-) -> dict[str, Any]:
-    """Update a checkout session on the Merchant API.
-
-    Proxies the request to the Merchant API and emits SSE events.
-
-    Args:
-        session_id: The checkout session ID.
-        request: Session update request.
-
-    Returns:
-        Updated checkout session response from merchant API.
-    """
-    settings = get_apps_sdk_settings()
-    merchant_api_url = settings.merchant_api_url
-    merchant_api_key = settings.merchant_api_key
-
-    # Build update summary
-    update_parts: list[str] = []
-    if request.items:
-        update_parts.append(f"{len(request.items)} items")
-    if request.fulfillment_option_id:
-        update_parts.append("shipping")
-    if request.fulfillment_address:
-        update_parts.append("address")
-    if request.discounts is not None:
-        update_parts.append("discounts")
-    update_summary = ", ".join(update_parts) or "session"
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Build request body (only include non-None fields)
-            body: dict[str, Any] = {}
-            if request.items is not None:
-                body["items"] = request.items
-            if request.fulfillment_option_id is not None:
-                body["fulfillment_option_id"] = request.fulfillment_option_id
-            if request.fulfillment_address is not None:
-                body["fulfillment_address"] = request.fulfillment_address
-            if request.discounts is not None:
-                body["discounts"] = request.discounts
-
-            response = await client.post(
-                f"{merchant_api_url}/checkout_sessions/{session_id}",
-                headers={
-                    "Authorization": f"Bearer {merchant_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-
-                # Emit success event
-                emit_checkout_event(
-                    event_type="session_update",
-                    endpoint=f"/checkout_sessions/{session_id[-12:]}",
-                    method="POST",
-                    status="success",
-                    summary=f"Updated {update_summary}",
-                    status_code=200,
-                    session_id=session_id,
-                )
-
-                # Note: Agent activity events are only emitted on session CREATE
-                # to match Native ACP behavior (no duplicates on updates)
-
-                return data
-            else:
-                error_text = response.text
-                emit_checkout_event(
-                    event_type="session_update",
-                    endpoint=f"/checkout_sessions/{session_id[-12:]}",
-                    method="POST",
-                    status="error",
-                    summary=f"Failed: {response.status_code}",
-                    status_code=response.status_code,
-                    session_id=session_id,
-                )
-                raise HTTPException(status_code=response.status_code, detail=error_text)
-
-    except httpx.ConnectError as e:
-        emit_checkout_event(
-            event_type="session_update",
-            endpoint=f"/checkout_sessions/{session_id[-12:]}",
-            method="POST",
-            status="error",
-            summary="Connection failed",
-            status_code=503,
-            session_id=session_id,
-        )
-        raise HTTPException(status_code=503, detail=str(e)) from e
-
-
-@app.post("/cart/sync", tags=["cart"])
-async def api_sync_cart(request: CartCheckoutRequest) -> dict[str, Any]:
-    """REST endpoint to sync the widget's cart state with the server.
-
-    This creates/updates the server-side cart to match the widget's cart.
-
-    Args:
-        request: Cart sync request with cartId and cartItems.
-
-    Returns:
-        Synced cart state.
-    """
-    from src.apps_sdk.tools.cart import calculate_cart_totals, carts, get_cart_meta
-
-    cart_id = request.cart_id or f"cart_{uuid4().hex[:12]}"
-
-    # Sync the cart items to server
-    carts[cart_id] = [
-        {
-            "id": item.get("id"),
-            "name": item.get("name"),
-            "basePrice": item.get("basePrice"),
-            "quantity": item.get("quantity"),
-            "variant": item.get("variant"),
-            "size": item.get("size"),
-        }
-        for item in request.cart_items
-    ]
-
-    totals = calculate_cart_totals(carts[cart_id])
-
-    return {
-        "cartId": cart_id,
-        "items": carts[cart_id],
-        "itemCount": sum(item["quantity"] for item in carts[cart_id]),
-        **totals,
-        "_meta": get_cart_meta(cart_id),
-    }
-
-
-@app.post("/cart/checkout", tags=["cart"])
-async def api_checkout(request: CartCheckoutRequest) -> dict[str, Any]:
-    """REST endpoint to process checkout.
-
-    First syncs the cart, then processes checkout through the ACP payment flow.
-
-    Args:
-        request: Checkout request with cartId and cartItems.
-
-    Returns:
-        Checkout result with orderId or error.
-    """
-    from uuid import uuid4
-
-    from src.apps_sdk.tools.cart import carts
-
-    cart_id = request.cart_id or f"cart_{uuid4().hex[:12]}"
-
-    # Sync cart items to server before checkout
-    carts[cart_id] = [
-        {
-            "id": item.get("id"),
-            "name": item.get("name"),
-            "basePrice": item.get("basePrice"),
-            "quantity": item.get("quantity"),
-            "variant": item.get("variant"),
-            "size": item.get("size"),
-        }
-        for item in request.cart_items
-    ]
-
-    logger.info(
-        f"Checkout REST API called for cart {cart_id} with {len(carts[cart_id])} items, customer: {request.customer_name}"
-    )
-
-    # Process checkout with customer name for personalized post-purchase messages
-    result = await checkout(cart_id, customer_name=request.customer_name)
-
-    if result.get("success") is True:
-        order_id = str(result.get("orderId") or "")
-        for item in request.cart_items:
-            recommendation_request_id = item.get("recommendationRequestId") or item.get(
-                "recommendation_request_id"
-            )
-            product_id = item.get("id") or item.get("productId")
-            if (
-                not isinstance(recommendation_request_id, str)
-                or not recommendation_request_id
-            ):
-                continue
-            if not isinstance(product_id, str) or not product_id:
-                continue
-            quantity_raw = item.get("quantity")
-            price_raw = (
-                item.get("basePrice") if "basePrice" in item else item.get("base_price")
-            )
-            quantity = (
-                quantity_raw
-                if isinstance(quantity_raw, int) and quantity_raw > 0
-                else 1
-            )
-            unit_price = (
-                price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
-            )
-            position_raw = item.get("recommendationPosition")
-            position = position_raw if isinstance(position_raw, int) else None
-
-            await _record_recommendation_attribution_event(
-                event_type="purchase",
-                product_id=product_id,
-                session_id=request.cart_id,
-                recommendation_request_id=recommendation_request_id,
-                position=position,
-                order_id=order_id or None,
-                quantity=quantity,
-                revenue_cents=unit_price * quantity,
-                source="apps_sdk_checkout",
-            )
-    return result
+# Include HTTP routes extracted from main.py.
+app.include_router(widget_router)
+app.include_router(events_router)
+app.include_router(rest_router)
+
+
+__all__ = [
+    "app",
+    "mcp",
+    # Shared constants/functions used by tests and runtime imports.
+    "DIST_DIR",
+    "PUBLIC_DIR",
+    "active_sessions",
+    "emit_checkout_event",
+    "emit_agent_activity_event",
+    "health_check",
+    "serve_widget",
+    "serve_widget_assets",
+    # Recommendation helper exports used by tests.
+    "call_recommendation_agent",
+    "_classify_outcome_status",
+    "_record_apps_sdk_outcome",
+    "_record_recommendation_attribution_event",
+    # Schema exports used by tests.
+    "CartItemInput",
+    "GetRecommendationsInput",
+    "RecommendationItemOutput",
+    "PipelineTraceOutput",
+    "GetRecommendationsOutput",
+    "ProductOutput",
+    "UserOutput",
+]
