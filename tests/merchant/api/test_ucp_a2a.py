@@ -557,7 +557,10 @@ class TestApplicationErrors:
         response = auth_client.post("/a2a", json=complete_req, headers=a2a_headers)
         body = response.json()
         assert body["error"]["code"] == -32602
-        assert body["error"]["message"] == "Unsupported payment handler_id: unknown_handler"
+        assert (
+            body["error"]["message"]
+            == "Unsupported payment handler_id: unknown_handler"
+        )
 
 
 # ===========================================================================

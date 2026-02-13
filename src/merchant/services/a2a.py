@@ -513,7 +513,9 @@ async def handle_complete(
     if not token_val:
         raise ValueError("Payment credential token is required")
 
-    handler_id: str = str(instrument.get("handler_id") or instrument.get("handler") or "")
+    handler_id: str = str(
+        instrument.get("handler_id") or instrument.get("handler") or ""
+    )
     if not handler_id:
         raise ValueError("Payment instrument handler_id is required")
     if not _is_advertised_payment_handler(handler_id, payment_handlers):
