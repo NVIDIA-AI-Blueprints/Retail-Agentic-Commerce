@@ -389,7 +389,10 @@ class TestA2ANegotiationFailure:
             "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
         )
 
-        request = _make_a2a_request("create_checkout", {"product_id": "prod_1"})
+        request = _make_a2a_request(
+            "create_checkout",
+            {"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]},
+        )
         response = auth_client.post("/a2a", json=request, headers=a2a_headers)
 
         assert response.status_code == 200
@@ -420,7 +423,10 @@ class TestA2ANegotiationFailure:
             "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
         )
 
-        request = _make_a2a_request("create_checkout", {"product_id": "prod_1"})
+        request = _make_a2a_request(
+            "create_checkout",
+            {"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]},
+        )
         response = auth_client.post("/a2a", json=request, headers=a2a_headers)
 
         assert response.status_code == 200
@@ -448,7 +454,10 @@ class TestA2ANegotiationFailure:
             _raise_request_error,
         )
 
-        request = _make_a2a_request("create_checkout", {"product_id": "prod_1"})
+        request = _make_a2a_request(
+            "create_checkout",
+            {"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]},
+        )
         response = auth_client.post("/a2a", json=request, headers=a2a_headers)
 
         assert response.status_code == 200
@@ -484,7 +493,10 @@ class TestSeverityMapping:
             "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
         )
 
-        request = _make_a2a_request("create_checkout", {"product_id": "prod_1"})
+        request = _make_a2a_request(
+            "create_checkout",
+            {"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]},
+        )
         response = auth_client.post("/a2a", json=request, headers=a2a_headers)
 
         assert response.status_code == 200
@@ -521,7 +533,10 @@ class TestPaymentHandlersInResponse:
             "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
         )
 
-        request = _make_a2a_request("create_checkout", {"product_id": "prod_1"})
+        request = _make_a2a_request(
+            "create_checkout",
+            {"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]},
+        )
         response = auth_client.post("/a2a", json=request, headers=a2a_headers)
 
         assert response.status_code == 200
