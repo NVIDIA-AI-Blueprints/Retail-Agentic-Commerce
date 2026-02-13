@@ -137,9 +137,7 @@ def generate_ucp_request_signature(
     }
 
     header = {"alg": "HS256", "typ": "JWT"}
-    signing_input = (
-        f"{_base64url_encode_json(header)}.{_base64url_encode_json(claims)}"
-    )
+    signing_input = f"{_base64url_encode_json(header)}.{_base64url_encode_json(claims)}"
     signature = hmac.new(
         secret.encode("utf-8"),
         signing_input.encode("utf-8"),

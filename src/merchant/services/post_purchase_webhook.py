@@ -105,8 +105,8 @@ def _build_ucp_order_event(
         raise ValueError("Missing order in completed checkout session")
 
     now_iso = datetime.now(UTC).isoformat()
-    line_items = []
-    line_item_refs = []
+    line_items: list[dict[str, Any]] = []
+    line_item_refs: list[dict[str, Any]] = []
     for line_item in checkout_session.line_items:
         quantity_total = line_item.item.quantity
         fulfilled_quantity = (

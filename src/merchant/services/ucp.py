@@ -318,25 +318,29 @@ def get_platform_order_webhook_url(
     if ORDER_CAPABILITY not in negotiated:
         return None
 
-    ucp_block = platform_profile.get("ucp")
+    ucp_block: Any = platform_profile.get("ucp")
     if not isinstance(ucp_block, dict):
         return None
+    ucp_dict = cast(dict[str, Any], ucp_block)
 
-    capabilities = ucp_block.get("capabilities")
+    capabilities: Any = ucp_dict.get("capabilities")
     if not isinstance(capabilities, dict):
         return None
+    capabilities_dict = cast(dict[str, Any], capabilities)
 
-    order_versions_raw = capabilities.get(ORDER_CAPABILITY)
+    order_versions_raw: Any = capabilities_dict.get(ORDER_CAPABILITY)
     if not isinstance(order_versions_raw, list):
         return None
 
     for raw_version in cast(list[Any], order_versions_raw):
         if not isinstance(raw_version, dict):
             continue
-        config = raw_version.get("config")
+        raw_version_dict = cast(dict[str, Any], raw_version)
+        config: Any = raw_version_dict.get("config")
         if not isinstance(config, dict):
             continue
-        webhook_url = config.get("webhook_url")
+        config_dict = cast(dict[str, Any], config)
+        webhook_url: Any = config_dict.get("webhook_url")
         if isinstance(webhook_url, str) and webhook_url.strip():
             return webhook_url.strip()
 

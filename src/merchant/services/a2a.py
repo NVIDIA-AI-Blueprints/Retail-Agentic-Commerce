@@ -25,8 +25,6 @@ from src.merchant.api.schemas import (
 )
 from src.merchant.api.ucp_schemas import UCPCapabilityVersion, UCPPaymentHandler
 from src.merchant.config import get_settings
-from src.merchant.services.post_purchase import OrderItem
-from src.merchant.services.post_purchase_webhook import trigger_post_purchase_flow_ucp
 from src.merchant.services.checkout import (
     SessionNotFoundError,
     cancel_checkout_session,
@@ -36,6 +34,8 @@ from src.merchant.services.checkout import (
     update_checkout_session,
 )
 from src.merchant.services.idempotency import get_idempotency_store
+from src.merchant.services.post_purchase import OrderItem
+from src.merchant.services.post_purchase_webhook import trigger_post_purchase_flow_ucp
 from src.merchant.services.ucp import (
     NegotiationFailureError,
     build_business_profile,
@@ -497,7 +497,9 @@ async def handle_complete(
     if not token_val:
         raise ValueError("Payment credential token is required")
 
-    handler_id: str = str(instrument.get("handler_id") or instrument.get("handler") or "")
+    handler_id: str = str(
+        instrument.get("handler_id") or instrument.get("handler") or ""
+    )
     provider = _resolve_payment_provider(handler_id)
 
     payment_data = PaymentDataInput(token=token_val, provider=provider)

@@ -189,9 +189,11 @@ async def handle_a2a_request(
     # ---- 8. Negotiate capabilities ----
     base_url = str(http_request.base_url).rstrip("/")
     try:
-        negotiated, payment_handlers, order_webhook_url = await negotiate_a2a_capabilities(
-            ucp_agent_value, base_url
-        )
+        (
+            negotiated,
+            payment_handlers,
+            order_webhook_url,
+        ) = await negotiate_a2a_capabilities(ucp_agent_value, base_url)
     except NegotiationFailureError as exc:
         # Per spec: negotiation failure → JSON-RPC result, not error
         settings = get_settings()
