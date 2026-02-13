@@ -57,6 +57,11 @@ describe("api-client protocol routing", () => {
                     id: "cs_ucp_1",
                     status: "ready_for_complete",
                     currency: "USD",
+                    ucp: {
+                      payment_handlers: {
+                        "com.example.processor_tokenizer": [{ id: "processor_tokenizer" }],
+                      },
+                    },
                     line_items: [
                       {
                         id: "li_1",
@@ -92,6 +97,7 @@ describe("api-client protocol routing", () => {
     expect(session.status).toBe("ready_for_payment");
     expect(session.protocol).toBe("ucp");
     expect(session.ucpContextId).toBe("ctx_123");
+    expect(session.ucpPaymentHandlerId).toBe("processor_tokenizer");
 
     const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     const headers = init.headers as Record<string, string>;
@@ -162,6 +168,11 @@ describe("api-client protocol routing", () => {
                     id: "cs_ucp_1",
                     status: "completed",
                     currency: "USD",
+                    ucp: {
+                      payment_handlers: {
+                        "com.example.processor_tokenizer": [{ id: "processor_tokenizer" }],
+                      },
+                    },
                     line_items: [],
                     totals: [{ type: "total", label: "Total", amount: 2700 }],
                     messages: [],
@@ -175,7 +186,11 @@ describe("api-client protocol routing", () => {
       )
     );
 
-    const sessionRef: ProtocolSessionRef = { sessionId: "cs_ucp_1", contextId: "ctx_123" };
+    const sessionRef: ProtocolSessionRef = {
+      sessionId: "cs_ucp_1",
+      contextId: "ctx_123",
+      paymentHandlerId: "processor_tokenizer",
+    };
     await completeCheckoutByProtocol("ucp", sessionRef, {
       payment_data: {
         token: "vt_123",
@@ -191,11 +206,28 @@ describe("api-client protocol routing", () => {
     expect(paymentPart?.data?.["a2a.ucp.checkout.payment"]).toEqual({
       instruments: [
         {
+          id: "vt_123",
           type: "tokenized_card",
           handler_id: "processor_tokenizer",
           credential: { token: "vt_123" },
         },
       ],
+    });
+  });
+
+  it("throws when UCP complete is called without negotiated payment handler", async () => {
+    const sessionRef: ProtocolSessionRef = { sessionId: "cs_ucp_1", contextId: "ctx_123" };
+
+    await expect(
+      completeCheckoutByProtocol("ucp", sessionRef, {
+        payment_data: {
+          token: "vt_123",
+          provider: "stripe",
+        },
+      })
+    ).rejects.toMatchObject({
+      code: "missing",
+      message: "Missing negotiated UCP payment handler ID for checkout completion",
     });
   });
 

@@ -40,10 +40,17 @@ function truncateId(id: string): string {
   return `...${id.slice(-8)}`;
 }
 
-function buildProtocolSessionRef(sessionId: string, contextId?: string | null): ProtocolSessionRef {
+function buildProtocolSessionRef(
+  sessionId: string,
+  contextId?: string | null,
+  paymentHandlerId?: string | null
+): ProtocolSessionRef {
   const sessionRef: ProtocolSessionRef = { sessionId };
   if (contextId != null) {
     sessionRef.contextId = contextId;
+  }
+  if (paymentHandlerId != null) {
+    sessionRef.paymentHandlerId = paymentHandlerId;
   }
   return sessionRef;
 }
@@ -493,7 +500,11 @@ export function useCheckoutFlow(
           try {
             const updatedSession = await updateCheckoutSessionByProtocol(
               protocol,
-              buildProtocolSessionRef(session.id, session.ucpContextId),
+              buildProtocolSessionRef(
+                session.id,
+                session.ucpContextId,
+                session.ucpPaymentHandlerId
+              ),
               firstOption ? { fulfillment_option_id: firstOption.id } : {}
             );
 
@@ -555,7 +566,11 @@ export function useCheckoutFlow(
 
         const session = await updateCheckoutSessionByProtocol(
           protocol,
-          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          buildProtocolSessionRef(
+            context.sessionId,
+            context.ucpContextId,
+            context.session?.ucpPaymentHandlerId
+          ),
           request
         );
 
@@ -579,7 +594,7 @@ export function useCheckoutFlow(
         dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
     },
-    [context.sessionId, context.selectedProduct, context.ucpContextId, protocol]
+    [context.sessionId, context.selectedProduct, context.session, context.ucpContextId, protocol]
   );
 
   /**
@@ -611,7 +626,11 @@ export function useCheckoutFlow(
       try {
         const session = await updateCheckoutSessionByProtocol(
           protocol,
-          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          buildProtocolSessionRef(
+            context.sessionId,
+            context.ucpContextId,
+            context.session?.ucpPaymentHandlerId
+          ),
           {
             fulfillment_option_id: shippingId,
           }
@@ -668,7 +687,11 @@ export function useCheckoutFlow(
       try {
         const session = await updateCheckoutSessionByProtocol(
           protocol,
-          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          buildProtocolSessionRef(
+            context.sessionId,
+            context.ucpContextId,
+            context.session?.ucpPaymentHandlerId
+          ),
           {
             discounts: {
               codes: normalized ? [normalized] : [],
@@ -696,7 +719,7 @@ export function useCheckoutFlow(
         dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
     },
-    [context.sessionId, context.ucpContextId, protocol]
+    [context.sessionId, context.session, context.ucpContextId, protocol]
   );
 
   /**
@@ -799,7 +822,11 @@ export function useCheckoutFlow(
 
         const completedSession = await completeCheckoutByProtocol(
           protocol,
-          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          buildProtocolSessionRef(
+            context.sessionId,
+            context.ucpContextId,
+            context.session?.ucpPaymentHandlerId
+          ),
           {
             payment_data: {
               token: delegateResponse.id,
@@ -830,7 +857,11 @@ export function useCheckoutFlow(
             try {
               const finalSession = await completeCheckoutByProtocol(
                 protocol,
-                buildProtocolSessionRef(context.sessionId!, context.ucpContextId),
+                buildProtocolSessionRef(
+                  context.sessionId!,
+                  context.ucpContextId,
+                  context.session?.ucpPaymentHandlerId
+                ),
                 {
                   payment_data: {
                     token: delegateResponse.id,

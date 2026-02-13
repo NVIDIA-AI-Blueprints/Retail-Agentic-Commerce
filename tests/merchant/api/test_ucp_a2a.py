@@ -525,6 +525,40 @@ class TestApplicationErrors:
         response = auth_client.post("/a2a", json=request, headers=a2a_headers)
         assert response.json()["error"]["code"] == -32602
 
+    @pytest.mark.usefixtures("mock_platform_profile")
+    def test_complete_checkout_with_unadvertised_handler_returns_invalid_params(
+        self, auth_client: TestClient, a2a_headers: dict[str, str]
+    ) -> None:
+        create_req = _make_request("create_checkout", {"product_id": "prod_1"})
+        create_resp = auth_client.post("/a2a", json=create_req, headers=a2a_headers)
+        ctx = create_resp.json()["result"]["contextId"]
+
+        complete_req = _make_request(
+            "complete_checkout",
+            context_id=ctx,
+            extra_parts=[
+                {
+                    "type": "data",
+                    "data": {
+                        "a2a.ucp.checkout.payment": {
+                            "instruments": [
+                                {
+                                    "id": "pm_bad",
+                                    "type": "tokenized_card",
+                                    "handler_id": "unknown_handler",
+                                    "credential": {"token": "vt_test_bad"},
+                                }
+                            ]
+                        }
+                    },
+                }
+            ],
+        )
+        response = auth_client.post("/a2a", json=complete_req, headers=a2a_headers)
+        body = response.json()
+        assert body["error"]["code"] == -32602
+        assert body["error"]["message"] == "Unsupported payment handler_id: unknown_handler"
+
 
 # ===========================================================================
 # 5. Context / Session Persistence

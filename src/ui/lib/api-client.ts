@@ -52,6 +52,7 @@ const UCP_PLATFORM_PROFILE_URL =
 export interface ProtocolSessionRef {
   sessionId: string | null;
   contextId?: string | null;
+  paymentHandlerId?: string | null;
 }
 
 interface UCPA2ATotal {
@@ -285,6 +286,10 @@ function normalizeUCPCheckout(
   checkout: UCPA2ACheckout,
   contextId: string
 ): CheckoutSessionResponse {
+  const negotiatedHandlerId = Object.values(checkout.ucp?.payment_handlers ?? {}).find(
+    (handlers) => handlers.length > 0 && handlers[0]?.id
+  )?.[0]?.id;
+
   const lineItems: LineItem[] = checkout.line_items.map((item) => {
     const subtotal = item.totals.find((total) => total.type === "subtotal")?.amount ?? 0;
     const tax = item.totals.find((total) => total.type === "tax")?.amount ?? 0;
@@ -353,6 +358,7 @@ function normalizeUCPCheckout(
     currency: checkout.currency.toLowerCase(),
     protocol: "ucp",
     ucpContextId: contextId,
+    ...(negotiatedHandlerId ? { ucpPaymentHandlerId: negotiatedHandlerId } : {}),
     payment_provider: paymentProvider,
     ...(checkout.ucp?.capabilities
       ? {
@@ -631,6 +637,15 @@ export async function completeCheckoutByProtocol(
     } satisfies APIError;
   }
 
+  const handlerId = sessionRef.paymentHandlerId?.trim();
+  if (!handlerId) {
+    throw {
+      type: "invalid_request",
+      code: "missing",
+      message: "Missing negotiated UCP payment handler ID for checkout completion",
+    } satisfies APIError;
+  }
+
   return postA2AAction("complete_checkout", {}, sessionRef.contextId, [
     {
       kind: "data",
@@ -638,8 +653,9 @@ export async function completeCheckoutByProtocol(
         "a2a.ucp.checkout.payment": {
           instruments: [
             {
+              id: request.payment_data.token,
               type: "tokenized_card",
-              handler_id: "processor_tokenizer",
+              handler_id: handlerId,
               credential: {
                 token: request.payment_data.token,
               },

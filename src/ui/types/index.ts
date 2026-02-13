@@ -502,6 +502,7 @@ export interface CheckoutSessionResponse {
   currency: string;
   protocol?: CheckoutProtocol;
   ucpContextId?: string;
+  ucpPaymentHandlerId?: string;
   continue_url?: string;
   buyer?: Buyer;
   capabilities?: CheckoutCapabilities;

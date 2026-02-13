@@ -437,13 +437,29 @@ def _resolve_payment_provider(handler_id: str) -> PaymentProviderEnum:
     that handler_id to the internal provider enum used by the checkout
     service.
 
-    Falls back to STRIPE for this reference implementation since it is
-    the only PSP currently configured.
+    This reference implementation currently supports one negotiated
+    handler (processor_tokenizer -> Stripe). Unknown handlers are rejected.
     """
     handler_map: dict[str, PaymentProviderEnum] = {
         "processor_tokenizer": PaymentProviderEnum.STRIPE,
     }
-    return handler_map.get(handler_id, PaymentProviderEnum.STRIPE)
+    provider = handler_map.get(handler_id)
+    if provider is None:
+        raise ValueError(f"Unsupported payment handler_id: {handler_id}")
+    return provider
+
+
+def _is_advertised_payment_handler(
+    handler_id: str,
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None,
+) -> bool:
+    if payment_handlers is None:
+        return False
+    for versions in payment_handlers.values():
+        for handler in versions:
+            if handler.id == handler_id:
+                return True
+    return False
 
 
 def _extract_customer_name(session: CheckoutSessionResponse) -> str:
@@ -497,9 +513,11 @@ async def handle_complete(
     if not token_val:
         raise ValueError("Payment credential token is required")
 
-    handler_id: str = str(
-        instrument.get("handler_id") or instrument.get("handler") or ""
-    )
+    handler_id: str = str(instrument.get("handler_id") or instrument.get("handler") or "")
+    if not handler_id:
+        raise ValueError("Payment instrument handler_id is required")
+    if not _is_advertised_payment_handler(handler_id, payment_handlers):
+        raise ValueError(f"Unsupported payment handler_id: {handler_id}")
     provider = _resolve_payment_provider(handler_id)
 
     payment_data = PaymentDataInput(token=token_val, provider=provider)
