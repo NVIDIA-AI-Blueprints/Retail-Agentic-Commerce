@@ -49,6 +49,21 @@ Cursor MUST follow this order when generating or modifying code:
 
 If any step fails or is missing, the work is incomplete.
 
+## Retail-Agentic-Commerce CI Parity (Mandatory)
+Before committing backend-related changes in this repo, run the same checks used in CI from the repo root:
+
+```bash
+uv run ruff check src/merchant/ src/payment/ src/apps_sdk/ tests/
+uv run ruff format --check src/merchant/ src/payment/ src/apps_sdk/ tests/
+uv run pyright src/merchant/ src/payment/ src/apps_sdk/
+uv run pytest tests/ -v --tb=short
+```
+
+Rules:
+- Do not commit if any command above fails.
+- If changes touch both backend and UI, run the UI CI parity commands too (see `.cursor/skills/ui/SKILL.md`).
+- For fast iteration, targeted tests are allowed while developing, but full commands above are required before commit.
+
 ## Python Coding Standards
 - Follow PEP 8 where applicable (Ruff is the source of truth)
 - Use 4-space indentation

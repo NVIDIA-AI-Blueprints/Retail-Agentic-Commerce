@@ -53,6 +53,21 @@ Cursor MUST follow this order when generating or modifying frontend code:
 
 If any step fails or is missing, the work is incomplete.
 
+## Retail-Agentic-Commerce UI CI Parity (Mandatory)
+Before committing UI-related changes in this repo, run the same checks used in CI from `src/ui`:
+
+```bash
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test:run
+```
+
+Rules:
+- Do not commit if any command above fails.
+- Run from `src/ui` to match CI environment and scripts.
+- If the change also touches backend code, run backend CI parity commands in `.cursor/skills/features/SKILL.md` before commit.
+
 ## Browser Validation (Mandatory When Available)
 When browser MCP tools are available (cursor-browser-extension or cursor-ide-browser), you MUST use them to validate UI changes:
 
