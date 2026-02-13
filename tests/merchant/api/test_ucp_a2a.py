@@ -11,12 +11,12 @@ from fastapi.testclient import TestClient
 
 from src.merchant.config import get_settings
 from src.merchant.db.database import reset_engine
-from src.merchant.services.a2a import (
+from src.merchant.protocols.ucp.services.a2a_transport import (
     A2A_UCP_EXTENSION_URL,
     clear_context_sessions,
 )
+from src.merchant.protocols.ucp.services.negotiation import clear_profile_cache
 from src.merchant.services.idempotency import reset_idempotency_store
-from src.merchant.services.ucp import clear_profile_cache
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -59,7 +59,10 @@ def mock_platform_profile(monkeypatch, platform_profile) -> None:
     async def _mock_fetch(_url: str) -> dict[str, Any]:
         return platform_profile
 
-    monkeypatch.setattr("src.merchant.services.a2a.fetch_platform_profile", _mock_fetch)
+    monkeypatch.setattr(
+        "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
+        _mock_fetch,
+    )
 
 
 @pytest.fixture
@@ -385,11 +388,12 @@ class TestCheckoutActions:
             }
 
         monkeypatch.setattr(
-            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+            "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
+            _mock_fetch,
         )
         post_purchase_mock = AsyncMock()
         monkeypatch.setattr(
-            "src.merchant.services.a2a.trigger_post_purchase_flow_ucp",
+            "src.merchant.protocols.ucp.services.a2a_transport.trigger_post_purchase_flow_ucp",
             post_purchase_mock,
         )
 
@@ -468,11 +472,12 @@ class TestCheckoutActions:
             }
 
         monkeypatch.setattr(
-            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+            "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
+            _mock_fetch,
         )
         post_purchase_mock = AsyncMock()
         monkeypatch.setattr(
-            "src.merchant.services.a2a.trigger_post_purchase_flow_ucp",
+            "src.merchant.protocols.ucp.services.a2a_transport.trigger_post_purchase_flow_ucp",
             post_purchase_mock,
         )
 

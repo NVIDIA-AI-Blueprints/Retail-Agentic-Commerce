@@ -17,11 +17,16 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
-from src.merchant.api.a2a_schemas import A2AMessage
 from src.merchant.api.dependencies import verify_api_key
 from src.merchant.config import get_settings
 from src.merchant.db.database import get_session
-from src.merchant.services.a2a import (
+from src.merchant.domain.checkout.service import (
+    InvalidStateTransitionError,
+    ProductNotFoundError,
+    SessionNotFoundError,
+)
+from src.merchant.protocols.ucp.api.schemas.a2a import A2AMessage
+from src.merchant.protocols.ucp.services.a2a_transport import (
     A2A_UCP_EXTENSION_URL,
     JSONRPC_DISCOVERY_FAILURE,
     JSONRPC_INVALID_PARAMS,
@@ -40,12 +45,7 @@ from src.merchant.services.a2a import (
     negotiate_a2a_capabilities,
     store_message_idempotency,
 )
-from src.merchant.services.checkout import (
-    InvalidStateTransitionError,
-    ProductNotFoundError,
-    SessionNotFoundError,
-)
-from src.merchant.services.ucp import NegotiationFailureError
+from src.merchant.protocols.ucp.services.negotiation import NegotiationFailureError
 
 logger = logging.getLogger(__name__)
 

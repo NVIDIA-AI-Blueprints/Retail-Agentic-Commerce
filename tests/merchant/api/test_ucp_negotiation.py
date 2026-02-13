@@ -14,19 +14,22 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from src.merchant.api.ucp_schemas import UCPCapabilityVersion
 from src.merchant.config import get_settings
 from src.merchant.db.database import reset_engine
-from src.merchant.services import ucp as ucp_service
-from src.merchant.services.a2a import A2A_UCP_EXTENSION_URL, clear_context_sessions
-from src.merchant.services.idempotency import reset_idempotency_store
-from src.merchant.services.ucp import (
+from src.merchant.protocols.ucp.api.schemas.checkout import UCPCapabilityVersion
+from src.merchant.protocols.ucp.services import negotiation as ucp_service
+from src.merchant.protocols.ucp.services.a2a_transport import (
+    A2A_UCP_EXTENSION_URL,
+    clear_context_sessions,
+)
+from src.merchant.protocols.ucp.services.negotiation import (
     NegotiationFailureError,
     _get_extends_list,
     build_business_profile,
     compute_capability_intersection,
     filter_capabilities_for_checkout,
 )
+from src.merchant.services.idempotency import reset_idempotency_store
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -260,7 +263,7 @@ class TestExtensionPruning:
                 UCPCapabilityVersion(version="2026-01-11", extends="dev.ucp.ext.a")
             ],
         }
-        from src.merchant.api.ucp_schemas import (
+        from src.merchant.protocols.ucp.api.schemas.checkout import (
             UCPBusinessProfile,
             UCPMetadata,
             UCPService,
@@ -386,7 +389,8 @@ class TestA2ANegotiationFailure:
             return _make_platform_profile({})
 
         monkeypatch.setattr(
-            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+            "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
+            _mock_fetch,
         )
 
         request = _make_a2a_request(
@@ -420,7 +424,8 @@ class TestA2ANegotiationFailure:
             )
 
         monkeypatch.setattr(
-            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+            "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
+            _mock_fetch,
         )
 
         request = _make_a2a_request(
@@ -450,7 +455,7 @@ class TestA2ANegotiationFailure:
             raise httpx.RequestError("boom")
 
         monkeypatch.setattr(
-            "src.merchant.services.a2a.fetch_platform_profile",
+            "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
             _raise_request_error,
         )
 
@@ -490,7 +495,8 @@ class TestSeverityMapping:
             )
 
         monkeypatch.setattr(
-            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+            "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
+            _mock_fetch,
         )
 
         request = _make_a2a_request(
@@ -530,7 +536,8 @@ class TestPaymentHandlersInResponse:
             )
 
         monkeypatch.setattr(
-            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+            "src.merchant.protocols.ucp.services.a2a_transport.fetch_platform_profile",
+            _mock_fetch,
         )
 
         request = _make_a2a_request(

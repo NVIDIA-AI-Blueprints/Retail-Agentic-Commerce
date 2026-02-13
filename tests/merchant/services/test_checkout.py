@@ -9,7 +9,7 @@ Tests cover:
 import pytest
 
 from src.merchant.db.models import Product
-from src.merchant.services.helpers import (
+from src.merchant.domain.checkout.calculations import (
     apply_discount_codes,
     calculate_line_item,
     recalculate_line_item_from_existing,

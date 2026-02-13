@@ -1,8 +1,4 @@
-"""Helper functions and constants for checkout service.
-
-Contains utility functions for converting between database models and API schemas,
-calculating line items, totals, and generating IDs.
-"""
+"""Checkout domain helpers and calculators."""
 
 import json
 import uuid
@@ -11,7 +7,8 @@ from typing import Any, cast
 
 from sqlmodel import Session
 
-from src.merchant.api.schemas import (
+from src.merchant.db.models import CheckoutSession, Product
+from src.merchant.domain.checkout.models import (
     Address,
     AddressInput,
     Allocation,
@@ -44,7 +41,6 @@ from src.merchant.api.schemas import (
     Total,
     TotalTypeEnum,
 )
-from src.merchant.db.models import CheckoutSession, Product
 from src.merchant.services.promotion import (
     get_promotion_for_product,
     validate_discount_against_margin,

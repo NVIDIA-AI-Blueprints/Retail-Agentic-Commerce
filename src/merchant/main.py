@@ -8,16 +8,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.merchant.api.routes.checkout import router as checkout_router
 from src.merchant.api.routes.health import router as health_router
 from src.merchant.api.routes.metrics import router as metrics_router
 from src.merchant.api.routes.products import router as products_router
-from src.merchant.api.routes.ucp.a2a import router as ucp_a2a_router
-from src.merchant.api.routes.ucp.agent_card import router as ucp_agent_card_router
-from src.merchant.api.routes.ucp.discovery import router as ucp_discovery_router
 from src.merchant.config import get_settings
 from src.merchant.db import init_and_seed_db
 from src.merchant.middleware import ACPHeadersMiddleware, RequestLoggingMiddleware
+from src.merchant.protocols.acp.api.routes.checkout import router as checkout_router
+from src.merchant.protocols.ucp.api.routes.a2a import router as ucp_a2a_router
+from src.merchant.protocols.ucp.api.routes.agent_card import (
+    router as ucp_agent_card_router,
+)
+from src.merchant.protocols.ucp.api.routes.discovery import (
+    router as ucp_discovery_router,
+)
 
 settings = get_settings()
 

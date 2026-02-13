@@ -1,1 +1,1 @@
-# Business logic services
+# Shared business services (protocol-neutral)

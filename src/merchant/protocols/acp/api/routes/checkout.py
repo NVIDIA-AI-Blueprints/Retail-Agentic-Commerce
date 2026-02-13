@@ -4,17 +4,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel import Session
 
 from src.merchant.api.dependencies import verify_api_key
-from src.merchant.api.schemas import (
-    CheckoutSessionResponse,
-    CompleteCheckoutRequest,
-    CreateCheckoutRequest,
-    ErrorResponse,
-    ErrorResponseCodeEnum,
-    ErrorTypeEnum,
-    UpdateCheckoutRequest,
-)
 from src.merchant.db.database import get_session
-from src.merchant.services.checkout import (
+from src.merchant.domain.checkout.service import (
     InvalidStateTransitionError,
     ProductNotFoundError,
     SessionNotFoundError,
@@ -24,8 +15,19 @@ from src.merchant.services.checkout import (
     get_checkout_session,
     update_checkout_session,
 )
+from src.merchant.protocols.acp.api.schemas.checkout import (
+    CheckoutSessionResponse,
+    CompleteCheckoutRequest,
+    CreateCheckoutRequest,
+    ErrorResponse,
+    ErrorResponseCodeEnum,
+    ErrorTypeEnum,
+    UpdateCheckoutRequest,
+)
+from src.merchant.protocols.acp.services.post_purchase_webhook import (
+    trigger_post_purchase_flow,
+)
 from src.merchant.services.post_purchase import OrderItem
-from src.merchant.services.post_purchase_webhook import trigger_post_purchase_flow
 
 router = APIRouter(
     prefix="/checkout_sessions",

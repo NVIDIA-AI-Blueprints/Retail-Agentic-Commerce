@@ -15,19 +15,12 @@ from fastapi import BackgroundTasks
 from pydantic import ValidationError
 from sqlmodel import Session
 
-from src.merchant.api.a2a_schemas import A2AMessage, A2APart
-from src.merchant.api.schemas import (
+from src.merchant.config import get_settings
+from src.merchant.domain.checkout.models import (
     CheckoutSessionResponse,
     PaymentProviderEnum,
 )
-from src.merchant.api.ucp_schemas import (
-    UCPCapabilityVersion,
-    UCPDiscountsInput,
-    UCPLineItemInput,
-    UCPPaymentHandler,
-)
-from src.merchant.config import get_settings
-from src.merchant.services.checkout import (
+from src.merchant.domain.checkout.service import (
     SessionNotFoundError,
     cancel_checkout_session,
     complete_checkout_session_from_data,
@@ -35,10 +28,14 @@ from src.merchant.services.checkout import (
     get_checkout_session,
     update_checkout_session_from_data,
 )
-from src.merchant.services.idempotency import get_idempotency_store
-from src.merchant.services.post_purchase import OrderItem
-from src.merchant.services.post_purchase_webhook import trigger_post_purchase_flow_ucp
-from src.merchant.services.ucp import (
+from src.merchant.protocols.ucp.api.schemas.a2a import A2AMessage, A2APart
+from src.merchant.protocols.ucp.api.schemas.checkout import (
+    UCPCapabilityVersion,
+    UCPDiscountsInput,
+    UCPLineItemInput,
+    UCPPaymentHandler,
+)
+from src.merchant.protocols.ucp.services.negotiation import (
     NegotiationFailureError,
     build_business_profile,
     compute_capability_intersection,
@@ -47,6 +44,11 @@ from src.merchant.services.ucp import (
     parse_ucp_agent_header,
     transform_to_ucp_response,
 )
+from src.merchant.protocols.ucp.services.post_purchase_webhook import (
+    trigger_post_purchase_flow_ucp,
+)
+from src.merchant.services.idempotency import get_idempotency_store
+from src.merchant.services.post_purchase import OrderItem
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,8 @@ from typing import Any, cast
 
 import httpx
 
-from src.merchant.api.schemas import (
+from src.merchant.config import get_settings
+from src.merchant.domain.checkout.models import (
     CheckoutSessionResponse,
     DiscountsResponse,
     LineItem,
@@ -19,7 +20,7 @@ from src.merchant.api.schemas import (
     Total,
     TotalTypeEnum,
 )
-from src.merchant.api.ucp_schemas import (
+from src.merchant.protocols.ucp.api.schemas.checkout import (
     UCPAppliedDiscount,
     UCPBusinessProfile,
     UCPCapabilityVersion,
@@ -42,7 +43,6 @@ from src.merchant.api.ucp_schemas import (
     validate_business_profile_with_sdk,
     validate_checkout_response_with_sdk,
 )
-from src.merchant.config import get_settings
 
 CACHE_TTL = timedelta(minutes=10)
 CHECKOUT_CAPABILITY = "dev.ucp.shopping.checkout"

@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from src.merchant.config import get_settings
-from src.merchant.services.a2a import build_agent_card
+from src.merchant.protocols.ucp.services.a2a_transport import build_agent_card
 
 router = APIRouter(tags=["ucp-a2a"])
 

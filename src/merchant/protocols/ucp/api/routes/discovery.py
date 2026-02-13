@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, Request
 
-from src.merchant.api.ucp_schemas import UCPBusinessProfile
-from src.merchant.services.ucp import build_business_profile
+from src.merchant.protocols.ucp.api.schemas.checkout import UCPBusinessProfile
+from src.merchant.protocols.ucp.services.negotiation import build_business_profile
 
 router = APIRouter(tags=["ucp"])
 

@@ -1,11 +1,4 @@
-"""Checkout session service layer for ACP endpoints.
-
-Handles business logic for creating, updating, completing, and canceling
-checkout sessions according to the Agentic Checkout Protocol specification.
-
-Integrates with the Promotion Agent for dynamic pricing via the 3-layer
-hybrid architecture (see services/promotion.py).
-"""
+"""Protocol-agnostic checkout session business logic service."""
 
 import json
 import logging
@@ -14,15 +7,8 @@ from typing import Any, cast
 
 from sqlmodel import Session, select
 
-from src.merchant.api.schemas import (
-    BuyerInput,
-    CheckoutSessionResponse,
-    CreateCheckoutRequest,
-    PaymentDataInput,
-    UpdateCheckoutRequest,
-)
 from src.merchant.db.models import CheckoutSession, CheckoutStatus, Product
-from src.merchant.services.helpers import (
+from src.merchant.domain.checkout.calculations import (
     DEFAULT_CURRENCY,
     DEFAULT_SHOP_URL,
     address_input_to_dict,
@@ -37,6 +23,13 @@ from src.merchant.services.helpers import (
     generate_session_id,
     recalculate_line_item_from_existing,
     session_to_response,
+)
+from src.merchant.domain.checkout.models import (
+    BuyerInput,
+    CheckoutSessionResponse,
+    CreateCheckoutRequest,
+    PaymentDataInput,
+    UpdateCheckoutRequest,
 )
 
 logger = logging.getLogger(__name__)

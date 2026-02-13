@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from src.merchant.api.ucp_schemas import (
+from src.merchant.config import get_settings
+from src.merchant.protocols.ucp.api.schemas.checkout import (
     UCPBusinessProfile,
     UCPCapabilityVersion,
     UCPCheckoutResponse,
@@ -20,8 +21,7 @@ from src.merchant.api.ucp_schemas import (
     to_sdk_checkout_response,
     to_sdk_discovery_profile,
 )
-from src.merchant.config import get_settings
-from src.merchant.services.ucp import build_business_profile
+from src.merchant.protocols.ucp.services.negotiation import build_business_profile
 
 
 def test_to_sdk_discovery_profile_supports_current_wire_shape() -> None:

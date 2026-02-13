@@ -1,1 +1,1 @@
-# API module for ACP endpoints
+# Shared API infrastructure (dependencies, common routes, metrics schemas)

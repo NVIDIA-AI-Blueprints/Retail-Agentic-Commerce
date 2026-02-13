@@ -106,12 +106,14 @@ Core docs:
 ## Quick Map (Where to Look First)
 
 Backend:
-- API routes: `src/merchant/api/routes/`
-- Business logic: `src/merchant/services/`
+- API routes (shared): `src/merchant/api/routes/`
+- Protocol routes: `src/merchant/protocols/acp/api/routes/`, `src/merchant/protocols/ucp/api/routes/`
+- Business logic (shared): `src/merchant/domain/checkout/`, `src/merchant/services/`
 - Models: `src/merchant/db/models.py`
-- UCP discovery: `src/merchant/api/routes/ucp/discovery.py`
-- UCP schemas: `src/merchant/api/ucp_schemas.py`
-- UCP services: `src/merchant/services/ucp.py`
+- ACP schemas: `src/merchant/protocols/acp/api/schemas/checkout.py`
+- UCP discovery: `src/merchant/protocols/ucp/api/routes/discovery.py`
+- UCP schemas: `src/merchant/protocols/ucp/api/schemas/`
+- UCP services: `src/merchant/protocols/ucp/services/`
 
 Frontend:
 - Main layout: `src/ui/app/page.tsx`
