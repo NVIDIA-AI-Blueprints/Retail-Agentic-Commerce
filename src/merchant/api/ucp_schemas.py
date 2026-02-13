@@ -1,13 +1,53 @@
-"""Pydantic schemas for UCP discovery profile and checkout responses."""
+"""UCP schema bridge using local wire models plus SDK validation adapters.
+
+This module preserves the current project wire contracts while adopting
+`ucp_sdk` as the canonical schema dependency for contract validation.
+"""
 
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
+from ucp_sdk.models._internal import (
+    Discovery as SDKDiscoveryCapability,
+)
+from ucp_sdk.models._internal import (
+    DiscoveryProfile as SDKDiscoveryProfile,
+)
+from ucp_sdk.models._internal import (
+    Response as SDKResponseCapability,
+)
+from ucp_sdk.models._internal import (
+    ResponseCheckout as SDKResponseCheckout,
+)
+from ucp_sdk.models._internal import (
+    UcpService as SDKService,
+)
+from ucp_sdk.models.discovery.profile_schema import (
+    Payment as SDKDiscoveryPayment,
+)
+from ucp_sdk.models.discovery.profile_schema import (
+    UcpDiscoveryProfile as SDKUcpDiscoveryProfile,
+)
+from ucp_sdk.models.schemas.shopping.checkout_resp import (
+    CheckoutResponse as SDKCheckoutResponse,
+)
+from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as SDKPayment
+from ucp_sdk.models.schemas.shopping.types.payment_handler_resp import (
+    PaymentHandlerResponse as SDKPaymentHandler,
+)
 
 from src.merchant.api.schemas import PaymentDataInput
+
+DEFAULT_UCP_SPEC_URL = "https://ucp.dev/specification/overview"
+DEFAULT_PAYMENT_HANDLER_SPEC_URL = "https://ucp.dev/specification/checkout"
+DEFAULT_PAYMENT_HANDLER_SCHEMA_URL = (
+    "https://ucp.dev/schemas/shopping/payment_handler_config.json"
+)
+DEFAULT_TOS_URL = "https://merchant.example/terms"
+DEFAULT_PRIVACY_URL = "https://merchant.example/privacy"
 
 
 class UCPService(BaseModel):
@@ -16,19 +56,14 @@ class UCPService(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     version: str
-    transport: str  # "rest" for Phase 1
+    transport: str
     endpoint: str
     spec: str | None = None
     schema_url: str | None = Field(default=None, serialization_alias="schema")
 
 
 class UCPCapabilityVersion(BaseModel):
-    """UCP capability with version and optional extension parent.
-
-    ``extends`` may be a single parent (str) or multiple parents (list[str]).
-    Multi-parent extensions (e.g. discount extends checkout AND cart) are kept
-    during pruning when at least one parent is present in the intersection.
-    """
+    """UCP capability with version and optional extension parent(s)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -39,7 +74,7 @@ class UCPCapabilityVersion(BaseModel):
 
 
 class UCPPaymentHandler(BaseModel):
-    """Optional payment handler definition."""
+    """Optional payment handler definition in current project wire shape."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -47,23 +82,18 @@ class UCPPaymentHandler(BaseModel):
     version: str
     spec: str | None = None
     schema_url: str | None = Field(default=None, serialization_alias="schema")
-    config: dict[str, Any] | None = None  # Optional handler config per spec
+    config: dict[str, Any] | None = None
 
 
 class UCPSigningKey(BaseModel):
-    """JWK signing key for webhook verification.
+    """JWK signing key for webhook verification."""
 
-    Supports both EC (P-256) and OKP (Ed25519) key types per spec.
-    - EC P-256: kty="EC", crv="P-256", alg="ES256", x and y required
-    - OKP Ed25519: kty="OKP", crv="Ed25519", alg="EdDSA", x required, y omitted
-    """
-
-    kid: str  # Key ID (e.g., "business_2025")
-    kty: str  # Key type: "EC" or "OKP"
-    crv: str  # Curve: "P-256" or "Ed25519"
-    x: str  # Public key x coordinate (base64url)
-    y: str | None = None  # Public key y coordinate (base64url, EC only)
-    alg: str  # Algorithm: "ES256" or "EdDSA"
+    kid: str
+    kty: str
+    crv: str
+    x: str
+    y: str | None = None
+    alg: str
 
 
 class UCPMetadata(BaseModel):
@@ -83,12 +113,12 @@ class UCPBusinessProfile(BaseModel):
 
 
 # =============================================================================
-# UCP Checkout Schemas (Phase 2 - minimal fields)
+# UCP Checkout Schemas (current project wire subset)
 # =============================================================================
 
 
 class UCPCheckoutStatus(StrEnum):
-    """UCP checkout status values (Phase 2 subset)."""
+    """UCP checkout status values used by this implementation."""
 
     INCOMPLETE = "incomplete"
     READY_FOR_COMPLETE = "ready_for_complete"
@@ -97,7 +127,7 @@ class UCPCheckoutStatus(StrEnum):
 
 
 class UCPTotalType(StrEnum):
-    """UCP total types (Phase 2 subset)."""
+    """UCP total types used by this implementation."""
 
     SUBTOTAL = "subtotal"
     DISCOUNT = "discount"
@@ -165,7 +195,7 @@ class UCPUpdateCheckoutRequest(BaseModel):
 
 
 class UCPCompleteCheckoutRequest(BaseModel):
-    """Request body for completing a UCP checkout session (Phase 2)."""
+    """Request body for completing a UCP checkout session."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -210,7 +240,7 @@ class UCPMessage(BaseModel):
     """UCP message for checkout responses."""
 
     type: UCPMessageType = Field(..., description="Message type")
-    code: str | None = Field(default=None, description="Optional error code")
+    code: str | None = Field(default=None, description="Optional code")
     path: str | None = Field(default=None, description="JSONPath for related field")
     content: str = Field(..., description="Message content")
     severity: UCPMessageSeverity | None = Field(
@@ -227,7 +257,7 @@ class UCPResponseMetadata(BaseModel):
 
 
 class UCPCheckoutResponse(BaseModel):
-    """UCP checkout response (Phase 2 minimal fields)."""
+    """UCP checkout response in the current project wire shape."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -238,3 +268,285 @@ class UCPCheckoutResponse(BaseModel):
     line_items: list[UCPLineItem]
     totals: list[UCPTotal]
     messages: Annotated[list[UCPMessage], Field(default_factory=list)]
+
+
+# =============================================================================
+# SDK Bridge Adapters
+# =============================================================================
+
+
+def _capability_parent_list(version: UCPCapabilityVersion) -> list[str]:
+    if version.extends is None:
+        return []
+    if isinstance(version.extends, str):
+        return [version.extends]
+    return list(version.extends)
+
+
+def _to_sdk_service(service: UCPService) -> SDKService:
+    payload: dict[str, Any] = {
+        "version": service.version,
+        "spec": service.spec or DEFAULT_UCP_SPEC_URL,
+    }
+
+    if service.transport == "a2a":
+        payload["a2a"] = {"endpoint": service.endpoint}
+    elif service.transport == "rest":
+        payload["rest"] = {
+            "endpoint": service.endpoint,
+            "schema": service.schema_url
+            or "https://ucp.dev/services/shopping/rest.openapi.json",
+        }
+    elif service.transport == "mcp":
+        payload["mcp"] = {
+            "endpoint": service.endpoint,
+            "schema": service.schema_url
+            or "https://ucp.dev/services/shopping/mcp.openrpc.json",
+        }
+    elif service.transport == "embedded":
+        payload["embedded"] = {
+            "schema": service.schema_url
+            or "https://ucp.dev/services/shopping/embedded.openrpc.json"
+        }
+    else:
+        # Preserve backward compatibility: treat unknown transport as a2a.
+        payload["a2a"] = {"endpoint": service.endpoint}
+
+    return SDKService.model_validate(payload)
+
+
+def _to_sdk_discovery_capability(
+    name: str,
+    version: UCPCapabilityVersion,
+) -> SDKDiscoveryCapability:
+    payload: dict[str, Any] = {
+        "name": name,
+        "version": version.version,
+    }
+    if version.spec:
+        payload["spec"] = version.spec
+    if version.schema_url:
+        payload["schema"] = version.schema_url
+
+    parents = _capability_parent_list(version)
+    if parents:
+        payload["extends"] = parents[0]
+        if len(parents) > 1:
+            payload["x_extends_all"] = parents
+
+    return SDKDiscoveryCapability.model_validate(payload)
+
+
+def _to_sdk_response_capability(
+    name: str,
+    version: UCPCapabilityVersion,
+) -> SDKResponseCapability:
+    payload: dict[str, Any] = {
+        "name": name,
+        "version": version.version,
+    }
+    if version.spec:
+        payload["spec"] = version.spec
+    if version.schema_url:
+        payload["schema"] = version.schema_url
+
+    parents = _capability_parent_list(version)
+    if parents:
+        payload["extends"] = parents[0]
+        if len(parents) > 1:
+            payload["x_extends_all"] = parents
+
+    return SDKResponseCapability.model_validate(payload)
+
+
+def _to_sdk_payment_handler(
+    handler_namespace: str,
+    handler: UCPPaymentHandler,
+) -> SDKPaymentHandler:
+    spec = handler.spec or DEFAULT_PAYMENT_HANDLER_SPEC_URL
+    schema_url = handler.schema_url or DEFAULT_PAYMENT_HANDLER_SCHEMA_URL
+    payload: dict[str, Any] = {
+        "id": handler.id,
+        "name": handler_namespace,
+        "version": handler.version,
+        "spec": spec,
+        "config_schema": schema_url,
+        "instrument_schemas": [schema_url],
+        "config": handler.config or {},
+    }
+    return SDKPaymentHandler.model_validate(payload)
+
+
+def _flatten_payment_handlers(
+    payment_handlers: dict[str, list[UCPPaymentHandler]] | None,
+) -> list[SDKPaymentHandler]:
+    if payment_handlers is None:
+        return []
+
+    handlers: list[SDKPaymentHandler] = []
+    for namespace, versions in payment_handlers.items():
+        for handler in versions:
+            handlers.append(_to_sdk_payment_handler(namespace, handler))
+    return handlers
+
+
+def _iter_capabilities(
+    capabilities: dict[str, list[UCPCapabilityVersion]],
+) -> list[tuple[str, UCPCapabilityVersion]]:
+    flattened: list[tuple[str, UCPCapabilityVersion]] = []
+    for capability_name, versions in capabilities.items():
+        for version in versions:
+            flattened.append((capability_name, version))
+    return flattened
+
+
+def to_sdk_discovery_profile(profile: UCPBusinessProfile) -> SDKUcpDiscoveryProfile:
+    """Convert local discovery profile shape to SDK discovery model."""
+    services_payload: dict[str, SDKService] = {}
+    for service_name, versions in profile.ucp.services.items():
+        if not versions:
+            continue
+        services_payload[service_name] = _to_sdk_service(versions[0])
+
+    capabilities_payload = [
+        _to_sdk_discovery_capability(name, version)
+        for name, version in _iter_capabilities(profile.ucp.capabilities)
+    ]
+
+    payload: dict[str, Any] = {
+        "ucp": SDKDiscoveryProfile.model_validate(
+            {
+                "version": profile.ucp.version,
+                "services": services_payload,
+                "capabilities": capabilities_payload,
+            }
+        )
+    }
+
+    payment_handlers = _flatten_payment_handlers(profile.ucp.payment_handlers)
+    if payment_handlers:
+        payload["payment"] = SDKDiscoveryPayment(handlers=payment_handlers)
+
+    if profile.signing_keys:
+        payload["signing_keys"] = [
+            signing_key.model_dump(exclude_none=True)
+            for signing_key in profile.signing_keys
+        ]
+
+    return SDKUcpDiscoveryProfile.model_validate(payload)
+
+
+def _to_sdk_message(message: UCPMessage) -> dict[str, Any]:
+    if message.type == UCPMessageType.ERROR:
+        return {
+            "type": "error",
+            "code": message.code or "invalid",
+            "path": message.path,
+            "content": message.content,
+            "severity": (
+                message.severity.value
+                if message.severity is not None
+                else UCPMessageSeverity.RECOVERABLE.value
+            ),
+        }
+
+    if message.type == UCPMessageType.WARNING:
+        return {
+            "type": "warning",
+            "code": message.code or "warning",
+            "path": message.path,
+            "content": message.content,
+        }
+
+    return {
+        "type": "info",
+        "code": message.code,
+        "path": message.path,
+        "content": message.content,
+    }
+
+
+def to_sdk_checkout_response(response: UCPCheckoutResponse) -> SDKCheckoutResponse:
+    """Convert local checkout response shape to SDK checkout model."""
+    response_caps = [
+        _to_sdk_response_capability(name, version)
+        for name, version in _iter_capabilities(response.ucp.capabilities)
+    ]
+
+    sdk_payment_handlers = _flatten_payment_handlers(response.ucp.payment_handlers)
+
+    payload: dict[str, Any] = {
+        "ucp": SDKResponseCheckout.model_validate(
+            {
+                "version": response.ucp.version,
+                "capabilities": response_caps,
+            }
+        ),
+        "id": response.id,
+        "status": response.status.value,
+        "currency": response.currency,
+        "line_items": [
+            {
+                "id": line_item.id,
+                "item": {
+                    "id": line_item.item.id,
+                    "title": line_item.item.title,
+                    "price": line_item.item.price,
+                },
+                "quantity": line_item.quantity,
+                "totals": [
+                    {
+                        "type": total.type.value,
+                        "display_text": total.label,
+                        "amount": total.amount,
+                    }
+                    for total in line_item.totals
+                ],
+            }
+            for line_item in response.line_items
+        ],
+        "totals": [
+            {
+                "type": total.type.value,
+                "display_text": total.label,
+                "amount": total.amount,
+            }
+            for total in response.totals
+        ],
+        "messages": [_to_sdk_message(message) for message in response.messages],
+        "links": [
+            {"type": "terms_of_service", "url": DEFAULT_TOS_URL},
+            {"type": "privacy_policy", "url": DEFAULT_PRIVACY_URL},
+        ],
+        "payment": SDKPayment.model_validate({"handlers": sdk_payment_handlers}),
+    }
+
+    return SDKCheckoutResponse.model_validate(payload)
+
+
+def validate_business_profile_with_sdk(profile: UCPBusinessProfile) -> None:
+    """Validate discovery profile against SDK models."""
+    to_sdk_discovery_profile(profile)
+
+
+def validate_checkout_response_with_sdk(response: UCPCheckoutResponse) -> None:
+    """Validate checkout response against SDK models."""
+    to_sdk_checkout_response(response)
+
+
+def sdk_summary_for_checkout(response: UCPCheckoutResponse) -> dict[str, Any]:
+    """Return a compact summary of SDK-transformed checkout data for diagnostics."""
+    sdk = to_sdk_checkout_response(response)
+    checkout_data = sdk.model_dump(mode="json")
+    return {
+        "status": checkout_data.get("status"),
+        "line_items": len(cast(list[Any], checkout_data.get("line_items", []))),
+        "handlers": len(
+            cast(
+                list[Any],
+                cast(dict[str, Any], checkout_data.get("payment", {})).get(
+                    "handlers", []
+                ),
+            )
+        ),
+    }

@@ -35,6 +35,8 @@ from src.merchant.api.ucp_schemas import (
     UCPSigningKey,
     UCPTotal,
     UCPTotalType,
+    validate_business_profile_with_sdk,
+    validate_checkout_response_with_sdk,
 )
 from src.merchant.config import get_settings
 
@@ -94,7 +96,7 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
 
     agent_card_url = f"{base_url.rstrip('/')}/.well-known/agent-card.json"
 
-    return UCPBusinessProfile(
+    profile = UCPBusinessProfile(
         ucp=UCPMetadata(
             version=settings.ucp_version,
             services={
@@ -139,6 +141,10 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
         ),
         signing_keys=signing_keys,
     )
+
+    # Validate using canonical SDK models while preserving current wire shape.
+    validate_business_profile_with_sdk(profile)
+    return profile
 
 
 def clear_profile_cache() -> None:
@@ -307,7 +313,7 @@ def transform_to_ucp_response(
     being included in the response.
     """
     filtered = filter_capabilities_for_checkout(negotiated_capabilities)
-    return UCPCheckoutResponse(
+    response = UCPCheckoutResponse(
         ucp=UCPResponseMetadata(
             version=get_settings().ucp_version,
             capabilities=filtered,
@@ -322,6 +328,8 @@ def transform_to_ucp_response(
         totals=_convert_totals(acp_response.totals),
         messages=_convert_messages(acp_response.messages),
     )
+    validate_checkout_response_with_sdk(response)
+    return response
 
 
 def _map_ucp_status(status: str) -> UCPCheckoutStatus:

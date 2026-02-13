@@ -103,6 +103,21 @@ This is deferred until Phase 6 to keep scope tight and avoid advertising unsuppo
 - Deleted: `src/merchant/api/routes/ucp/checkout.py`, `tests/merchant/api/test_ucp_checkout.py`
 - Ruff linting and Pyright type checking passed
 
+### Schema Contract Strategy (Hybrid SDK Adoption)
+
+The UCP schema layer now uses a **hybrid strategy**:
+
+- `src/merchant/api/ucp_schemas.py` is the compatibility bridge for current
+  wire contracts while importing and using `ucp_sdk` as canonical schema
+  dependency.
+- Existing API wire payloads remain unchanged for discovery and A2A checkout
+  responses to avoid UI/integration regressions.
+- `src/merchant/services/ucp.py` validates both business discovery profiles and
+  checkout responses against SDK-backed models via bridge adapters before
+  returning payloads.
+
+This keeps protocol behavior stable while moving schema authority to the SDK.
+
 ---
 
 ## User Experience
