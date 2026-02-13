@@ -45,9 +45,9 @@ This is deferred until Phase 6 to keep scope tight and avoid advertising unsuppo
 
 | File | Description |
 |------|-------------|
-| `src/merchant/api/routes/ucp/discovery.py` | Discovery endpoint (public, no auth) |
-| `src/merchant/api/ucp_schemas.py` | Pydantic schemas for UCP profile |
-| `src/merchant/services/ucp.py` | `build_business_profile()` helper |
+| `src/merchant/protocols/ucp/api/routes/discovery.py` | Discovery endpoint (public, no auth) |
+| `src/merchant/protocols/ucp/api/schemas/checkout.py` | UCP profile and checkout wire schemas |
+| `src/merchant/protocols/ucp/services/negotiation.py` | `build_business_profile()` helper |
 | `src/merchant/config.py` | UCP configuration fields |
 | `src/merchant/main.py` | Register UCP discovery router |
 | `tests/merchant/api/test_ucp_discovery.py` | 11 unit tests |
@@ -59,12 +59,13 @@ This is deferred until Phase 6 to keep scope tight and avoid advertising unsuppo
 
 | File | Description |
 |------|-------------|
-| `src/merchant/api/routes/ucp/a2a.py` | A2A JSON-RPC 2.0 endpoint (`POST /a2a`) |
-| `src/merchant/api/routes/ucp/agent_card.py` | Agent Card discovery (`GET /.well-known/agent-card.json`) |
-| `src/merchant/api/a2a_schemas.py` | Pydantic schemas for A2A messages and parts |
-| `src/merchant/services/a2a.py` | A2A service layer: action routing, context management, idempotency, agent card builder |
-| `src/merchant/api/ucp_schemas.py` | Extended with checkout request/response schemas |
-| `src/merchant/services/ucp.py` | Capability negotiation, profile caching, transformations |
+| `src/merchant/protocols/ucp/api/routes/a2a.py` | A2A JSON-RPC 2.0 endpoint (`POST /a2a`) |
+| `src/merchant/protocols/ucp/api/routes/agent_card.py` | Agent Card discovery (`GET /.well-known/agent-card.json`) |
+| `src/merchant/protocols/ucp/api/schemas/a2a.py` | Pydantic schemas for A2A messages and parts |
+| `src/merchant/protocols/ucp/services/a2a_transport.py` | A2A service layer: action routing, context management, idempotency, agent card builder |
+| `src/merchant/protocols/ucp/api/schemas/checkout.py` | Checkout request/response schemas |
+| `src/merchant/protocols/ucp/services/negotiation.py` | Capability negotiation, profile caching, transformations |
+| `src/merchant/domain/checkout/service.py` | Shared protocol-agnostic checkout business logic |
 | `src/merchant/db/models.py` | Added `protocol` field to CheckoutSession |
 | `src/merchant/main.py` | Registered A2A and Agent Card routers |
 | `tests/merchant/api/test_ucp_a2a.py` | 21 unit tests covering all actions and error cases |
@@ -83,11 +84,11 @@ This is deferred until Phase 6 to keep scope tight and avoid advertising unsuppo
 
 | File | Description |
 |------|-------------|
-| `src/merchant/api/ucp_schemas.py` | Multi-parent extends, UCPMessageSeverity + severity field, payment_handlers in UCPResponseMetadata |
-| `src/merchant/services/ucp.py` | NegotiationFailureError, full intersection with per-cap version compat, iterative extension pruning, response filtering, severity mapping, payment_handlers param; A2A-only discovery (REST transport removed) |
+| `src/merchant/protocols/ucp/api/schemas/checkout.py` | Multi-parent extends, UCPMessageSeverity + severity field, payment_handlers in UCPResponseMetadata |
+| `src/merchant/protocols/ucp/services/negotiation.py` | NegotiationFailureError, full intersection with per-cap version compat, iterative extension pruning, response filtering, severity mapping, payment_handlers param; A2A-only discovery (REST transport removed) |
 | `src/merchant/config.py` | Added ucp_continue_url setting; removed ucp_service_path (was REST-only) |
-| `src/merchant/services/a2a.py` | negotiate_a2a_capabilities returns tuple, NegotiationFailureError support, payment_handlers through dispatch chain |
-| `src/merchant/api/routes/ucp/a2a.py` | NegotiationFailureError -> JSON-RPC result (not error), payment_handlers unpacking |
+| `src/merchant/protocols/ucp/services/a2a_transport.py` | negotiate_a2a_capabilities returns tuple, NegotiationFailureError support, payment_handlers through dispatch chain |
+| `src/merchant/protocols/ucp/api/routes/a2a.py` | NegotiationFailureError -> JSON-RPC result (not error), payment_handlers unpacking |
 | `tests/merchant/api/test_ucp_negotiation.py` | 24 unit tests: intersection, pruning, multi-parent, transitive, filtering, version compat, failure paths, severity, payment_handlers |
 | `tests/merchant/api/test_ucp_a2a.py` | Updated response shape assertions for payment_handlers, A2A-only discovery |
 | `tests/merchant/api/test_ucp_discovery.py` | Updated for A2A-only transport |
@@ -148,16 +149,49 @@ This is deferred until Phase 6 to keep scope tight and avoid advertising unsuppo
 - Fixed completed-order mismatch by removing synthetic UCP order IDs in UI normalization
 - Merchant UCP timeline now displays payment handlers and platform profile URL
 
+### Backend File Structure (Post-Refactor)
+
+```text
+src/merchant/
+├── domain/
+│   └── checkout/
+│       ├── models.py
+│       ├── calculations.py
+│       └── service.py
+├── protocols/
+│   ├── acp/
+│   │   ├── api/
+│   │   │   ├── routes/checkout.py
+│   │   │   └── schemas/checkout.py
+│   │   └── services/
+│   │       ├── webhook_delivery.py
+│   │       └── post_purchase_webhook.py
+│   └── ucp/
+│       ├── api/
+│       │   ├── routes/
+│       │   │   ├── discovery.py
+│       │   │   ├── agent_card.py
+│       │   │   └── a2a.py
+│       │   └── schemas/
+│       │       ├── checkout.py
+│       │       └── a2a.py
+│       └── services/
+│           ├── negotiation.py
+│           ├── a2a_transport.py
+│           ├── webhook_delivery.py
+│           └── post_purchase_webhook.py
+```
+
 ### Schema Contract Strategy (Hybrid SDK Adoption)
 
 The UCP schema layer now uses a **hybrid strategy**:
 
-- `src/merchant/api/ucp_schemas.py` is the compatibility bridge for current
+- `src/merchant/protocols/ucp/api/schemas/checkout.py` is the compatibility bridge for current
   wire contracts while importing and using `ucp_sdk` as canonical schema
   dependency.
 - Existing API wire payloads remain unchanged for discovery and A2A checkout
   responses to avoid UI/integration regressions.
-- `src/merchant/services/ucp.py` validates both business discovery profiles and
+- `src/merchant/protocols/ucp/services/negotiation.py` validates both business discovery profiles and
   checkout responses against SDK-backed models via bridge adapters before
   returning payloads.
 
@@ -394,13 +428,13 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. All UCP 
 
 ### Backend Tasks
 
-1. **Create UCP Router Module** (`src/merchant/api/routes/ucp/`)
+1. **Create UCP Router Module** (`src/merchant/protocols/ucp/api/routes/`)
    - [x] `discovery.py` - UCP profile endpoint ✅ Phase 1
    - [x] `a2a.py` - A2A transport endpoints (JSON-RPC 2.0) ✅ Phase 3
    - [x] `agent_card.py` - Agent Card discovery ✅ Phase 3
    - [x] Full capability negotiation in `ucp.py` ✅ Phase 4
 
-2. **Implement A2A Transport** (`src/merchant/api/routes/ucp/a2a.py`) ✅ Phase 3
+2. **Implement A2A Transport** (`src/merchant/protocols/ucp/api/routes/a2a.py`) ✅ Phase 3
    - [x] JSON-RPC 2.0 request parsing
    - [x] Method routing (action-based via DataPart)
    - [x] Response formatting (JSON-RPC 2.0)
@@ -469,9 +503,9 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. All UCP 
    - [x] Happy path, edge cases, failure cases ✅ Phase 4
 
 2. **Linting & Type Checking** ✅
-   - [x] `ruff check src/merchant/api/routes/ucp/`
-   - [x] `ruff format src/merchant/api/routes/ucp/`
-   - [x] `pyright src/merchant/api/routes/ucp/`
+   - [x] `ruff check src/merchant/protocols/ucp/`
+   - [x] `ruff format src/merchant/protocols/ucp/`
+   - [x] `pyright src/merchant/protocols/ucp/`
 
 3. **Integration Tests**
    - [x] End-to-end UCP checkout flow via A2A ✅ Phase 5C
