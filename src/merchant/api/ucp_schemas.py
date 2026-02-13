@@ -39,8 +39,6 @@ from ucp_sdk.models.schemas.shopping.types.payment_handler_resp import (
     PaymentHandlerResponse as SDKPaymentHandler,
 )
 
-from src.merchant.api.schemas import PaymentDataInput
-
 DEFAULT_UCP_SPEC_URL = "https://ucp.dev/specification/overview"
 DEFAULT_PAYMENT_HANDLER_SPEC_URL = "https://ucp.dev/specification/checkout"
 DEFAULT_PAYMENT_HANDLER_SCHEMA_URL = (
@@ -181,6 +179,9 @@ class UCPCreateCheckoutRequest(BaseModel):
         list[UCPLineItemInput], Field(min_length=1, description="Line items")
     ]
     buyer: UCPBuyerInput | None = Field(default=None, description="Buyer info")
+    discounts: UCPDiscountsInput | None = Field(
+        default=None, description="Discount extension request payload"
+    )
 
 
 class UCPUpdateCheckoutRequest(BaseModel):
@@ -188,10 +189,13 @@ class UCPUpdateCheckoutRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    line_items: Annotated[
-        list[UCPLineItemInput], Field(min_length=1, description="Line items")
-    ]
+    line_items: list[UCPLineItemInput] | None = Field(
+        default=None, description="Line items"
+    )
     buyer: UCPBuyerInput | None = Field(default=None, description="Buyer info")
+    discounts: UCPDiscountsInput | None = Field(
+        default=None, description="Discount extension request payload"
+    )
 
 
 class UCPCompleteCheckoutRequest(BaseModel):
@@ -200,7 +204,7 @@ class UCPCompleteCheckoutRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     buyer: UCPBuyerInput | None = Field(default=None, description="Buyer info")
-    payment_data: PaymentDataInput = Field(..., description="Payment data")
+    payment: UCPPaymentInput = Field(..., description="UCP payment payload")
 
 
 class UCPItem(BaseModel):
@@ -226,6 +230,93 @@ class UCPLineItem(BaseModel):
     item: UCPItem = Field(..., description="Item details")
     quantity: Annotated[int, Field(gt=0, description="Quantity")]
     totals: list[UCPTotal] = Field(..., description="Line item totals")
+
+
+def _empty_discount_codes() -> list[str]:
+    return []
+
+
+def _empty_discount_allocations() -> list[UCPDiscountAllocation]:
+    return []
+
+
+def _empty_applied_discounts() -> list[UCPAppliedDiscount]:
+    return []
+
+
+class UCPDiscountsInput(BaseModel):
+    """UCP discount input payload for discount extension."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    codes: list[str] = Field(
+        default_factory=_empty_discount_codes, description="Submitted discount codes"
+    )
+
+
+class UCPDiscountAllocation(BaseModel):
+    """Discount allocation target and amount."""
+
+    path: str = Field(..., description="JSONPath target for discount allocation")
+    amount: Annotated[int, Field(ge=0, description="Allocated amount")]
+
+
+class UCPAppliedDiscount(BaseModel):
+    """Applied discount in UCP discount extension response shape."""
+
+    id: str = Field(..., description="Applied discount ID")
+    code: str | None = Field(default=None, description="Submitted discount code")
+    title: str = Field(..., description="Display title for the discount")
+    amount: Annotated[int, Field(ge=0, description="Applied amount")]
+    automatic: bool = Field(default=False, description="Whether discount was automatic")
+    method: str | None = Field(default=None, description="Allocation method")
+    priority: int | None = Field(default=None, description="Stacking priority")
+    allocations: list[UCPDiscountAllocation] = Field(
+        default_factory=_empty_discount_allocations,
+        description="Allocation breakdown",
+    )
+
+
+class UCPDiscounts(BaseModel):
+    """UCP discount extension response payload."""
+
+    codes: list[str] = Field(
+        default_factory=_empty_discount_codes, description="Submitted discount codes"
+    )
+    applied: list[UCPAppliedDiscount] = Field(
+        default_factory=_empty_applied_discounts,
+        description="Applied discounts",
+    )
+
+
+class UCPPaymentCredentialInput(BaseModel):
+    """UCP payment credential data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str | None = Field(default=None, description="Credential token")
+    id: str | None = Field(default=None, description="Credential identifier")
+
+
+class UCPPaymentInstrumentInput(BaseModel):
+    """UCP payment instrument submitted on complete checkout."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = Field(..., description="Payment instrument type")
+    handler_id: str = Field(..., description="Negotiated payment handler id")
+    credential: UCPPaymentCredentialInput = Field(..., description="Credential payload")
+
+
+class UCPPaymentInput(BaseModel):
+    """UCP complete checkout payment payload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    instruments: Annotated[
+        list[UCPPaymentInstrumentInput],
+        Field(min_length=1, description="Payment instruments"),
+    ]
 
 
 class UCPMessageSeverity(StrEnum):
@@ -267,6 +358,7 @@ class UCPCheckoutResponse(BaseModel):
     currency: str
     line_items: list[UCPLineItem]
     totals: list[UCPTotal]
+    discounts: UCPDiscounts | None = None
     messages: Annotated[list[UCPMessage], Field(default_factory=list)]
 
 

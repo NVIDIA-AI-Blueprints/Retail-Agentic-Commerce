@@ -11,6 +11,7 @@ import httpx
 
 from src.merchant.api.schemas import (
     CheckoutSessionResponse,
+    DiscountsResponse,
     LineItem,
     MessageError,
     MessageInfo,
@@ -19,10 +20,13 @@ from src.merchant.api.schemas import (
     TotalTypeEnum,
 )
 from src.merchant.api.ucp_schemas import (
+    UCPAppliedDiscount,
     UCPBusinessProfile,
     UCPCapabilityVersion,
     UCPCheckoutResponse,
     UCPCheckoutStatus,
+    UCPDiscountAllocation,
+    UCPDiscounts,
     UCPItem,
     UCPLineItem,
     UCPMessage,
@@ -371,6 +375,7 @@ def transform_to_ucp_response(
             _convert_line_item(line_item) for line_item in acp_response.line_items
         ],
         totals=_convert_totals(acp_response.totals),
+        discounts=_convert_discounts(acp_response.discounts),
         messages=_convert_messages(acp_response.messages),
     )
     validate_checkout_response_with_sdk(response)
@@ -472,3 +477,27 @@ def _convert_messages(
         )
 
     return converted
+
+
+def _convert_discounts(discounts: DiscountsResponse | None) -> UCPDiscounts | None:
+    """Convert ACP discount shape to UCP discount extension shape."""
+    if discounts is None:
+        return None
+
+    applied = [
+        UCPAppliedDiscount(
+            id=discount.id,
+            code=discount.code,
+            title=discount.coupon.name,
+            amount=discount.amount,
+            automatic=discount.automatic,
+            method=discount.method,
+            priority=discount.priority,
+            allocations=[
+                UCPDiscountAllocation(path=allocation.path, amount=allocation.amount)
+                for allocation in (discount.allocations or [])
+            ],
+        )
+        for discount in discounts.applied
+    ]
+    return UCPDiscounts(codes=list(discounts.codes), applied=applied)

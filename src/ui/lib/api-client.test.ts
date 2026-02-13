@@ -82,6 +82,21 @@ describe("api-client protocol routing", () => {
                       { type: "tax", label: "Tax", amount: 200 },
                       { type: "total", label: "Total", amount: 2700 },
                     ],
+                    discounts: {
+                      codes: ["SAVE10"],
+                      applied: [
+                        {
+                          id: "applied_coupon_save10",
+                          code: "SAVE10",
+                          title: "Save 10%",
+                          amount: 250,
+                          automatic: false,
+                          method: "each",
+                          priority: 100,
+                          allocations: [{ path: "$.line_items[0]", amount: 250 }],
+                        },
+                      ],
+                    },
                     messages: [],
                   },
                 },
@@ -108,11 +123,35 @@ describe("api-client protocol routing", () => {
     expect(session.capabilities?.extensions?.map((extension) => extension.name)).toEqual([
       "dev.ucp.shopping.checkout",
     ]);
+    expect(session.discounts).toEqual({
+      codes: ["SAVE10"],
+      applied: [
+        {
+          id: "applied_coupon_save10",
+          code: "SAVE10",
+          coupon: { id: "applied_coupon_save10", name: "Save 10%" },
+          amount: 250,
+          automatic: false,
+          method: "each",
+          priority: 100,
+          allocations: [{ path: "$.line_items[0]", amount: 250 }],
+        },
+      ],
+      rejected: [],
+    });
 
     const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     const headers = init.headers as Record<string, string>;
     expect(headers["UCP-Agent"]).toContain("profile=");
     expect(headers["X-A2A-Extensions"]).toBe("https://ucp.dev/2026-01-23/specification/reference/");
+
+    const body = JSON.parse(String(init.body)) as {
+      params: { message: { parts: Array<{ data?: Record<string, unknown> }> } };
+    };
+    const actionPart = body.params.message.parts[0]?.data;
+    expect(actionPart?.line_items).toEqual([{ item: { id: "prod_1" }, quantity: 1 }]);
+    expect(actionPart).not.toHaveProperty("items");
+    expect(actionPart).not.toHaveProperty("coupons");
   });
 
   it("infers line-item discount from UCP subtotal", async () => {

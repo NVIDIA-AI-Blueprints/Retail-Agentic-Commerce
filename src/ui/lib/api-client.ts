@@ -79,6 +79,27 @@ interface UCPA2AMessage {
   content: string;
 }
 
+interface UCPA2ADiscountAllocation {
+  path: string;
+  amount: number;
+}
+
+interface UCPA2AAppliedDiscount {
+  id: string;
+  code?: string;
+  title: string;
+  amount: number;
+  automatic?: boolean;
+  method?: string;
+  priority?: number;
+  allocations?: UCPA2ADiscountAllocation[];
+}
+
+interface UCPA2ADiscounts {
+  codes: string[];
+  applied: UCPA2AAppliedDiscount[];
+}
+
 interface UCPA2AOrder {
   id: string;
   permalink_url?: string;
@@ -91,6 +112,7 @@ interface UCPA2ACheckout {
   line_items: UCPA2ALineItem[];
   totals: UCPA2ATotal[];
   messages: UCPA2AMessage[];
+  discounts?: UCPA2ADiscounts;
   order?: UCPA2AOrder;
   continue_url?: string;
   ucp?: {
@@ -382,6 +404,32 @@ function normalizeUCPCheckout(
     line_items: lineItems,
     fulfillment_options: fulfillmentOptions,
     totals,
+    ...(checkout.discounts
+      ? {
+          discounts: {
+            codes: checkout.discounts.codes,
+            applied: checkout.discounts.applied.map((discount) => {
+              const mappedDiscount = {
+                id: discount.id,
+                coupon: {
+                  id: discount.id,
+                  name: discount.title,
+                },
+                amount: discount.amount,
+                ...(discount.code !== undefined ? { code: discount.code } : {}),
+                ...(discount.automatic !== undefined ? { automatic: discount.automatic } : {}),
+                ...(discount.method !== undefined ? { method: discount.method } : {}),
+                ...(discount.priority !== undefined ? { priority: discount.priority } : {}),
+                ...(discount.allocations !== undefined
+                  ? { allocations: discount.allocations }
+                  : {}),
+              };
+              return mappedDiscount;
+            }),
+            rejected: [],
+          },
+        }
+      : {}),
     messages: mapUCPMessages(checkout.messages),
     links: [],
     ...(checkout.order
@@ -559,13 +607,10 @@ export async function createCheckoutSessionByProtocol(
   }
 
   return postA2AAction("create_checkout", {
-    product_id: firstItem.id,
-    quantity: firstItem.quantity,
-    line_items: request.items.map((item) => ({ id: item.id, quantity: item.quantity })),
+    line_items: request.items.map((item) => ({ item: { id: item.id }, quantity: item.quantity })),
     buyer: request.buyer,
     fulfillment_address: request.fulfillment_address,
     discounts: request.discounts,
-    coupons: request.coupons,
   });
 }
 
@@ -599,8 +644,10 @@ export async function updateCheckoutSessionByProtocol(
 
   const payload: Record<string, unknown> = {};
   if (request.items !== undefined) {
-    payload.items = request.items;
-    payload.line_items = request.items.map((item) => ({ id: item.id, quantity: item.quantity }));
+    payload.line_items = request.items.map((item) => ({
+      item: { id: item.id },
+      quantity: item.quantity,
+    }));
   }
   if (request.buyer !== undefined) {
     payload.buyer = request.buyer;
@@ -613,9 +660,6 @@ export async function updateCheckoutSessionByProtocol(
   }
   if (request.discounts !== undefined) {
     payload.discounts = request.discounts;
-  }
-  if (request.coupons !== undefined) {
-    payload.coupons = request.coupons;
   }
 
   return postA2AAction("update_checkout", payload, sessionRef.contextId);

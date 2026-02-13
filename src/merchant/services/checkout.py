@@ -244,6 +244,29 @@ async def create_checkout_session(
     return session_to_response(checkout_session)
 
 
+async def create_checkout_session_from_data(
+    db: Session,
+    *,
+    items: list[dict[str, Any]],
+    buyer: dict[str, Any] | None = None,
+    fulfillment_address: dict[str, Any] | None = None,
+    discounts: dict[str, list[str]] | None = None,
+    coupons: list[str] | None = None,
+    protocol: str = "acp",
+) -> CheckoutSessionResponse:
+    """Protocol-agnostic create entry point used by protocol adapters."""
+    request = CreateCheckoutRequest.model_validate(
+        {
+            "items": items,
+            "buyer": buyer,
+            "fulfillment_address": fulfillment_address,
+            "discounts": discounts,
+            "coupons": coupons,
+        }
+    )
+    return await create_checkout_session(db, request, protocol=protocol)
+
+
 def get_checkout_session(db: Session, session_id: str) -> CheckoutSessionResponse:
     """Get a checkout session by ID.
 
@@ -451,6 +474,31 @@ async def update_checkout_session(
     return session_to_response(session)
 
 
+async def update_checkout_session_from_data(
+    db: Session,
+    session_id: str,
+    *,
+    items: list[dict[str, Any]] | None = None,
+    buyer: dict[str, Any] | None = None,
+    fulfillment_address: dict[str, Any] | None = None,
+    fulfillment_option_id: str | None = None,
+    discounts: dict[str, list[str]] | None = None,
+    coupons: list[str] | None = None,
+) -> CheckoutSessionResponse:
+    """Protocol-agnostic update entry point used by protocol adapters."""
+    request = UpdateCheckoutRequest.model_validate(
+        {
+            "items": items,
+            "buyer": buyer,
+            "fulfillment_address": fulfillment_address,
+            "fulfillment_option_id": fulfillment_option_id,
+            "discounts": discounts,
+            "coupons": coupons,
+        }
+    )
+    return await update_checkout_session(db, session_id, request)
+
+
 def complete_checkout_session(
     db: Session,
     session_id: str,
@@ -538,6 +586,24 @@ def complete_checkout_session(
     )
 
     return session_to_response(session)
+
+
+def complete_checkout_session_from_data(
+    db: Session,
+    session_id: str,
+    *,
+    payment_data: dict[str, Any],
+    buyer: dict[str, Any] | None = None,
+) -> CheckoutSessionResponse:
+    """Protocol-agnostic complete entry point used by protocol adapters."""
+    typed_payment = PaymentDataInput.model_validate(payment_data)
+    typed_buyer = BuyerInput.model_validate(buyer) if buyer is not None else None
+    return complete_checkout_session(
+        db,
+        session_id,
+        typed_payment,
+        buyer=typed_buyer,
+    )
 
 
 def cancel_checkout_session(db: Session, session_id: str) -> CheckoutSessionResponse:

@@ -12,26 +12,28 @@ from datetime import datetime
 from typing import Any, cast
 
 from fastapi import BackgroundTasks
+from pydantic import ValidationError
 from sqlmodel import Session
 
 from src.merchant.api.a2a_schemas import A2AMessage, A2APart
 from src.merchant.api.schemas import (
     CheckoutSessionResponse,
-    CreateCheckoutRequest,
-    ItemInput,
-    PaymentDataInput,
     PaymentProviderEnum,
-    UpdateCheckoutRequest,
 )
-from src.merchant.api.ucp_schemas import UCPCapabilityVersion, UCPPaymentHandler
+from src.merchant.api.ucp_schemas import (
+    UCPCapabilityVersion,
+    UCPDiscountsInput,
+    UCPLineItemInput,
+    UCPPaymentHandler,
+)
 from src.merchant.config import get_settings
 from src.merchant.services.checkout import (
     SessionNotFoundError,
     cancel_checkout_session,
-    complete_checkout_session,
-    create_checkout_session,
+    complete_checkout_session_from_data,
+    create_checkout_session_from_data,
     get_checkout_session,
-    update_checkout_session,
+    update_checkout_session_from_data,
 )
 from src.merchant.services.idempotency import get_idempotency_store
 from src.merchant.services.post_purchase import OrderItem
@@ -276,6 +278,35 @@ def extract_payment_data(
     return payment, risk_signals
 
 
+def _extract_ucp_discounts_payload(data: dict[str, Any]) -> dict[str, list[str]] | None:
+    """Validate and normalize UCP discount extension payload."""
+    raw_discounts = data.get("discounts")
+    if raw_discounts is None:
+        return None
+    try:
+        discounts = UCPDiscountsInput.model_validate(raw_discounts)
+    except ValidationError as exc:
+        raise ValueError(f"Invalid UCP discounts payload: {exc}") from exc
+    return {"codes": discounts.codes}
+
+
+def _extract_line_items(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract line-items from UCP action payloads."""
+    items_raw: Any = data.get("line_items")
+    if items_raw is None:
+        return []
+    if not isinstance(items_raw, list):
+        raise ValueError("line_items must be an array")
+    parsed_items: list[dict[str, Any]] = []
+    for entry in cast(list[Any], items_raw):
+        try:
+            line_item = UCPLineItemInput.model_validate(entry)
+        except ValidationError as exc:
+            raise ValueError(f"Invalid UCP line_items payload: {exc}") from exc
+        parsed_items.append({"id": line_item.item.id, "quantity": line_item.quantity})
+    return parsed_items
+
+
 # ---------------------------------------------------------------------------
 # Action Handlers (delegate to Phase 2 checkout service)
 # ---------------------------------------------------------------------------
@@ -290,42 +321,22 @@ async def handle_create(
     order_webhook_url: str | None = None,
 ) -> dict[str, Any]:
     """Handle create_checkout action."""
-    items_raw: Any = data.get("line_items") or data.get("items") or []
-    items: list[ItemInput] = []
-    if isinstance(items_raw, list):
-        typed_list = cast(list[Any], items_raw)
-        for entry in typed_list:
-            ri = cast(dict[str, Any], entry)
-            pid: str = str(ri.get("product_id") or ri.get("id", ""))
-            qty: int = int(ri.get("quantity", 1))
-            items.append(ItemInput(id=pid, quantity=qty))
+    items = _extract_line_items(data)
     if not items:
-        # Single-item shorthand: product_id + quantity at top level
-        product_id = data.get("product_id")
-        if product_id:
-            items = [
-                ItemInput(id=str(product_id), quantity=int(data.get("quantity", 1)))
-            ]
+        raise ValueError("line_items is required for create_checkout")
 
-    if not items:
-        raise ValueError("No items provided for create_checkout")
-
-    request_payload: dict[str, Any] = {"items": items}
     buyer = data.get("buyer")
-    if buyer is not None:
-        request_payload["buyer"] = buyer
     fulfillment_address = data.get("fulfillment_address")
-    if fulfillment_address is not None:
-        request_payload["fulfillment_address"] = fulfillment_address
-    discounts = data.get("discounts")
-    if discounts is not None:
-        request_payload["discounts"] = discounts
-    coupons = data.get("coupons")
-    if coupons is not None:
-        request_payload["coupons"] = coupons
+    discounts = _extract_ucp_discounts_payload(data)
 
-    request = CreateCheckoutRequest.model_validate(request_payload)
-    acp_response = await create_checkout_session(db, request, protocol="ucp")
+    acp_response = await create_checkout_session_from_data(
+        db,
+        items=items,
+        buyer=cast(dict[str, Any] | None, buyer),
+        fulfillment_address=cast(dict[str, Any] | None, fulfillment_address),
+        discounts=discounts,
+        protocol="ucp",
+    )
 
     set_checkout_id_for_context(context_id, acp_response.id)
     if order_webhook_url:
@@ -355,19 +366,18 @@ async def handle_update(
             raise ValueError("product_id required for add_to_checkout")
 
         existing_items = [
-            ItemInput(id=li.item.id, quantity=li.item.quantity)
+            {"id": li.item.id, "quantity": li.item.quantity}
             for li in existing.line_items
         ]
         found = False
         for item in existing_items:
-            if item.id == product_id:
-                item.quantity += quantity
+            if item["id"] == product_id:
+                item["quantity"] = int(item["quantity"]) + int(quantity)
                 found = True
                 break
         if not found:
-            existing_items.append(ItemInput(id=product_id, quantity=quantity))
-
-        request = UpdateCheckoutRequest(items=existing_items)
+            existing_items.append({"id": str(product_id), "quantity": int(quantity)})
+        update_kwargs: dict[str, Any] = {"items": existing_items}
 
     elif action == "remove_from_checkout":
         product_id = data.get("product_id") or data.get("id")
@@ -375,41 +385,41 @@ async def handle_update(
             raise ValueError("product_id required for remove_from_checkout")
 
         items = [
-            ItemInput(id=li.item.id, quantity=li.item.quantity)
+            {"id": li.item.id, "quantity": li.item.quantity}
             for li in existing.line_items
             if li.item.id != product_id
         ]
-        request = UpdateCheckoutRequest(items=items if items else None)
+        update_kwargs = {"items": items if items else None}
 
     else:
-        raw_items: Any = data.get("line_items") or data.get("items") or []
-        items: list[ItemInput] = []
-        if isinstance(raw_items, list):
-            typed_items = cast(list[Any], raw_items)
-            for entry in typed_items:
-                ri = cast(dict[str, Any], entry)
-                pid = str(ri.get("product_id") or ri.get("id", ""))
-                qty = int(ri.get("quantity", 1))
-                items.append(ItemInput(id=pid, quantity=qty))
-        request_payload: dict[str, Any] = {"items": items if items else None}
+        items = _extract_line_items(data)
+        update_kwargs = {"items": items if items else None}
         buyer = data.get("buyer")
         if buyer is not None:
-            request_payload["buyer"] = buyer
+            update_kwargs["buyer"] = buyer
         fulfillment_address = data.get("fulfillment_address")
         if fulfillment_address is not None:
-            request_payload["fulfillment_address"] = fulfillment_address
+            update_kwargs["fulfillment_address"] = fulfillment_address
         fulfillment_option_id = data.get("fulfillment_option_id")
         if fulfillment_option_id is not None:
-            request_payload["fulfillment_option_id"] = fulfillment_option_id
-        discounts = data.get("discounts")
+            update_kwargs["fulfillment_option_id"] = fulfillment_option_id
+        discounts = _extract_ucp_discounts_payload(data)
         if discounts is not None:
-            request_payload["discounts"] = discounts
-        coupons = data.get("coupons")
-        if coupons is not None:
-            request_payload["coupons"] = coupons
-        request = UpdateCheckoutRequest.model_validate(request_payload)
+            update_kwargs["discounts"] = discounts
 
-    acp_response = await update_checkout_session(db, session_id, request)
+    acp_response = await update_checkout_session_from_data(
+        db,
+        session_id,
+        items=cast(list[dict[str, Any]] | None, update_kwargs.get("items")),
+        buyer=cast(dict[str, Any] | None, update_kwargs.get("buyer")),
+        fulfillment_address=cast(
+            dict[str, Any] | None, update_kwargs.get("fulfillment_address")
+        ),
+        fulfillment_option_id=cast(
+            str | None, update_kwargs.get("fulfillment_option_id")
+        ),
+        discounts=cast(dict[str, list[str]] | None, update_kwargs.get("discounts")),
+    )
     return _to_checkout_data_part(acp_response, negotiated, payment_handlers)
 
 
@@ -522,9 +532,12 @@ async def handle_complete(
         raise ValueError(f"Unsupported payment handler_id: {handler_id}")
     provider = _resolve_payment_provider(handler_id)
 
-    payment_data = PaymentDataInput(token=token_val, provider=provider)
-
-    acp_response = complete_checkout_session(db, session_id, payment_data, buyer=None)
+    acp_response = complete_checkout_session_from_data(
+        db,
+        session_id,
+        payment_data={"token": token_val, "provider": provider.value},
+        buyer=None,
+    )
     result = _to_checkout_data_part(acp_response, negotiated, payment_handlers)
 
     if acp_response.order:
