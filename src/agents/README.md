@@ -98,7 +98,7 @@ uv venv --python 3.12 .venv
 source .venv/bin/activate
 
 # Install with dev dependencies
-uv pip install -e ".[dev]" --prerelease=allow
+uv pip install -e ".[dev]"
 
 # Or with pip
 pip install -e ".[dev]"

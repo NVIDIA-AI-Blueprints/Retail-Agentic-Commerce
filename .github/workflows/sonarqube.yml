@@ -1,0 +1,29 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  sonarqube:
+    uses: NVIDIA-AI-Blueprints/sonarqube-workflows/.github/workflows/sonarqube-reusable-template.yml@main
+    with:
+      # Project identification
+      organization: TEGRASW
+      team: Retail
+      product: Retail-Agentic-Commerce
+      scmRepoName: Retail-Agentic-Commerce
+      # TODO: Add scmRepoUrl once Jenkins job supports GitHub URLs
+      # scmRepoUrl: https://github.com/NVIDIA-AI-Blueprints/Retail-Agentic-Commerce
+
+      # Project tags for tracking
+      projectTags: CreatedBy-automation,WorkflowContact-blueprintsSre
+
+      # Language and testing
+      language: python
+      # testCommand not needed - workflow auto-detects uv.lock and runs:
+      # uv run pytest tests/ --cov=src --cov-report=xml
+    secrets: inherit

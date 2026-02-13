@@ -177,9 +177,32 @@ nat serve --config_file configs/search.yml --port 8005
 
 ### Health checks
 ```bash
+# Core services
 curl http://localhost:8000/health
 curl http://localhost:8001/health
 curl http://localhost:2091/health
+
+# NAT agents (when running locally)
+curl http://localhost:8002/health
+curl http://localhost:8003/health
+curl http://localhost:8004/health
+curl http://localhost:8005/health
+```
+
+For full Docker deployment, NAT agents are internal-only by default. Check from the merchant container:
+
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose.yml exec merchant \
+  python -c "import urllib.request as u; print('promotion', u.urlopen('http://promotion-agent:8002/health', timeout=5).status); print('post-purchase', u.urlopen('http://post-purchase-agent:8003/health', timeout=5).status); print('recommendation', u.urlopen('http://recommendation-agent:8004/health', timeout=5).status); print('search', u.urlopen('http://search-agent:8005/health', timeout=5).status)"
+```
+
+If an agent health check fails, inspect logs before changing code:
+
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 promotion-agent
+docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 post-purchase-agent
+docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 recommendation-agent
+docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 search-agent
 ```
 
 ## Quality Gates (Canonical)

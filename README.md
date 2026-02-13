@@ -4,24 +4,17 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
 
-A reference implementation of the **Agentic Commerce Protocol (ACP)**: a retailer-operated checkout system that enables agentic negotiation while maintaining merchant control.
+A reference implementation of the Agentic Commerce Protocol (ACP) and Universal Commerce Protocol (UCP), built for merchant-controlled checkout, payments, and agent orchestration.
 
-<div align="center">
+## What You Get
 
-![NVIDIA Logo](https://avatars.githubusercontent.com/u/178940881?s=200&v=4)
+- Merchant API (ACP + UCP discovery/A2A)
+- PSP service for delegated payment flows
+- Apps SDK MCP server + widget
+- NAT agents for promotion, recommendations, search, and post-purchase messaging
+- Demo UI with protocol and agent activity panels
 
-</div>
-
-## What is ACP?
-
-ACP lets AI agents negotiate with merchants on behalf of users. The merchant stays in control while agents can:
-
-- Request promotions and discounts
-- Get personalized recommendations
-- Complete checkout with delegated payments
-- Receive multilingual post-purchase updates
-
-## Architecture
+## Architecture (Default Deployment)
 
 ```mermaid
 flowchart TB
@@ -124,367 +117,282 @@ flowchart TB
     SEARCH --> MILVUS
 ```
 
-## Docker Deployment
+## Quick Start (Docker, Public Endpoints)
 
-The project uses three Docker Compose files:
-- **`docker-compose-nim.yml`**: NVIDIA NIM microservices (Nemotron LLM and Embedding models)
-- **`docker-compose.infra.yml`**: Infrastructure (Milvus, Phoenix) - can run standalone for local development
-- **`docker-compose.yml`**: Application services (Merchant, PSP, Agents, UI)
+This is the recommended path. It does not require local NIM containers.
 
 ### Prerequisites
 
 - Docker 24+
 - Docker Compose v2
-- NVIDIA API key (for AI agents)
+- NVIDIA API key ([create one](https://build.nvidia.com/settings/api-keys))
 
-### Quick Start (Public Endpoints Deployment)
-
-1. **Configure environment:**
-
-   ```bash
-   git clone https://github.com/NVIDIA/Retail-Agentic-Commerce.git
-   cd Retail-Agentic-Commerce
-   cp env.example .env
-   ```
-
-   Edit `.env` and add your NVIDIA API key ([get one here](https://build.nvidia.com/settings/api-keys)):
-
-   ```env
-   NVIDIA_API_KEY=nvapi-xxx
-   ```
-
-2. **Start infrastructure and application services:**
-
-   ```bash
-   docker compose -f docker-compose.infra.yml -f docker-compose.yml up --build -d
-   ```
-
-   This builds images and starts all services including:
-   - nginx (reverse proxy on port 80)
-   - Merchant API, PSP, Apps SDK
-   - NAT Agents (Promotion, Post-Purchase, Recommendation, Search)
-   - Milvus (vector database) and Phoenix (observability)
-   - **milvus-seeder** (automatically seeds product embeddings)
-
-3. **Verify application services:**
-
-   ```bash
-   curl http://localhost/api/health      # Merchant API
-   curl http://localhost/psp/health      # PSP Service
-   curl http://localhost/apps-sdk/health # Apps SDK
-   ```
-
-4. **Access the UI** at **http://localhost**
-
-### Service Routes
-
-| Route | Service | Description |
-|-------|---------|-------------|
-| `/` | UI | Demo frontend |
-| `/api/*` | Merchant API | ACP/UCP checkout, products, orders |
-| `/psp/*` | PSP Service | Payment delegation |
-| `/apps-sdk/*` | Apps SDK | MCP server for AI agents |
-
-### Infrastructure Endpoints
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Milvus | 19530 | Vector database gRPC |
-| Milvus Health | 9091 | Health check endpoint |
-| Phoenix | 6006 | LLM tracing UI |
-| MinIO Console | 9001 | Object storage UI |
-
-### Monitoring
+### 1. Clone and Configure
 
 ```bash
-docker compose ps                    # Service status
-docker compose logs -f merchant      # Follow merchant logs
-docker compose logs nginx            # Check nginx routing
-```
-
-### Stopping Services
-
-```bash
-# Stop application services only
-docker compose down
-
-# Stop everything (infrastructure + application)
-docker compose -f docker-compose.infra.yml -f docker-compose.yml down
-
-# Stop and remove volumes (full cleanup)
-docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
-```
-
-### Building Images
-
-Images are automatically built/rebuilt when using `--build` flag. To rebuild manually:
-
-```bash
-docker compose -f docker-compose.infra.yml -f docker-compose.yml build                # Rebuild all
-docker compose -f docker-compose.infra.yml -f docker-compose.yml build merchant       # Rebuild specific service
-docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d                # Restart with new images
-```
-
-## Local Development with Infrastructure
-
-For local development, you can run just the infrastructure (Milvus + Phoenix) in Docker while running application services locally. This is useful for debugging and faster iteration.
-
-### 1. Start Infrastructure
-
-```bash
-# Start Milvus and Phoenix
-docker compose -f docker-compose.infra.yml up -d
-
-# Verify services are running
-curl -s http://localhost:9091/healthz   # Milvus health
-curl -s http://localhost:6006/          # Phoenix UI
-```
-
-### 2. Seed the Vector Database
-
-The Recommendation and Search agents require product embeddings in Milvus.
-
-> **Note**: In Docker deployment, seeding is **automatic** via the `milvus-seeder` container.
-> Manual seeding is only required for local development.
-
-```bash
-cd src/agents
-source .venv/bin/activate
-uv run python scripts/seed_milvus.py
-```
-
-The seeder script:
-- Waits for Milvus to be ready (with retry logic)
-- Skips seeding if data already exists
-- Supports both NVIDIA API Catalog and local NIM for embeddings
-
-### 3. Run Services Locally
-
-Now start the application services in separate terminals (see [Quick Start](#quick-start) below).
-
-### 4. Stop Infrastructure
-
-```bash
-docker compose -f docker-compose.infra.yml down
-```
-
-## Quick Start (Manual Setup)
-
-### Prerequisites
-
-- Python 3.12+
-- Node.js 18+
-- [uv](https://docs.astral.sh/uv/) package manager
-- Docker (optional, for Recommendation Agent)
-
-### 1. Configure
-
-```bash
+git clone https://github.com/NVIDIA/Retail-Agentic-Commerce.git
+cd Retail-Agentic-Commerce
 cp env.example .env
 ```
 
-Edit `.env` and add your NVIDIA API key ([get one here](https://build.nvidia.com/settings/api-keys)):
+Update `.env`:
 
 ```env
 NVIDIA_API_KEY=nvapi-xxx
 ```
 
-### 2. Backend Services (Merchant, PSP, Apps SDK)
+The defaults already use public NVIDIA endpoints:
 
-Create and activate a virtual environment, then start the services in separate terminals:
+```env
+NIM_LLM_BASE_URL=https://integrate.api.nvidia.com/v1
+NIM_EMBED_BASE_URL=https://integrate.api.nvidia.com/v1
+```
+
+### 2. Create Shared Docker Network (one-time)
 
 ```bash
-# Setup (run once)
+docker network create acp-infra-network || true
+```
+
+### 3. Start Infrastructure + App Stack
+
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose.yml up --build -d
+```
+
+### 4. Verify Health
+
+```bash
+curl http://localhost/api/health
+curl http://localhost/psp/health
+curl http://localhost/apps-sdk/health
+```
+
+Agent services also expose `/health`, but in full Docker deployment they are internal-only (not published on `localhost`).
+
+### 5. Open the Application
+
+- Demo UI: http://localhost
+- Phoenix traces: http://localhost:6006
+- MinIO console: http://localhost:9001
+
+## Service Routes
+
+| Route | Service | Purpose |
+|---|---|---|
+| `/` | UI | Demo frontend |
+| `/api/*` | Merchant API | ACP/UCP, products, checkout, orders |
+| `/psp/*` | PSP | Delegated payment endpoints |
+| `/apps-sdk/*` | Apps SDK MCP | MCP server + widget assets |
+
+## Common Operations
+
+### Logs and Status
+
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose.yml ps
+docker compose -f docker-compose.infra.yml -f docker-compose.yml logs -f merchant
+docker compose -f docker-compose.infra.yml -f docker-compose.yml logs -f nginx
+```
+
+### Agent Health (Troubleshooting)
+
+Docker deployment (check from inside the merchant container):
+
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose.yml exec merchant \
+  python -c "import urllib.request as u; print('promotion', u.urlopen('http://promotion-agent:8002/health', timeout=5).status); print('post-purchase', u.urlopen('http://post-purchase-agent:8003/health', timeout=5).status); print('recommendation', u.urlopen('http://recommendation-agent:8004/health', timeout=5).status); print('search', u.urlopen('http://search-agent:8005/health', timeout=5).status)"
+```
+
+Local development (agents started on host ports):
+
+```bash
+curl http://localhost:8002/health
+curl http://localhost:8003/health
+curl http://localhost:8004/health
+curl http://localhost:8005/health
+```
+
+### Stop Services
+
+```bash
+# Stop app + infra containers
+docker compose -f docker-compose.infra.yml -f docker-compose.yml down
+
+# Stop and remove volumes (full reset)
+docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
+```
+
+### Rebuild
+
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose.yml build
+docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
+```
+
+## Local Development (Optional)
+
+Use this when you want faster iteration outside full Docker runtime.
+
+### 1. Start Infra in Docker
+
+```bash
+docker network create acp-infra-network || true
+docker compose -f docker-compose.infra.yml up -d
+```
+
+### 2. Run Backend Services
+
+Run each service in a separate terminal:
+
+```bash
+# Terminal 1
 uv venv
 source .venv/bin/activate
 uv sync
-```
-
-```bash
-# Terminal 1: Merchant API (port 8000)
-source .venv/bin/activate
 uvicorn src.merchant.main:app --reload
 ```
 
 ```bash
-# Terminal 2: PSP Service (port 8001)
+# Terminal 2
 source .venv/bin/activate
 uvicorn src.payment.main:app --reload --port 8001
 ```
 
 ```bash
-# Terminal 3: Apps SDK MCP Server (port 2091)
+# Terminal 3
 source .venv/bin/activate
 uvicorn src.apps_sdk.main:app --reload --port 2091
 ```
 
-### 3. NAT Agents (Separate Environment)
+### 3. Run NAT Agents
 
-The agents use their own virtual environment:
+Run each agent in a separate terminal:
 
 ```bash
-# Setup (run once)
+# Setup once
 cd src/agents
 uv venv
 source .venv/bin/activate
-uv pip install -e ".[dev]" --prerelease=allow
+uv pip install -e ".[dev]"
 ```
 
 ```bash
-# Terminal 4: Promotion Agent (port 8002)
+# Terminal 4
 cd src/agents
 source .venv/bin/activate
 nat serve --config_file configs/promotion.yml --port 8002
 ```
 
 ```bash
-# Terminal 5: Post-Purchase Agent (port 8003)
+# Terminal 5
 cd src/agents
 source .venv/bin/activate
 nat serve --config_file configs/post-purchase.yml --port 8003
 ```
 
 ```bash
-# Terminal 6: Recommendation Agent (port 8004) - requires Docker
+# Terminal 6
 cd src/agents
 source .venv/bin/activate
 nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
 ```
 
-> **Note**: The Recommendation Agent requires Milvus. See [Optional: Milvus Setup](#optional-milvus-setup) below.
-
 ```bash
-# Terminal 7: Search Agent (port 8005) - requires Milvus container
+# Terminal 7
 cd src/agents
 source .venv/bin/activate
 nat serve --config_file configs/search.yml --port 8005
 ```
-### 4. Frontend
+
+### 4. Run UI
 
 ```bash
-# Terminal 8: Demo UI (port 3000)
 cd src/ui
 cp env.example .env.local
 pnpm install
 pnpm dev
 ```
 
+Optional Apps SDK widget dev server:
+
 ```bash
-# Terminal 9: Apps SDK Widget (port 3001) - for development
 cd src/apps_sdk/web
 pnpm install
-pnpm build
 pnpm dev
 ```
 
-### 5. Verify
+## Optional: Local NIM Deployment (GPU)
+
+Only needed for self-hosted local inference. The default deployment already works with public endpoints.
+
+### 1. Start Local NIMs
 
 ```bash
-curl http://localhost:8000/health  # Merchant API
-curl http://localhost:8001/health  # PSP Service
-curl http://localhost:2091/health  # Apps SDK
+docker compose -f docker-compose-nim.yml up -d
 ```
 
-### UCP Endpoints
-
-```bash
-# Discovery
-curl http://localhost:8000/.well-known/ucp
-
-# Agent Card
-curl http://localhost:8000/.well-known/agent-card.json
-
-# A2A checkout create (message/send action:create_checkout)
-curl -X POST http://localhost:8000/a2a \
-  -H "Authorization: Bearer test-api-key" \
-  -H "UCP-Agent: profile=\"https://platform.example/profile\"" \
-  -H "X-A2A-Extensions: https://ucp.dev/2026-01-23/specification/reference/" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc":"2.0",
-    "id":"req_1",
-    "method":"message/send",
-    "params":{
-      "message":{
-        "role":"user",
-        "messageId":"msg_1",
-        "kind":"message",
-        "parts":[{"type":"data","data":{"action":"create_checkout","product_id":"prod_1","quantity":1}}]
-      }
-    }
-  }'
-```
-
-Optional environment variables for UCP:
+### 2. Point Agents to Local NIM in `.env`
 
 ```env
-UCP_VERSION=2026-01-23
-UCP_BASE_URL=http://localhost:8000
-UCP_ORDER_WEBHOOK_URL=http://localhost:3000/api/webhooks/ucp
-UCP_SIGNING_KEY_ID=ucp-key-1
-UCP_SIGNING_KEY_KTY=EC
-UCP_SIGNING_KEY_CRV=P-256
-UCP_SIGNING_KEY_ALG=ES256
-UCP_SIGNING_KEY_X=
-UCP_SIGNING_KEY_Y=
+NIM_LLM_BASE_URL=http://nemotron-nano:8000/v1
+NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+NIM_EMBED_BASE_URL=http://embedqa:8000/v1
+NIM_EMBED_MODEL_NAME=nvidia/nv-embedqa-e5-v5
 ```
 
-Visit **http://localhost:3000** to see the demo UI.
+### 3. Start Full Stack with NIM + Infra + App
 
-## Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Merchant API | 8000 | ACP/UCP checkout, products, orders |
-| PSP Service | 8001 | Payment delegation, vault tokens |
-| Apps SDK | 2091 | MCP server for AI agents |
-| Promotion Agent | 8002 | Discount strategy (NAT) |
-| Post-Purchase Agent | 8003 | Multilingual messages (NAT) |
-| Recommendation Agent | 8004 | Personalized recs (requires Docker) |
-| Search Agent | 8005 | RAG product search (requires Docker) |
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose-nim.yml -f docker-compose.yml up --build -d
+```
 
 ## API Docs
 
-Interactive docs available when services are running:
+Docker (via nginx):
 
-- **Merchant API**: http://localhost:8000/docs
-- **PSP Service**: http://localhost:8001/docs
-- **Apps SDK**: http://localhost:2091/docs
+- Merchant API: http://localhost/api/docs
+- PSP: http://localhost/psp/docs
+- Apps SDK MCP: http://localhost/apps-sdk/docs
+
+Local development (direct ports):
+
+- Merchant API: http://localhost:8000/docs
+- PSP: http://localhost:8001/docs
+- Apps SDK MCP: http://localhost:2091/docs
 
 ## Project Structure
 
-```
+```text
 src/
-├── merchant/          # Merchant API (FastAPI)
-├── payment/           # PSP Service (FastAPI)
-├── apps_sdk/          # MCP Server + Widget
-├── agents/            # NAT Agent configs
-└── ui/                # Demo UI (Next.js)
+├── merchant/      # Merchant API (FastAPI)
+├── payment/       # PSP service (FastAPI)
+├── apps_sdk/      # MCP server + widget
+├── agents/        # NAT agents and configs
+└── ui/            # Next.js demo UI
 
 docs/
-├── architecture.md    # System design
-├── features.md        # Feature status
-└── specs/             # Protocol specs
+├── architecture.md
+├── features/
+└── specs/
 ```
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](docs/architecture.md) | System design and data flow |
-| [Features](docs/features.md) | Feature breakdown and status |
-| [ACP Spec](docs/specs/acp-spec.md) | ACP protocol specification |
-| [UCP Spec](docs/specs/ucp-spec.md) | UCP protocol specification |
-| [Apps SDK](src/apps_sdk/README.md) | MCP server documentation |
-| [NAT Agents](src/agents/README.md) | Agent configuration guide |
+- [Architecture](docs/architecture.md)
+- [Feature Breakdown](docs/features/index.md)
+- [ACP Spec](docs/specs/acp-spec.md)
+- [UCP Spec](docs/specs/ucp-spec.md)
+- [Apps SDK Spec](docs/specs/apps-sdk-spec.md)
+- [Agent Integration](src/agents/README.md)
 
 ## Getting Help
 
-- **Issues**: [Open an issue](https://github.com/NVIDIA/Retail-Agentic-Commerce/issues) for bugs or feature requests
-- **Security**: See [SECURITY.md](SECURITY.md) for reporting vulnerabilities
+- Issues: https://github.com/NVIDIA/Retail-Agentic-Commerce/issues
+- Security: [SECURITY.md](SECURITY.md)
 
 ## License
 
-This project is licensed under Apache 2.0 - see [LICENSE](LICENSE) for details.
+Apache 2.0. See [LICENSE](LICENSE).
 
-> **Third-Party Software Notice**: This project may download and install additional third-party open source software projects. Review the license terms of these projects before use.
+Third-party dependencies may be downloaded during setup. Review their licenses before use.
