@@ -51,7 +51,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = "==1.2.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14.13" },
     { name = "sqlmodel", specifier = "==0.0.31" },
-    { name = "ucp-sdk", directory = "vendor-python-sdk" },
+    { name = "ucp-sdk", specifier = "==0.1.0" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.40.0" },
 ]
 provides-extras = ["dev"]
@@ -1248,20 +1248,15 @@ wheels = [
 [[package]]
 name = "ucp-sdk"
 version = "0.1.0"
-source = { directory = "vendor-python-sdk" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "email-validator" },
     { name = "pydantic" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "email-validator", specifier = ">=2.0.0" },
-    { name = "pydantic", specifier = ">=2.5.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/af/a7/b758a7b721db98480b3ab933b9a684c2abc5a6ec6403e60e8b81bde45bcb/ucp_sdk-0.1.0.tar.gz", hash = "sha256:0db526bd5e388563f1e340e4e8f6bb360d6ddd90b851fdf99cbc9fd3b35ab689", size = 22437, upload-time = "2026-01-12T09:50:17.554Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/6b/dab615b5b7d2eeb5100422dd10c25e5755d13f8eeeac1d4e21b33a5ef24d/ucp_sdk-0.1.0-py3-none-any.whl", hash = "sha256:f9e2324b5e752e626e8f7b056e48158011c63825b62e3e0e5b65d7bc266661e4", size = 93074, upload-time = "2026-01-12T09:50:18.753Z" },
 ]
-
-[package.metadata.requires-dev]
-dev = [{ name = "datamodel-code-generator", extras = ["http", "ruff"], specifier = ">=0.50.0" }]
 
 [[package]]
 name = "uvicorn"
