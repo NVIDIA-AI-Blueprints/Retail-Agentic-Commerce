@@ -20,6 +20,7 @@ from src.merchant.api.ucp_schemas import (
     to_sdk_checkout_response,
     to_sdk_discovery_profile,
 )
+from src.merchant.config import get_settings
 from src.merchant.services.ucp import build_business_profile
 
 
@@ -117,5 +118,5 @@ def test_to_sdk_checkout_response_supports_current_wire_shape() -> None:
 
 def test_build_business_profile_remains_sdk_validated() -> None:
     profile = build_business_profile(request_base_url="http://localhost:8000")
-    assert profile.ucp.version == "2026-01-11"
+    assert profile.ucp.version == get_settings().ucp_version
     assert "dev.ucp.shopping.checkout" in profile.ucp.capabilities
