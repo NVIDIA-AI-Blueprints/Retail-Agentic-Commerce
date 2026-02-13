@@ -28,6 +28,7 @@ interface WebhookEvent {
   id: string;
   type: "order_created" | "order_updated" | "shipping_update";
   receivedAt: string;
+  protocol?: "acp" | "ucp";
   data: ShippingUpdateData | Record<string, unknown>;
 }
 
@@ -75,11 +76,12 @@ export function WebhookToAgentActivityBridge() {
     };
     addPostPurchaseEventRef.current(inputSignals, decision, "success");
 
-    // Update ACP panel
+    // Update Merchant Activity panel with protocol-aware webhook endpoint
+    const webhookEndpoint = event.protocol === "ucp" ? "/api/webhooks/ucp" : "/api/webhooks/acp";
     const acpEventId = logEventRef.current(
       "webhook_post",
       "POST",
-      "/api/webhooks/acp",
+      webhookEndpoint,
       `Shipping update: ${shippingData.status}`
     );
     completeEventRef.current(
@@ -135,7 +137,10 @@ export function WebhookToAgentActivityBridge() {
       // On fresh page load, clear server-side stored events to start fresh
       // This ensures refreshing the page resets all logs to 0
       try {
-        await fetch("/api/webhooks/acp", { method: "DELETE" });
+        await Promise.allSettled([
+          fetch("/api/webhooks/acp", { method: "DELETE" }),
+          fetch("/api/webhooks/ucp", { method: "DELETE" }),
+        ]);
       } catch {
         // Ignore errors - server may not be running
       }

@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useCheckoutFlow } from "./useCheckoutFlow";
-import type { Product, CheckoutSessionResponse } from "@/types";
+import type {
+  Product,
+  CheckoutSessionResponse,
+  CreateCheckoutRequest,
+  UpdateCheckoutRequest,
+  CompleteCheckoutRequest,
+} from "@/types";
 import * as apiClient from "@/lib/api-client";
 
 // Mock the API client module
@@ -9,6 +15,44 @@ vi.mock("@/lib/api-client", () => ({
   createCheckoutSession: vi.fn(),
   updateCheckoutSession: vi.fn(),
   completeCheckout: vi.fn(),
+  createCheckoutSessionByProtocol: vi.fn(
+    (protocol: "acp" | "ucp", request: CreateCheckoutRequest) => {
+      if (protocol !== "acp" && protocol !== "ucp") {
+        throw new Error("Invalid protocol");
+      }
+      return vi.mocked(apiClient.createCheckoutSession)(request);
+    }
+  ),
+  updateCheckoutSessionByProtocol: vi.fn(
+    (
+      protocol: "acp" | "ucp",
+      sessionRef: { sessionId: string | null },
+      request: UpdateCheckoutRequest
+    ) => {
+      if (protocol !== "acp" && protocol !== "ucp") {
+        throw new Error("Invalid protocol");
+      }
+      if (!sessionRef.sessionId) {
+        throw new Error("Missing session ID");
+      }
+      return vi.mocked(apiClient.updateCheckoutSession)(sessionRef.sessionId, request);
+    }
+  ),
+  completeCheckoutByProtocol: vi.fn(
+    (
+      protocol: "acp" | "ucp",
+      sessionRef: { sessionId: string | null },
+      request: CompleteCheckoutRequest
+    ) => {
+      if (protocol !== "acp" && protocol !== "ucp") {
+        throw new Error("Invalid protocol");
+      }
+      if (!sessionRef.sessionId) {
+        throw new Error("Missing session ID");
+      }
+      return vi.mocked(apiClient.completeCheckout)(sessionRef.sessionId, request);
+    }
+  ),
   delegatePayment: vi.fn(),
   generatePostPurchaseMessage: vi.fn(),
   postWebhookShippingUpdate: vi.fn(),
@@ -566,6 +610,35 @@ describe("useCheckoutFlow", () => {
     });
   });
 
+  describe("protocol routing", () => {
+    it("uses protocol-aware create call when protocol is ucp", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce({
+        ...mockSession,
+        protocol: "ucp",
+        ucpContextId: "ctx_123",
+      });
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValueOnce({
+        ...mockReadySession,
+        protocol: "ucp",
+        ucpContextId: "ctx_123",
+      });
+
+      const { result } = renderHook(() => useCheckoutFlow(undefined, undefined, "ucp"));
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      expect(apiClient.createCheckoutSessionByProtocol).toHaveBeenCalledWith(
+        "ucp",
+        expect.objectContaining({
+          items: [{ id: "prod_1", quantity: 1 }],
+        })
+      );
+      expect(result.current.context.ucpContextId).toBe("ctx_123");
+    });
+  });
+
   describe("reset", () => {
     it("resets all state to initial values", async () => {
       vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
@@ -605,6 +678,7 @@ describe("useCheckoutFlow", () => {
       expect(result.current.context.selectedProduct).toBeNull();
       expect(result.current.context.session).toBeNull();
       expect(result.current.context.sessionId).toBeNull();
+      expect(result.current.context.ucpContextId).toBeNull();
       expect(result.current.context.vaultToken).toBeNull();
       expect(result.current.context.orderId).toBeNull();
       expect(result.current.context.error).toBeNull();

@@ -34,12 +34,13 @@ class Settings(BaseSettings):
     merchant_api_key: str = ""
 
     # UCP Discovery Configuration
-    ucp_version: str = "2026-01-11"
+    ucp_version: str = "2026-01-23"
     ucp_base_url: str | None = (
         None  # Fully qualified base URL; None derives from request
     )
     ucp_business_name: str | None = None
     ucp_continue_url: str | None = None  # Fallback URL for negotiation failures
+    ucp_order_webhook_url: str = "http://localhost:3000/api/webhooks/ucp"
 
     # UCP Signing Key (public key for webhook verification)
     ucp_signing_key_id: str = "ucp-key-1"

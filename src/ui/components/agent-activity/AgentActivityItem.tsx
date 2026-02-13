@@ -98,13 +98,26 @@ function getOutcomeInfo(
       return { label: "Free shipping applied", valueText: "Free", isPositive: true, actionInfo };
     case "NO_PROMO":
       return {
-        label: "No promotion was applied — the agent determined pricing was already optimal.",
+        label: "No promotion discount was applied.",
         valueText: "$0.00",
         isPositive: false,
         actionInfo,
       };
     default:
-      return { label: action, valueText: "$0.00", isPositive: false, actionInfo };
+      if (amount > 0) {
+        return {
+          label: "Promotion discount applied.",
+          valueText: `−${formattedAmount}`,
+          isPositive: true,
+          actionInfo,
+        };
+      }
+      return {
+        label: "Promotion decision metadata unavailable.",
+        valueText: "$0.00",
+        isPositive: false,
+        actionInfo,
+      };
   }
 }
 

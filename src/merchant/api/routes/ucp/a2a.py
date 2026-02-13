@@ -13,7 +13,7 @@ import uuid
 from typing import Any, cast
 
 import httpx
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
@@ -63,6 +63,7 @@ router = APIRouter(
 )
 async def handle_a2a_request(
     http_request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
 ) -> JSONResponse:
     """Process an A2A JSON-RPC 2.0 request.
@@ -188,7 +189,7 @@ async def handle_a2a_request(
     # ---- 8. Negotiate capabilities ----
     base_url = str(http_request.base_url).rstrip("/")
     try:
-        negotiated, payment_handlers = await negotiate_a2a_capabilities(
+        negotiated, payment_handlers, order_webhook_url = await negotiate_a2a_capabilities(
             ucp_agent_value, base_url
         )
     except NegotiationFailureError as exc:
@@ -251,6 +252,8 @@ async def handle_a2a_request(
             db=db,
             negotiated=negotiated,
             payment_handlers=payment_handlers,
+            order_webhook_url=order_webhook_url,
+            background_tasks=background_tasks,
         )
     except SessionNotFoundError:
         return JSONResponse(

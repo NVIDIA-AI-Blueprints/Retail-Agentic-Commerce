@@ -29,7 +29,15 @@ if (!MERCHANT_API_KEY) {
 }
 
 // Headers to forward from client to upstream
-const FORWARD_HEADERS = ["request-id", "idempotency-key", "api-version", "content-type", "accept"];
+const FORWARD_HEADERS = [
+  "request-id",
+  "idempotency-key",
+  "api-version",
+  "content-type",
+  "accept",
+  "ucp-agent",
+  "x-a2a-extensions",
+];
 
 /**
  * Validate path segments to prevent SSRF/open proxy attacks.

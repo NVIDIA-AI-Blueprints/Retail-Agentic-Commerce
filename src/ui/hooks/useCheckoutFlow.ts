@@ -2,6 +2,7 @@
 
 import { useReducer, useCallback, useRef } from "react";
 import type {
+  CheckoutProtocol,
   CheckoutFlowState,
   CheckoutFlowContext,
   CheckoutFlowAction,
@@ -12,11 +13,12 @@ import type {
   BillingAddressFormData,
 } from "@/types";
 import {
-  createCheckoutSession,
-  updateCheckoutSession,
-  completeCheckout,
+  createCheckoutSessionByProtocol,
+  updateCheckoutSessionByProtocol,
+  completeCheckoutByProtocol,
   delegatePayment,
 } from "@/lib/api-client";
+import type { ProtocolSessionRef } from "@/lib/api-client";
 import { createAPIError } from "@/lib/errors";
 import type { ACPEventType, ACPEventStatus } from "@/hooks/useACPLog";
 import type {
@@ -36,6 +38,48 @@ const DEFAULT_SHIPPING_ID = "ship_standard";
 function truncateId(id: string): string {
   if (id.length <= 12) return id;
   return `...${id.slice(-8)}`;
+}
+
+function buildProtocolSessionRef(sessionId: string, contextId?: string | null): ProtocolSessionRef {
+  const sessionRef: ProtocolSessionRef = { sessionId };
+  if (contextId != null) {
+    sessionRef.contextId = contextId;
+  }
+  return sessionRef;
+}
+
+function getUCPLogEndpoint(action: string): string {
+  return `/api/proxy/merchant/a2a -> /a2a (jsonrpc:message/send action:${action})`;
+}
+
+function formatUCPStatusSummary(session: CheckoutSessionResponse, details?: string): string {
+  const statusText = `Status: ${session.status}`;
+  const capabilities =
+    session.capabilities?.extensions?.map((extension) => extension.name).join(", ") ?? "";
+  const detailText = details ? ` | ${details}` : "";
+
+  if (capabilities) {
+    return `${statusText}${detailText} | caps: ${capabilities}`;
+  }
+  return `${statusText}${detailText}`;
+}
+
+function inferPromotionAction(baseAmount: number, discountAmount: number): string {
+  if (discountAmount <= 0 || baseAmount <= 0) {
+    return "NO_PROMO";
+  }
+
+  const ratio = discountAmount / baseAmount;
+  if (Math.abs(ratio - 0.05) <= 0.015) {
+    return "DISCOUNT_5_PCT";
+  }
+  if (Math.abs(ratio - 0.1) <= 0.015) {
+    return "DISCOUNT_10_PCT";
+  }
+  if (Math.abs(ratio - 0.15) <= 0.02) {
+    return "DISCOUNT_15_PCT";
+  }
+  return "DISCOUNT_APPLIED";
 }
 
 /**
@@ -114,21 +158,22 @@ function logPromotionAgentActivity(
 
       agentLogger.addAgentEvent("promotion", inputSignals, decision, "success");
     } else if (lineItem.discount > 0) {
-      // Discount exists but no metadata - agent ran but metadata not exposed
+      // Discount exists but promotion metadata is unavailable in this response shape.
       const decision: PromotionDecision = {
-        action: "DISCOUNT",
+        action: inferPromotionAction(lineItem.base_amount, lineItem.discount),
         discountAmount: lineItem.discount,
-        reasonCodes: [],
-        reasoning: "Promotion applied (details not available)",
+        reasonCodes: ["PROMOTION_METADATA_UNAVAILABLE"],
+        reasoning:
+          "A promotion discount was applied in checkout totals, but detailed promotion reasoning was not included in this response.",
       };
       agentLogger.addAgentEvent("promotion", inputSignals, decision, "success");
     } else {
-      // No discount - either no promo or agent skipped
+      // No discount in totals. Avoid inferring additional agent reasoning here.
       const decision: PromotionDecision = {
         action: "NO_PROMO",
         discountAmount: 0,
-        reasonCodes: [],
-        reasoning: "No promotion applied",
+        reasonCodes: ["NO_DISCOUNT_IN_TOTALS"],
+        reasoning: "No promotion discount is present in the checkout totals for this response.",
       };
       agentLogger.addAgentEvent("promotion", inputSignals, decision, "success");
     }
@@ -160,6 +205,7 @@ const initialContext: CheckoutFlowContext = {
   selectedShippingId: DEFAULT_SHIPPING_ID,
   orderId: null,
   sessionId: null,
+  ucpContextId: null,
   session: null,
   vaultToken: null,
   isLoading: false,
@@ -226,6 +272,7 @@ function checkoutFlowReducer(
         ...context,
         state: "checkout",
         sessionId: action.session.id,
+        ucpContextId: action.session.ucpContextId ?? null,
         session: action.session,
         selectedShippingId: firstShippingId,
         isLoading: false,
@@ -236,6 +283,8 @@ function checkoutFlowReducer(
     case "SESSION_UPDATED": {
       return {
         ...context,
+        sessionId: action.session.id,
+        ucpContextId: action.session.ucpContextId ?? context.ucpContextId,
         session: action.session,
         isLoading: false,
         error: null,
@@ -376,7 +425,11 @@ function checkoutFlowReducer(
 /**
  * Hook for managing checkout flow state machine with real API calls
  */
-export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityLogger) {
+export function useCheckoutFlow(
+  logger?: ACPLogger,
+  agentLogger?: AgentActivityLogger,
+  protocol: CheckoutProtocol = "acp"
+) {
   const [context, dispatch] = useReducer(checkoutFlowReducer, initialContext);
 
   // Use refs for loggers to avoid recreating callbacks when context changes
@@ -388,76 +441,90 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
   /**
    * Select a product and create a checkout session
    */
-  const selectProduct = useCallback(async (product: Product) => {
-    dispatch({ type: "SELECT_PRODUCT", product });
+  const selectProduct = useCallback(
+    async (product: Product) => {
+      dispatch({ type: "SELECT_PRODUCT", product });
 
-    const eventId = loggerRef.current?.logEvent(
-      "session_create",
-      "POST",
-      "/checkout_sessions",
-      `Create session for ${product.name}`
-    );
+      const eventId = loggerRef.current?.logEvent(
+        "session_create",
+        "POST",
+        protocol === "ucp" ? getUCPLogEndpoint("create_checkout") : "/checkout_sessions",
+        protocol === "ucp"
+          ? `message/send:create_checkout (${product.name})`
+          : `Create session for ${product.name}`
+      );
 
-    try {
-      const session = await createCheckoutSession({
-        items: [{ id: product.id, quantity: 1 }],
-        buyer: DEFAULT_BUYER,
-        fulfillment_address: DEFAULT_FULFILLMENT_ADDRESS,
-      });
+      try {
+        const session = await createCheckoutSessionByProtocol(protocol, {
+          items: [{ id: product.id, quantity: 1 }],
+          buyer: DEFAULT_BUYER,
+          fulfillment_address: DEFAULT_FULFILLMENT_ADDRESS,
+        });
 
-      if (eventId) {
-        loggerRef.current?.completeEvent(
-          eventId,
-          "success",
-          `Session ${session.id.slice(0, 8)}... created`,
-          201
-        );
-      }
-
-      // Log promotion agent activity from line items
-      logPromotionAgentActivity(session.line_items, product, agentLoggerRef.current);
-
-      dispatch({ type: "SESSION_CREATED", session });
-
-      // Auto-select first shipping option if available
-      const firstOption = session.fulfillment_options[0];
-      if (firstOption) {
-        const updateEventId = loggerRef.current?.logEvent(
-          "session_update",
-          "POST",
-          `/checkout_sessions/${truncateId(session.id)}`,
-          `Select shipping: ${firstOption.title}`
-        );
-
-        try {
-          const updatedSession = await updateCheckoutSession(session.id, {
-            fulfillment_option_id: firstOption.id,
-          });
-
-          if (updateEventId) {
-            loggerRef.current?.completeEvent(
-              updateEventId,
-              "success",
-              `Status: ${updatedSession.status}`,
-              200
-            );
-          }
-
-          dispatch({ type: "SESSION_UPDATED", session: updatedSession });
-        } catch (error) {
-          if (updateEventId) {
-            loggerRef.current?.completeEvent(updateEventId, "error", "Update failed", 400);
-          }
-          dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+        if (eventId) {
+          loggerRef.current?.completeEvent(
+            eventId,
+            "success",
+            formatUCPStatusSummary(session, `Session ${session.id.slice(0, 8)}... created`),
+            201
+          );
         }
+
+        // Log promotion agent activity from line items
+        logPromotionAgentActivity(session.line_items, product, agentLoggerRef.current);
+
+        dispatch({ type: "SESSION_CREATED", session });
+
+        // Auto-select first shipping option for ACP.
+        // For UCP we still trigger one update call to advance status transitions.
+        const firstOption = session.fulfillment_options[0];
+        if (protocol === "ucp" || firstOption) {
+          const updateEventId = loggerRef.current?.logEvent(
+            "session_update",
+            "POST",
+            protocol === "ucp"
+              ? getUCPLogEndpoint("update_checkout")
+              : `/checkout_sessions/${truncateId(session.id)}`,
+            protocol === "ucp"
+              ? "message/send:update_checkout"
+              : `Select shipping: ${firstOption?.title ?? "default"}`
+          );
+
+          try {
+            const updatedSession = await updateCheckoutSessionByProtocol(
+              protocol,
+              buildProtocolSessionRef(session.id, session.ucpContextId),
+              firstOption ? { fulfillment_option_id: firstOption.id } : {}
+            );
+
+            if (updateEventId) {
+              loggerRef.current?.completeEvent(
+                updateEventId,
+                "success",
+                protocol === "ucp"
+                  ? formatUCPStatusSummary(updatedSession)
+                  : `Status: ${updatedSession.status}`,
+                200
+              );
+            }
+
+            dispatch({ type: "SESSION_UPDATED", session: updatedSession });
+          } catch (error) {
+            if (updateEventId) {
+              loggerRef.current?.completeEvent(updateEventId, "error", "Update failed", 400);
+            }
+            dispatch({ type: "SET_ERROR", error: createAPIError(error) });
+          }
+        }
+      } catch (error) {
+        if (eventId) {
+          loggerRef.current?.completeEvent(eventId, "error", "Session creation failed", 400);
+        }
+        dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
-    } catch (error) {
-      if (eventId) {
-        loggerRef.current?.completeEvent(eventId, "error", "Session creation failed", 400);
-      }
-      dispatch({ type: "SET_ERROR", error: createAPIError(error) });
-    }
-  }, []);
+    },
+    [protocol]
+  );
 
   /**
    * Update quantity and refresh session
@@ -475,8 +542,10 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
       const eventId = loggerRef.current?.logEvent(
         "session_update",
         "POST",
-        `/checkout_sessions/${truncateId(context.sessionId)}`,
-        `Update quantity: ${quantity}`
+        protocol === "ucp"
+          ? getUCPLogEndpoint("update_checkout")
+          : `/checkout_sessions/${truncateId(context.sessionId)}`,
+        protocol === "ucp" ? "message/send:update_checkout" : `Update quantity: ${quantity}`
       );
 
       try {
@@ -484,14 +553,20 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
           items: [{ id: context.selectedProduct.id, quantity }],
         };
 
-        const session = await updateCheckoutSession(context.sessionId, request);
+        const session = await updateCheckoutSessionByProtocol(
+          protocol,
+          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          request
+        );
 
         if (eventId) {
           const total = session.totals.find((t) => t.type === "total")?.amount ?? 0;
           loggerRef.current?.completeEvent(
             eventId,
             "success",
-            `Total: $${(total / 100).toFixed(2)}`,
+            protocol === "ucp"
+              ? formatUCPStatusSummary(session, `Total: $${(total / 100).toFixed(2)}`)
+              : `Total: $${(total / 100).toFixed(2)}`,
             200
           );
         }
@@ -504,7 +579,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
     },
-    [context.sessionId, context.selectedProduct]
+    [context.sessionId, context.selectedProduct, context.ucpContextId, protocol]
   );
 
   /**
@@ -527,21 +602,29 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
       const eventId = loggerRef.current?.logEvent(
         "session_update",
         "POST",
-        `/checkout_sessions/${truncateId(context.sessionId)}`,
-        `Select: ${shippingName}`
+        protocol === "ucp"
+          ? getUCPLogEndpoint("update_checkout")
+          : `/checkout_sessions/${truncateId(context.sessionId)}`,
+        protocol === "ucp" ? "message/send:update_checkout" : `Select: ${shippingName}`
       );
 
       try {
-        const session = await updateCheckoutSession(context.sessionId, {
-          fulfillment_option_id: shippingId,
-        });
+        const session = await updateCheckoutSessionByProtocol(
+          protocol,
+          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          {
+            fulfillment_option_id: shippingId,
+          }
+        );
 
         if (eventId) {
           const total = session.totals.find((t) => t.type === "total")?.amount ?? 0;
           loggerRef.current?.completeEvent(
             eventId,
             "success",
-            `Total: $${(total / 100).toFixed(2)}`,
+            protocol === "ucp"
+              ? formatUCPStatusSummary(session, `Total: $${(total / 100).toFixed(2)}`)
+              : `Total: $${(total / 100).toFixed(2)}`,
             200
           );
         }
@@ -554,7 +637,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
     },
-    [context.sessionId, context.selectedProduct, context.session]
+    [context.sessionId, context.selectedProduct, context.session, context.ucpContextId, protocol]
   );
 
   /**
@@ -572,23 +655,35 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
       const eventId = loggerRef.current?.logEvent(
         "session_update",
         "POST",
-        `/checkout_sessions/${truncateId(context.sessionId)}`,
-        normalized ? `Apply coupon: ${normalized}` : "Clear coupons"
+        protocol === "ucp"
+          ? getUCPLogEndpoint("update_checkout")
+          : `/checkout_sessions/${truncateId(context.sessionId)}`,
+        protocol === "ucp"
+          ? "message/send:update_checkout"
+          : normalized
+            ? `Apply coupon: ${normalized}`
+            : "Clear coupons"
       );
 
       try {
-        const session = await updateCheckoutSession(context.sessionId, {
-          discounts: {
-            codes: normalized ? [normalized] : [],
-          },
-        });
+        const session = await updateCheckoutSessionByProtocol(
+          protocol,
+          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          {
+            discounts: {
+              codes: normalized ? [normalized] : [],
+            },
+          }
+        );
 
         if (eventId) {
           const total = session.totals.find((t) => t.type === "total")?.amount ?? 0;
           loggerRef.current?.completeEvent(
             eventId,
             "success",
-            `Total: $${(total / 100).toFixed(2)}`,
+            protocol === "ucp"
+              ? formatUCPStatusSummary(session, `Total: $${(total / 100).toFixed(2)}`)
+              : `Total: $${(total / 100).toFixed(2)}`,
             200
           );
         }
@@ -601,7 +696,7 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         dispatch({ type: "SET_ERROR", error: createAPIError(error) });
       }
     },
-    [context.sessionId]
+    [context.sessionId, context.ucpContextId, protocol]
   );
 
   /**
@@ -696,18 +791,24 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
         const completeEventId = loggerRef.current?.logEvent(
           "session_complete",
           "POST",
-          `/checkout_sessions/${truncateId(context.sessionId)}/complete`,
-          "Process payment"
+          protocol === "ucp"
+            ? getUCPLogEndpoint("complete_checkout")
+            : `/checkout_sessions/${truncateId(context.sessionId)}/complete`,
+          protocol === "ucp" ? "message/send:complete_checkout" : "Process payment"
         );
 
-        const completedSession = await completeCheckout(context.sessionId, {
-          payment_data: {
-            token: delegateResponse.id,
-            provider: "stripe",
-            billing_address: billingAddressData,
-          },
-          preferred_language: billingAddress.preferredLanguage,
-        });
+        const completedSession = await completeCheckoutByProtocol(
+          protocol,
+          buildProtocolSessionRef(context.sessionId, context.ucpContextId),
+          {
+            payment_data: {
+              token: delegateResponse.id,
+              provider: "stripe",
+              billing_address: billingAddressData,
+            },
+            preferred_language: billingAddress.preferredLanguage,
+          }
+        );
 
         // Check if 3DS is required
         if (completedSession.status === "authentication_required") {
@@ -721,26 +822,26 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
             const authEventId = loggerRef.current?.logEvent(
               "session_complete",
               "POST",
-              `/checkout_sessions/${truncateId(context.sessionId!)}/complete`,
-              "3DS authentication"
+              protocol === "ucp"
+                ? getUCPLogEndpoint("complete_checkout")
+                : `/checkout_sessions/${truncateId(context.sessionId!)}/complete`,
+              protocol === "ucp" ? "message/send:complete_checkout" : "3DS authentication"
             );
             try {
-              const finalSession = await completeCheckout(context.sessionId!, {
-                payment_data: {
-                  token: delegateResponse.id,
-                  provider: "stripe",
-                },
-                authentication_result: {
-                  outcome: "authenticated",
-                  outcome_details: {
-                    three_ds_cryptogram: "AAIBBYNoEQAAAAAAg4PyBhdAEQs=",
-                    electronic_commerce_indicator: "05",
-                    transaction_id: crypto.randomUUID(),
-                    version: "2.2.0",
+              const finalSession = await completeCheckoutByProtocol(
+                protocol,
+                buildProtocolSessionRef(context.sessionId!, context.ucpContextId),
+                {
+                  payment_data: {
+                    token: delegateResponse.id,
+                    provider: "stripe",
                   },
-                },
-                preferred_language: billingAddress.preferredLanguage,
-              });
+                  authentication_result: {
+                    outcome: "authenticated",
+                  },
+                  preferred_language: billingAddress.preferredLanguage,
+                }
+              );
               if (authEventId) {
                 loggerRef.current?.completeEvent(
                   authEventId,
@@ -790,10 +891,11 @@ export function useCheckoutFlow(logger?: ACPLogger, agentLogger?: AgentActivityL
     },
     [
       context.sessionId,
+      context.ucpContextId,
       context.session,
-      context.selectedProduct,
       context.paymentInfo,
       context.billingAddress,
+      protocol,
     ]
   );
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -225,6 +226,38 @@ class TestCheckoutActions:
         assert "com.example.processor_tokenizer" in checkout["ucp"]["payment_handlers"]
 
     @pytest.mark.usefixtures("mock_platform_profile")
+    def test_create_checkout_with_buyer_starts_incomplete(
+        self, auth_client: TestClient, a2a_headers: dict[str, str]
+    ) -> None:
+        request = _make_request(
+            "create_checkout",
+            {
+                "product_id": "prod_1",
+                "buyer": {
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email": "john@example.com",
+                },
+                "fulfillment_address": {
+                    "name": "John Doe",
+                    "line_one": "123 Main St",
+                    "city": "San Francisco",
+                    "state": "CA",
+                    "country": "US",
+                    "postal_code": "94102",
+                },
+            },
+        )
+        response = auth_client.post("/a2a", json=request, headers=a2a_headers)
+
+        body = response.json()
+        assert "error" not in body
+        checkout = body["result"]["parts"][0]["data"]["a2a.ucp.checkout"]
+        # A newly created checkout remains incomplete until fulfillment option
+        # selection/update advances readiness for completion.
+        assert checkout["status"] == "incomplete"
+
+    @pytest.mark.usefixtures("mock_platform_profile")
     def test_get_checkout(
         self, auth_client: TestClient, a2a_headers: dict[str, str]
     ) -> None:
@@ -279,6 +312,175 @@ class TestCheckoutActions:
         assert "error" not in body
         checkout = body["result"]["parts"][0]["data"]["a2a.ucp.checkout"]
         assert checkout["status"] == "canceled"
+
+    def test_complete_checkout_uses_negotiated_ucp_order_webhook_url(
+        self, auth_client: TestClient, a2a_headers: dict[str, str], monkeypatch
+    ) -> None:
+        async def _mock_fetch(_url: str) -> dict[str, Any]:
+            return {
+                "ucp": {
+                    "version": get_settings().ucp_version,
+                    "capabilities": {
+                        "dev.ucp.shopping.checkout": [
+                            {"version": get_settings().ucp_version}
+                        ],
+                        "dev.ucp.shopping.order": [
+                            {
+                                "version": get_settings().ucp_version,
+                                "config": {
+                                    "webhook_url": "http://platform.example/webhooks/ucp-order"
+                                },
+                            }
+                        ],
+                    },
+                }
+            }
+
+        monkeypatch.setattr(
+            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+        )
+        post_purchase_mock = AsyncMock()
+        monkeypatch.setattr(
+            "src.merchant.services.a2a.trigger_post_purchase_flow_ucp",
+            post_purchase_mock,
+        )
+
+        create_req = _make_request(
+            "create_checkout",
+            {
+                "product_id": "prod_1",
+                "buyer": {
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email": "john@example.com",
+                },
+                "fulfillment_address": {
+                    "name": "John Doe",
+                    "line_one": "123 Main St",
+                    "city": "San Francisco",
+                    "state": "CA",
+                    "country": "US",
+                    "postal_code": "94102",
+                },
+            },
+        )
+        create_resp = auth_client.post("/a2a", json=create_req, headers=a2a_headers)
+        ctx = create_resp.json()["result"]["contextId"]
+
+        complete_req = _make_request(
+            "complete_checkout",
+            context_id=ctx,
+            extra_parts=[
+                {
+                    "type": "data",
+                    "data": {
+                        "a2a.ucp.checkout.payment": {
+                            "instruments": [
+                                {
+                                    "type": "tokenized_card",
+                                    "handler_id": "processor_tokenizer",
+                                    "credential": {"token": "vt_test_123"},
+                                }
+                            ]
+                        }
+                    },
+                }
+            ],
+        )
+        complete_resp = auth_client.post("/a2a", json=complete_req, headers=a2a_headers)
+
+        body = complete_resp.json()
+        assert "error" not in body
+        checkout = body["result"]["parts"][0]["data"]["a2a.ucp.checkout"]
+        assert checkout["status"] == "completed"
+        assert post_purchase_mock.await_count == 1
+        assert (
+            post_purchase_mock.await_args.kwargs["webhook_url"]
+            == "http://platform.example/webhooks/ucp-order"
+        )
+
+    def test_complete_checkout_uses_fallback_ucp_order_webhook_url(
+        self, auth_client: TestClient, a2a_headers: dict[str, str], monkeypatch
+    ) -> None:
+        monkeypatch.setenv(
+            "UCP_ORDER_WEBHOOK_URL", "http://fallback.example/webhooks/ucp-order"
+        )
+        get_settings.cache_clear()
+
+        async def _mock_fetch(_url: str) -> dict[str, Any]:
+            return {
+                "ucp": {
+                    "version": get_settings().ucp_version,
+                    "capabilities": {
+                        "dev.ucp.shopping.checkout": [
+                            {"version": get_settings().ucp_version}
+                        ]
+                    },
+                }
+            }
+
+        monkeypatch.setattr(
+            "src.merchant.services.a2a.fetch_platform_profile", _mock_fetch
+        )
+        post_purchase_mock = AsyncMock()
+        monkeypatch.setattr(
+            "src.merchant.services.a2a.trigger_post_purchase_flow_ucp",
+            post_purchase_mock,
+        )
+
+        create_req = _make_request(
+            "create_checkout",
+            {
+                "product_id": "prod_1",
+                "buyer": {
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email": "john@example.com",
+                },
+                "fulfillment_address": {
+                    "name": "John Doe",
+                    "line_one": "123 Main St",
+                    "city": "San Francisco",
+                    "state": "CA",
+                    "country": "US",
+                    "postal_code": "94102",
+                },
+            },
+        )
+        create_resp = auth_client.post("/a2a", json=create_req, headers=a2a_headers)
+        ctx = create_resp.json()["result"]["contextId"]
+
+        complete_req = _make_request(
+            "complete_checkout",
+            context_id=ctx,
+            extra_parts=[
+                {
+                    "type": "data",
+                    "data": {
+                        "a2a.ucp.checkout.payment": {
+                            "instruments": [
+                                {
+                                    "type": "tokenized_card",
+                                    "handler_id": "processor_tokenizer",
+                                    "credential": {"token": "vt_test_456"},
+                                }
+                            ]
+                        }
+                    },
+                }
+            ],
+        )
+        complete_resp = auth_client.post("/a2a", json=complete_req, headers=a2a_headers)
+
+        body = complete_resp.json()
+        assert "error" not in body
+        checkout = body["result"]["parts"][0]["data"]["a2a.ucp.checkout"]
+        assert checkout["status"] == "completed"
+        assert post_purchase_mock.await_count == 1
+        assert (
+            post_purchase_mock.await_args.kwargs["webhook_url"]
+            == "http://fallback.example/webhooks/ucp-order"
+        )
 
 
 # ===========================================================================

@@ -92,11 +92,7 @@ describe("AgentActivityItem", () => {
       },
     };
     render(<AgentActivityItem event={noPromoEvent} isLast={false} />);
-    expect(
-      screen.getByText(
-        "No promotion was applied — the agent determined pricing was already optimal."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText("No promotion discount was applied.")).toBeInTheDocument();
     expect(screen.getByText("No change")).toBeInTheDocument();
   });
 

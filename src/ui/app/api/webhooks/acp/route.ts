@@ -32,6 +32,7 @@ export interface WebhookEvent {
   id: string;
   type: "order_created" | "order_updated" | "shipping_update";
   receivedAt: string;
+  protocol?: "acp" | "ucp";
   data: OrderEventData | ShippingUpdateData;
 }
 
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest) {
       id: generateEventId(),
       type: payload.type,
       receivedAt: new Date().toISOString(),
+      protocol: "acp",
       data: payload.data,
     };
 

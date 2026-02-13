@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useACPLog, type ACPEvent, type ACPEventType } from "@/hooks/useACPLog";
 import { useCheckoutEvents } from "@/hooks/useCheckoutEvents";
+import type { CheckoutProtocol } from "@/types";
 
 /**
  * MCP Server base URL - uses nginx proxy in Docker, direct in development
@@ -105,7 +106,9 @@ function ACPEventItem({ event }: { event: ACPEvent }) {
 /**
  * Empty state with waiting message
  */
-function EmptyState() {
+function EmptyState({ protocol }: { protocol: CheckoutProtocol }) {
+  const protocolLabel = protocol === "ucp" ? "UCP" : "ACP";
+
   return (
     <div
       className="glass-content"
@@ -166,7 +169,8 @@ function EmptyState() {
           maxWidth: "240px",
         }}
       >
-        Select a product from the Client Agent panel to start an ACP checkout session.
+        Select a product from the Client Agent panel to start a checkout session using{" "}
+        {protocolLabel}.
       </p>
     </div>
   );
@@ -175,7 +179,15 @@ function EmptyState() {
 /**
  * Active session view with event timeline (glass style)
  */
-function ActiveSession({ events, onClear }: { events: ACPEvent[]; onClear: () => void }) {
+function ActiveSession({
+  events,
+  onClear,
+  protocol,
+}: {
+  events: ACPEvent[];
+  onClear: () => void;
+  protocol: CheckoutProtocol;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to top when new events arrive (newest first)
@@ -184,6 +196,8 @@ function ActiveSession({ events, onClear }: { events: ACPEvent[]; onClear: () =>
       scrollRef.current.scrollTop = 0;
     }
   }, [events.length]);
+
+  const protocolLabel = protocol === "ucp" ? "UCP" : "ACP";
 
   return (
     <div
@@ -208,7 +222,7 @@ function ActiveSession({ events, onClear }: { events: ACPEvent[]; onClear: () =>
             textTransform: "uppercase",
           }}
         >
-          ACP Communication
+          {protocolLabel} Communication
         </h3>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
@@ -256,11 +270,69 @@ function ActiveSession({ events, onClear }: { events: ACPEvent[]; onClear: () =>
   );
 }
 
+function ProtocolToggle({
+  protocol,
+  onProtocolChange,
+}: {
+  protocol: CheckoutProtocol;
+  onProtocolChange: (protocol: CheckoutProtocol) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        gap: "4px",
+        padding: "4px",
+        borderRadius: "10px",
+        border: "1px solid var(--glass-border-subtle, rgba(255, 255, 255, 0.08))",
+        background: "var(--block-bg, rgba(255, 255, 255, 0.045))",
+      }}
+      role="tablist"
+      aria-label="Protocol selector"
+    >
+      {(["acp", "ucp"] as const).map((tab) => {
+        const active = protocol === tab;
+        return (
+          <button
+            key={tab}
+            role="tab"
+            aria-selected={active}
+            type="button"
+            onClick={() => onProtocolChange(tab)}
+            style={{
+              minWidth: "52px",
+              padding: "6px 12px",
+              borderRadius: "8px",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              letterSpacing: "0.4px",
+              color: active ? "var(--accent-green, #76b900)" : "var(--text-muted)",
+              background: active
+                ? "var(--accent-green-bg, rgba(118, 185, 0, 0.12))"
+                : "transparent",
+              transition: "all 0.2s ease",
+            }}
+          >
+            {tab.toUpperCase()}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Right panel showing merchant/retailer view with ACP communication log
  * Uses glassmorphic design system
  */
-export function BusinessPanel() {
+interface BusinessPanelProps {
+  protocol: CheckoutProtocol;
+  onProtocolChange: (protocol: CheckoutProtocol) => void;
+}
+
+export function BusinessPanel({ protocol, onProtocolChange }: BusinessPanelProps) {
   const { state, clear } = useACPLog();
   const hasEvents = state.events.length > 0;
 
@@ -282,6 +354,17 @@ export function BusinessPanel() {
     }
   }, [clear]);
 
+  const handleProtocolChange = useCallback(
+    (nextProtocol: CheckoutProtocol) => {
+      if (nextProtocol === protocol) {
+        return;
+      }
+      clear();
+      onProtocolChange(nextProtocol);
+    },
+    [clear, onProtocolChange, protocol]
+  );
+
   return (
     <section
       className="glass-panel flex-1 flex flex-col h-full overflow-hidden"
@@ -289,17 +372,27 @@ export function BusinessPanel() {
     >
       {/* Glass Panel Header */}
       <div className="glass-panel-header">
-        <div className={`glass-badge ${hasEvents ? "yellow" : "gray"}`}>
-          <span className={`glass-dot ${hasEvents ? "live" : ""}`}></span>
-          Merchant Server
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+          }}
+        >
+          <div className={`glass-badge ${hasEvents ? "yellow" : "gray"}`}>
+            <span className={`glass-dot ${hasEvents ? "live" : ""}`}></span>
+            Merchant Server
+          </div>
+          <ProtocolToggle protocol={protocol} onProtocolChange={handleProtocolChange} />
         </div>
       </div>
 
       {/* Content - either empty state or active session */}
       {state.events.length === 0 ? (
-        <EmptyState />
+        <EmptyState protocol={protocol} />
       ) : (
-        <ActiveSession events={state.events} onClear={handleClear} />
+        <ActiveSession events={state.events} onClear={handleClear} protocol={protocol} />
       )}
     </section>
   );

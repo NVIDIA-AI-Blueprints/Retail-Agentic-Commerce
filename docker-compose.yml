@@ -58,6 +58,7 @@ services:
       # Webhook delivery to client agent (Docker-internal URL by default).
       # Uses a dedicated env var so local WEBHOOK_URL (localhost) does not break container routing.
       - WEBHOOK_URL=${WEBHOOK_URL_DOCKER:-http://ui:3000/api/webhooks/acp}
+      - UCP_ORDER_WEBHOOK_URL=${UCP_ORDER_WEBHOOK_URL_DOCKER:-http://ui:3000/api/webhooks/ucp}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-whsec_demo_secret}
     volumes:
       - acp-data:/data
@@ -115,6 +116,7 @@ services:
       - MERCHANT_API_URL=http://merchant:8000
       - PSP_API_URL=http://psp:8001
       - PHOENIX_API_URL=${PHOENIX_API_URL:-http://phoenix:6006}
+      - NEXT_PUBLIC_UCP_PLATFORM_PROFILE_URL=${NEXT_PUBLIC_UCP_PLATFORM_PROFILE_URL:-http://merchant:8000/.well-known/ucp}
       # Server-side API keys (NOT exposed to browser) - used by proxy routes
       - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
       - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}

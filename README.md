@@ -27,6 +27,11 @@ ACP lets AI agents negotiate with merchants on behalf of users. The merchant sta
 flowchart TB
     subgraph Client["Client Layer"]
         CA[🤖 Client Agent]
+        subgraph Webhooks["UI Webhook Receivers"]
+            WH_ACP["/api/webhooks/acp"]
+            WH_UCP["/api/webhooks/ucp"]
+            BRIDGE["Webhook → Agent Activity Bridge"]
+        end
     end
 
     subgraph Integration["Integration Options"]
@@ -39,10 +44,14 @@ flowchart TB
             WIDGET["🛒 Autonomous Widget<br/>(cart, checkout, recs)"]
         end
 
-        subgraph Native["Native ACP Layer"]
-            ACP["🔗 Direct ACP Protocol"]
-            subgraph endpoints["ACP Endpoints"]
-                E1["checkout_sessions/*"]
+        subgraph Native["Native Protocol Layer"]
+            ACP["🔗 ACP REST Transport"]
+            UCP["🔗 UCP A2A Transport"]
+            subgraph endpoints["Protocol Endpoints"]
+                E1["ACP: /checkout_sessions/*"]
+                E2["UCP: /.well-known/ucp"]
+                E3["UCP: /.well-known/agent-card.json"]
+                E4["UCP: /a2a (message/send)"]
             end
         end
     end
@@ -83,16 +92,27 @@ flowchart TB
 
     CA -->|MCP| MCP
     CA -->|REST| ACP
+    CA -->|A2A JSON-RPC| UCP
     MCP -.->|loads| WIDGET
     WIDGET -->|MCP tools| MCP
     MCP --> MERCHANT
-    ACP --> MERCHANT
+    ACP --> E1
+    UCP --> E2
+    UCP --> E3
+    UCP --> E4
+    E1 --> MERCHANT
+    E4 --> MERCHANT
     MERCHANT --> PSP
     MERCHANT --> PROMO
     MERCHANT --> POST
     MERCHANT --> RECS
     MERCHANT --> SEARCH
     MERCHANT --> SQLITE
+    MERCHANT -->|ACP post-purchase webhook| WH_ACP
+    MERCHANT -->|UCP order webhook| WH_UCP
+    WH_ACP --> BRIDGE
+    WH_UCP --> BRIDGE
+    BRIDGE --> CA
     PROMO --> LLM
     POST --> LLM
     RECS --> LLM
@@ -368,23 +388,39 @@ curl http://localhost:2091/health  # Apps SDK
 ### UCP Endpoints
 
 ```bash
-# Discovery (Phase 1)
+# Discovery
 curl http://localhost:8000/.well-known/ucp
 
-# Checkout (Phase 2) - requires UCP-Agent header
-curl -X POST http://localhost:8000/checkout-sessions \
+# Agent Card
+curl http://localhost:8000/.well-known/agent-card.json
+
+# A2A checkout create (message/send action:create_checkout)
+curl -X POST http://localhost:8000/a2a \
   -H "Authorization: Bearer test-api-key" \
   -H "UCP-Agent: profile=\"https://platform.example/profile\"" \
+  -H "X-A2A-Extensions: https://ucp.dev/2026-01-23/specification/reference/" \
   -H "Content-Type: application/json" \
-  -d '{"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]}'
+  -d '{
+    "jsonrpc":"2.0",
+    "id":"req_1",
+    "method":"message/send",
+    "params":{
+      "message":{
+        "role":"user",
+        "messageId":"msg_1",
+        "kind":"message",
+        "parts":[{"type":"data","data":{"action":"create_checkout","product_id":"prod_1","quantity":1}}]
+      }
+    }
+  }'
 ```
 
 Optional environment variables for UCP:
 
 ```env
-UCP_VERSION=2026-01-11
+UCP_VERSION=2026-01-23
 UCP_BASE_URL=http://localhost:8000
-UCP_SERVICE_PATH=/ucp/v1
+UCP_ORDER_WEBHOOK_URL=http://localhost:3000/api/webhooks/ucp
 UCP_SIGNING_KEY_ID=ucp-key-1
 UCP_SIGNING_KEY_KTY=EC
 UCP_SIGNING_KEY_CRV=P-256

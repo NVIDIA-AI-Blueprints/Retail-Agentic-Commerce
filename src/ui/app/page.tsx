@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Navbar, PanelDivider } from "@/components/layout";
 import { AgentPanel } from "@/components/agent";
 import { BusinessPanel } from "@/components/business";
@@ -8,6 +9,7 @@ import { WebhookToAgentActivityBridge } from "@/components/WebhookToAgentActivit
 import { ACPLogProvider } from "@/hooks/useACPLog";
 import { AgentActivityLogProvider } from "@/hooks/useAgentActivityLog";
 import { Nebula } from "@/kui-foundations-react-external/nebula";
+import type { CheckoutProtocol } from "@/types";
 
 /**
  * Main page - Three-panel layout with Agent simulator, Merchant view, and Agent Activity
@@ -16,6 +18,8 @@ import { Nebula } from "@/kui-foundations-react-external/nebula";
  * Features NVIDIA-style Nebula animated background with gradient overlays
  */
 export default function Home() {
+  const [protocol, setProtocol] = useState<CheckoutProtocol>("acp");
+
   return (
     <ACPLogProvider>
       <AgentActivityLogProvider>
@@ -90,14 +94,14 @@ export default function Home() {
               >
                 {/* Agent Panel Container */}
                 <div className="flex-1 flex min-w-0">
-                  <AgentPanel />
+                  <AgentPanel protocol={protocol} />
                 </div>
 
                 <PanelDivider />
 
                 {/* Merchant Panel Container */}
                 <div className="flex-1 flex min-w-0">
-                  <BusinessPanel />
+                  <BusinessPanel protocol={protocol} onProtocolChange={setProtocol} />
                 </div>
 
                 {/* Agent Activity Panel Container - no divider, same visual group as Merchant */}

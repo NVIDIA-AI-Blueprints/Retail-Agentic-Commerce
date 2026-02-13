@@ -51,6 +51,13 @@ class TestUCPDiscovery:
         capabilities = data["ucp"]["capabilities"]
         assert "dev.ucp.shopping.discount" in capabilities
 
+    def test_profile_includes_order_capability(self, client: TestClient) -> None:
+        """Profile includes dev.ucp.shopping.order capability."""
+        response = client.get("/.well-known/ucp")
+        data = response.json()
+        capabilities = data["ucp"]["capabilities"]
+        assert "dev.ucp.shopping.order" in capabilities
+
     def test_profile_has_signing_keys_field(self, client: TestClient) -> None:
         """Profile includes top-level signing_keys field (may be null)."""
         response = client.get("/.well-known/ucp")

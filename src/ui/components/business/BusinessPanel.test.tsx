@@ -3,44 +3,52 @@ import { render, screen } from "@testing-library/react";
 import { BusinessPanel } from "./BusinessPanel";
 import { ACPLogProvider } from "@/hooks/useACPLog";
 import { AgentActivityLogProvider } from "@/hooks/useAgentActivityLog";
+import type { CheckoutProtocol } from "@/types";
 
-// Wrapper component to provide required context
-function renderWithProviders(ui: React.ReactElement) {
+function renderWithProviders(protocol: CheckoutProtocol = "acp") {
   return render(
     <AgentActivityLogProvider>
-      <ACPLogProvider>{ui}</ACPLogProvider>
+      <ACPLogProvider>
+        <BusinessPanel protocol={protocol} onProtocolChange={() => {}} />
+      </ACPLogProvider>
     </AgentActivityLogProvider>
   );
 }
 
 describe("BusinessPanel", () => {
   it("renders the Merchant Server badge", () => {
-    renderWithProviders(<BusinessPanel />);
+    renderWithProviders();
     expect(screen.getByText("Merchant Server")).toBeInTheDocument();
   });
 
   it("renders with section aria-label", () => {
-    renderWithProviders(<BusinessPanel />);
+    renderWithProviders();
     expect(screen.getByRole("region", { name: "Merchant Panel" })).toBeInTheDocument();
   });
 
   it("renders empty state message when no checkout is active", () => {
-    renderWithProviders(<BusinessPanel />);
+    renderWithProviders();
     // Glassmorphic empty state with waiting message
     expect(screen.getByText("No active session")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Select a product from the Client Agent panel to start an ACP checkout session."
+        "Select a product from the Client Agent panel to start a checkout session using ACP."
       )
     ).toBeInTheDocument();
   });
 
   it("renders glass panel header with badge", () => {
-    const { container } = renderWithProviders(<BusinessPanel />);
+    const { container } = renderWithProviders();
     // Check for glassmorphic styling classes
     const header = container.querySelector(".glass-panel-header");
     expect(header).toBeInTheDocument();
     const badge = container.querySelector(".glass-badge");
     expect(badge).toBeInTheDocument();
+  });
+
+  it("renders ACP and UCP protocol tabs", () => {
+    renderWithProviders();
+    expect(screen.getByRole("tab", { name: "ACP" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "UCP" })).toBeInTheDocument();
   });
 });

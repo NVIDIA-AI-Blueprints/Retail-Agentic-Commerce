@@ -55,6 +55,7 @@ describe("WebhookToAgentActivityBridge", () => {
       id: "evt_1",
       type: "shipping_update",
       receivedAt: new Date().toISOString(),
+      protocol: "acp",
       data: {
         type: "shipping_update",
         checkout_session_id: "checkout_123",
@@ -92,6 +93,52 @@ describe("WebhookToAgentActivityBridge", () => {
           message: "Tracking details inside",
         }),
         "success"
+      );
+    });
+
+    expect(logEvent).toHaveBeenCalledWith(
+      "webhook_post",
+      "POST",
+      "/api/webhooks/acp",
+      "Shipping update: order_shipped"
+    );
+  });
+
+  it("logs UCP webhook endpoint for UCP events", async () => {
+    const shippingEvent = {
+      id: "evt_2",
+      type: "shipping_update",
+      receivedAt: new Date().toISOString(),
+      protocol: "ucp",
+      data: {
+        type: "shipping_update",
+        checkout_session_id: "checkout_456",
+        order_id: "order_456",
+        status: "delivered",
+        language: "en",
+        subject: "Delivered",
+        message: "Package delivered",
+      },
+    };
+
+    render(<WebhookToAgentActivityBridge />);
+
+    await waitFor(() => {
+      expect(mockEventSourceInstance).not.toBeNull();
+    });
+
+    act(() => {
+      mockEventSourceInstance?.onmessage?.(
+        new MessageEvent("message", { data: JSON.stringify(shippingEvent) })
+      );
+    });
+
+    await waitFor(() => {
+      expect(logEvent).toHaveBeenCalledWith(
+        "webhook_post",
+        "POST",
+        "/api/webhooks/ucp",
+        "Shipping update: delivered"
       );
     });
   });

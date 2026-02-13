@@ -27,7 +27,7 @@ interface TabConfig {
 const TABS: TabConfig[] = [
   {
     mode: "native",
-    label: "Native ACP",
+    label: "Native",
     description: "Standard ACP checkout flow",
   },
   {
@@ -41,10 +41,10 @@ const TABS: TabConfig[] = [
  * ModeTabSwitcher Component
  *
  * A tab interface at the top of the Client Agent panel to switch between
- * Native ACP checkout and Apps SDK (merchant iframe) modes.
+ * Native checkout and Apps SDK (merchant iframe) modes.
  *
  * Features:
- * - Two tabs: "Native ACP" and "Apps SDK"
+ * - Two tabs: "Native" and "Apps SDK"
  * - Glassmorphic styling matching the existing design system
  * - Active tab uses NVIDIA green accent
  * - Smooth transition animations

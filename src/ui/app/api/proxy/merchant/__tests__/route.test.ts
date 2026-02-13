@@ -99,6 +99,8 @@ describe("Merchant Proxy Route", () => {
           "API-Version": "2026-01-16",
           "Content-Type": "application/json",
           Accept: "application/json",
+          "UCP-Agent": 'profile="https://platform.example/profile"',
+          "X-A2A-Extensions": "https://ucp.dev/2026-01-23/specification/reference/",
           // These should be stripped/replaced
           Authorization: "Bearer client-key-should-be-stripped",
           "X-API-Key": "should-be-ignored",
@@ -117,6 +119,10 @@ describe("Merchant Proxy Route", () => {
       expect(headers.get("API-Version")).toBe("2026-01-16");
       expect(headers.get("Content-Type")).toBe("application/json");
       expect(headers.get("Accept")).toBe("application/json");
+      expect(headers.get("UCP-Agent")).toBe('profile="https://platform.example/profile"');
+      expect(headers.get("X-A2A-Extensions")).toBe(
+        "https://ucp.dev/2026-01-23/specification/reference/"
+      );
 
       // Server-side auth should be injected
       expect(headers.get("Authorization")).toBe("Bearer test-api-key");

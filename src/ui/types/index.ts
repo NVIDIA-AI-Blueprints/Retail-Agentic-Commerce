@@ -484,6 +484,11 @@ export type CheckoutStatus =
   | "completed"
   | "canceled";
 
+/**
+ * Active checkout protocol
+ */
+export type CheckoutProtocol = "acp" | "ucp";
+
 // =============================================================================
 // Checkout Session Response
 // =============================================================================
@@ -495,6 +500,9 @@ export interface CheckoutSessionResponse {
   id: string;
   status: CheckoutStatus;
   currency: string;
+  protocol?: CheckoutProtocol;
+  ucpContextId?: string;
+  continue_url?: string;
   buyer?: Buyer;
   capabilities?: CheckoutCapabilities;
   payment_provider: PaymentProvider;
@@ -901,6 +909,7 @@ export interface CheckoutFlowContext {
   selectedShippingId: string;
   orderId: string | null;
   sessionId: string | null;
+  ucpContextId: string | null;
   session: CheckoutSessionResponse | null;
   vaultToken: string | null;
   isLoading: boolean;

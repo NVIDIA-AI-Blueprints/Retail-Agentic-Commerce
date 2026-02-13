@@ -20,6 +20,7 @@ import { getErrorMessage, getSuggestedAction } from "@/lib/errors";
 import { Close } from "@/components/icons";
 import type {
   ChatMessage as ChatMessageType,
+  CheckoutProtocol,
   FulfillmentOption,
   Product,
   PaymentFormData,
@@ -369,7 +370,11 @@ interface WebhookNotification {
   orderId: string;
 }
 
-export function AgentPanel() {
+interface AgentPanelProps {
+  protocol: CheckoutProtocol;
+}
+
+export function AgentPanel({ protocol }: AgentPanelProps) {
   const [messages] = useState<ChatMessageType[]>(mockChatMessages);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
@@ -408,7 +413,12 @@ export function AgentPanel() {
     setBillingAddress,
     proceedToPayment,
     backToSummary,
-  } = useCheckoutFlow(acpLog, agentActivityLog);
+  } = useCheckoutFlow(acpLog, agentActivityLog, protocol);
+
+  useEffect(() => {
+    reset();
+    setIsModalOpen(false);
+  }, [protocol, reset]);
 
   // Handle product selection - opens modal
   const handleSelectProduct = useCallback(
@@ -473,7 +483,10 @@ export function AgentPanel() {
       acpLog.clear();
       agentActivityLog.clear();
       // Clear server-side webhook store to ensure clean slate
-      fetch("/api/webhooks/acp", { method: "DELETE" }).catch(() => {
+      Promise.allSettled([
+        fetch("/api/webhooks/acp", { method: "DELETE" }),
+        fetch("/api/webhooks/ucp", { method: "DELETE" }),
+      ]).catch(() => {
         // Ignore errors - server may not be running
       });
       // Clear any post-purchase notification when switching tabs
