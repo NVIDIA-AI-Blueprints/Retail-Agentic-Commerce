@@ -36,3 +36,6 @@ typeCheckingMode = "basic"
 reportMissingImports = "warning"
 reportGeneralTypeIssues = "warning"
 reportCallIssue = "warning"
+
+[tool.uv] 
+managed = true
