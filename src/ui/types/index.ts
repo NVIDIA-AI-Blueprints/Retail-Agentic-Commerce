@@ -503,6 +503,10 @@ export interface CheckoutSessionResponse {
   protocol?: CheckoutProtocol;
   ucpContextId?: string;
   ucpPaymentHandlerId?: string;
+  ucpRawStatus?: string;
+  ucpPlatformProfileUrl?: string;
+  ucpPaymentHandlerIds?: string[];
+  ucpPaymentHandlerNamespaces?: string[];
   continue_url?: string;
   buyer?: Buyer;
   capabilities?: CheckoutCapabilities;

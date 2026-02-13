@@ -79,6 +79,11 @@ interface UCPA2AMessage {
   content: string;
 }
 
+interface UCPA2AOrder {
+  id: string;
+  permalink_url?: string;
+}
+
 interface UCPA2ACheckout {
   id: string;
   status: string;
@@ -86,6 +91,7 @@ interface UCPA2ACheckout {
   line_items: UCPA2ALineItem[];
   totals: UCPA2ATotal[];
   messages: UCPA2AMessage[];
+  order?: UCPA2AOrder;
   continue_url?: string;
   ucp?: {
     capabilities?: Record<
@@ -286,9 +292,11 @@ function normalizeUCPCheckout(
   checkout: UCPA2ACheckout,
   contextId: string
 ): CheckoutSessionResponse {
-  const negotiatedHandlerId = Object.values(checkout.ucp?.payment_handlers ?? {}).find(
-    (handlers) => handlers.length > 0 && handlers[0]?.id
-  )?.[0]?.id;
+  const handlerNamespaces = Object.keys(checkout.ucp?.payment_handlers ?? {});
+  const handlerIds = Object.values(checkout.ucp?.payment_handlers ?? {})
+    .flatMap((handlers) => handlers.map((handler) => handler.id))
+    .filter((handlerId): handlerId is string => Boolean(handlerId));
+  const negotiatedHandlerId = handlerIds[0];
 
   const lineItems: LineItem[] = checkout.line_items.map((item) => {
     const subtotal = item.totals.find((total) => total.type === "subtotal")?.amount ?? 0;
@@ -358,6 +366,10 @@ function normalizeUCPCheckout(
     currency: checkout.currency.toLowerCase(),
     protocol: "ucp",
     ucpContextId: contextId,
+    ucpRawStatus: checkout.status,
+    ucpPlatformProfileUrl: UCP_PLATFORM_PROFILE_URL,
+    ...(handlerIds.length > 0 ? { ucpPaymentHandlerIds: handlerIds } : {}),
+    ...(handlerNamespaces.length > 0 ? { ucpPaymentHandlerNamespaces: handlerNamespaces } : {}),
     ...(negotiatedHandlerId ? { ucpPaymentHandlerId: negotiatedHandlerId } : {}),
     payment_provider: paymentProvider,
     ...(checkout.ucp?.capabilities
@@ -372,16 +384,16 @@ function normalizeUCPCheckout(
     totals,
     messages: mapUCPMessages(checkout.messages),
     links: [],
-    ...(checkout.continue_url ? { continue_url: checkout.continue_url } : {}),
-    ...(checkout.status === "completed"
+    ...(checkout.order
       ? {
           order: {
-            id: `order_${checkout.id.slice(-8)}`,
+            id: checkout.order.id,
             checkout_session_id: checkout.id,
-            permalink_url: "#",
+            permalink_url: checkout.order.permalink_url ?? "#",
           },
         }
       : {}),
+    ...(checkout.continue_url ? { continue_url: checkout.continue_url } : {}),
   };
 
   return response;

@@ -637,6 +637,56 @@ describe("useCheckoutFlow", () => {
       );
       expect(result.current.context.ucpContextId).toBe("ctx_123");
     });
+
+    it("formats UCP log summaries with protocol metadata", async () => {
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce({
+        ...mockSession,
+        protocol: "ucp",
+        ucpContextId: "ctx_123",
+        ucpRawStatus: "incomplete",
+        ucpPaymentHandlerIds: ["processor_tokenizer"],
+        ucpPlatformProfileUrl: "https://platform.example/profile",
+        capabilities: {
+          extensions: [{ name: "dev.ucp.shopping.checkout" }],
+        },
+      });
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValueOnce({
+        ...mockReadySession,
+        protocol: "ucp",
+        ucpContextId: "ctx_123",
+        ucpRawStatus: "ready_for_complete",
+        ucpPaymentHandlerIds: ["processor_tokenizer"],
+        ucpPlatformProfileUrl: "https://platform.example/profile",
+        capabilities: {
+          extensions: [{ name: "dev.ucp.shopping.checkout" }],
+        },
+      });
+
+      const mockLogger = {
+        logEvent: vi.fn().mockReturnValue("evt_1"),
+        completeEvent: vi.fn(),
+        clear: vi.fn(),
+      };
+
+      const { result } = renderHook(() => useCheckoutFlow(mockLogger, undefined, "ucp"));
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      const summaries = mockLogger.completeEvent.mock.calls.map(
+        (call) => call[2] as string | undefined
+      );
+      expect(summaries.some((summary) => summary?.includes("Status: ready_for_complete"))).toBe(
+        true
+      );
+      expect(summaries.some((summary) => summary?.includes("handlers: processor_tokenizer"))).toBe(
+        true
+      );
+      expect(
+        summaries.some((summary) => summary?.includes("platform: https://platform.example/profile"))
+      ).toBe(true);
+    });
   });
 
   describe("reset", () => {

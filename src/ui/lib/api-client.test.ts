@@ -58,6 +58,9 @@ describe("api-client protocol routing", () => {
                     status: "ready_for_complete",
                     currency: "USD",
                     ucp: {
+                      capabilities: {
+                        "dev.ucp.shopping.checkout": [{ version: "2026-01-11" }],
+                      },
                       payment_handlers: {
                         "com.example.processor_tokenizer": [{ id: "processor_tokenizer" }],
                       },
@@ -97,7 +100,14 @@ describe("api-client protocol routing", () => {
     expect(session.status).toBe("ready_for_payment");
     expect(session.protocol).toBe("ucp");
     expect(session.ucpContextId).toBe("ctx_123");
+    expect(session.ucpRawStatus).toBe("ready_for_complete");
+    expect(session.ucpPlatformProfileUrl).toBe("https://platform.example/profile");
     expect(session.ucpPaymentHandlerId).toBe("processor_tokenizer");
+    expect(session.ucpPaymentHandlerIds).toEqual(["processor_tokenizer"]);
+    expect(session.ucpPaymentHandlerNamespaces).toEqual(["com.example.processor_tokenizer"]);
+    expect(session.capabilities?.extensions?.map((extension) => extension.name)).toEqual([
+      "dev.ucp.shopping.checkout",
+    ]);
 
     const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     const headers = init.headers as Record<string, string>;
@@ -168,6 +178,10 @@ describe("api-client protocol routing", () => {
                     id: "cs_ucp_1",
                     status: "completed",
                     currency: "USD",
+                    order: {
+                      id: "order_ucp_123",
+                      permalink_url: "https://shop.example.com/orders/order_ucp_123",
+                    },
                     ucp: {
                       payment_handlers: {
                         "com.example.processor_tokenizer": [{ id: "processor_tokenizer" }],
@@ -191,11 +205,17 @@ describe("api-client protocol routing", () => {
       contextId: "ctx_123",
       paymentHandlerId: "processor_tokenizer",
     };
-    await completeCheckoutByProtocol("ucp", sessionRef, {
+    const session = await completeCheckoutByProtocol("ucp", sessionRef, {
       payment_data: {
         token: "vt_123",
         provider: "stripe",
       },
+    });
+
+    expect(session.order).toEqual({
+      id: "order_ucp_123",
+      checkout_session_id: "cs_ucp_1",
+      permalink_url: "https://shop.example.com/orders/order_ucp_123",
     });
 
     const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];

@@ -24,7 +24,7 @@ This document breaks down the project requirements into discrete, implementable 
 | 14 | [Enhanced Checkout (Payment & Shipping)](./feature-14-enhanced-checkout.md) | P1 | Feature 13 | ✅ Complete |
 | 15 | [Multi-Language Post-Purchase Messages](./feature-15-multi-language.md) | P2 | Feature 8 | ✅ Complete |
 | 16 | [Apps SDK Integration (Merchant Iframe)](./feature-16-apps-sdk.md) | P1 | Features 7, 9, 13 | 🔲 Planned |
-| 17 | [UCP Protocol Integration](./feature-17-ucp-integration.md) | P1 | Features 3, 4, 5, 6, 7, 8 | 🔲 Planned |
+| 17 | [UCP Protocol Integration](./feature-17-ucp-integration.md) | P1 | Features 3, 4, 5, 6, 7, 8 | 🟡 In Progress |
 
 ---
 
@@ -78,15 +78,15 @@ Add industry-standard UCP alongside existing ACP implementation.
 17. **Feature 17**: UCP Protocol Integration
     - **Protocol toggle** in Merchant Activity Panel (ACP ↔ UCP tabs)
     - UCP discovery endpoint (`GET /.well-known/ucp`)
-    - UCP checkout endpoints with hyphenated paths (REST)
-    - **A2A transport** (JSON-RPC 2.0 for agent-to-agent communication)
+    - UCP checkout via `POST /a2a` (`message/send`, JSON-RPC 2.0)
+    - **A2A transport only** (REST transport intentionally removed)
     - Capability negotiation with platform profiles
     - UCP-specific status values and error handling
     - Merchant Activity Panel tab for UCP/A2A protocol events
     - Shared NAT agents serving both ACP and UCP
     - Payment handler specifications for UCP
     - **Same client agent flow** - UI unchanged, only backend protocol switches
-    - Scope: Discovery + Checkout (REST + A2A); other capabilities/transports out of scope
+    - Scope: Discovery + Checkout (A2A only); other capabilities/transports out of scope
 
 ---
 

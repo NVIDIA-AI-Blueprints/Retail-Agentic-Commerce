@@ -60,15 +60,25 @@ function getUCPLogEndpoint(action: string): string {
 }
 
 function formatUCPStatusSummary(session: CheckoutSessionResponse, details?: string): string {
-  const statusText = `Status: ${session.status}`;
+  const statusText = `Status: ${session.ucpRawStatus ?? session.status}`;
   const capabilities =
     session.capabilities?.extensions?.map((extension) => extension.name).join(", ") ?? "";
-  const detailText = details ? ` | ${details}` : "";
+  const metadata: string[] = [];
 
-  if (capabilities) {
-    return `${statusText}${detailText} | caps: ${capabilities}`;
+  if (details) {
+    metadata.push(details);
   }
-  return `${statusText}${detailText}`;
+  if (capabilities) {
+    metadata.push(`caps: ${capabilities}`);
+  }
+  if (session.ucpPaymentHandlerIds && session.ucpPaymentHandlerIds.length > 0) {
+    metadata.push(`handlers: ${session.ucpPaymentHandlerIds.join(", ")}`);
+  }
+  if (session.ucpPlatformProfileUrl) {
+    metadata.push(`platform: ${session.ucpPlatformProfileUrl}`);
+  }
+
+  return metadata.length > 0 ? `${statusText} | ${metadata.join(" | ")}` : statusText;
 }
 
 function inferPromotionAction(baseAmount: number, discountAmount: number): string {
@@ -840,7 +850,14 @@ export function useCheckoutFlow(
         // Check if 3DS is required
         if (completedSession.status === "authentication_required") {
           if (completeEventId) {
-            loggerRef.current?.completeEvent(completeEventId, "success", "3DS required", 200);
+            loggerRef.current?.completeEvent(
+              completeEventId,
+              "success",
+              protocol === "ucp"
+                ? formatUCPStatusSummary(completedSession, "3DS required")
+                : "3DS required",
+              200
+            );
           }
           dispatch({ type: "AUTHENTICATION_REQUIRED", session: completedSession });
           // For now, we'll simulate 3DS completion after a delay
@@ -877,7 +894,12 @@ export function useCheckoutFlow(
                 loggerRef.current?.completeEvent(
                   authEventId,
                   "success",
-                  `Order: ${finalSession.order?.id.slice(0, 10)}...`,
+                  protocol === "ucp"
+                    ? formatUCPStatusSummary(
+                        finalSession,
+                        `Order: ${finalSession.order?.id.slice(0, 10)}...`
+                      )
+                    : `Order: ${finalSession.order?.id.slice(0, 10)}...`,
                   200
                 );
               }
@@ -895,7 +917,12 @@ export function useCheckoutFlow(
             loggerRef.current?.completeEvent(
               completeEventId,
               "success",
-              `Order: ${completedSession.order?.id.slice(0, 10)}...`,
+              protocol === "ucp"
+                ? formatUCPStatusSummary(
+                    completedSession,
+                    `Order: ${completedSession.order?.id.slice(0, 10)}...`
+                  )
+                : `Order: ${completedSession.order?.id.slice(0, 10)}...`,
               200
             );
           }
@@ -906,7 +933,9 @@ export function useCheckoutFlow(
             loggerRef.current?.completeEvent(
               completeEventId,
               "success",
-              `Status: ${completedSession.status}`,
+              protocol === "ucp"
+                ? formatUCPStatusSummary(completedSession)
+                : `Status: ${completedSession.status}`,
               200
             );
           }
