@@ -638,7 +638,7 @@ describe("useCheckoutFlow", () => {
       expect(result.current.context.ucpContextId).toBe("ctx_123");
     });
 
-    it("formats UCP log summaries with protocol metadata", async () => {
+    it("formats UCP log summaries with protocol metadata only on first message", async () => {
       vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce({
         ...mockSession,
         protocol: "ucp",
@@ -677,15 +677,21 @@ describe("useCheckoutFlow", () => {
       const summaries = mockLogger.completeEvent.mock.calls.map(
         (call) => call[2] as string | undefined
       );
-      expect(summaries.some((summary) => summary?.includes("Status: ready_for_complete"))).toBe(
-        true
-      );
-      expect(summaries.some((summary) => summary?.includes("handlers: processor_tokenizer"))).toBe(
-        true
-      );
-      expect(
-        summaries.some((summary) => summary?.includes("platform: https://platform.example/profile"))
-      ).toBe(true);
+
+      // First message (create) includes negotiated metadata with short cap names
+      const createSummary = summaries.find((s) => s?.includes("Status: incomplete"));
+      expect(createSummary).toContain("caps: checkout");
+      expect(createSummary).toContain("handlers: processor_tokenizer");
+      expect(createSummary).toContain("platform: https://platform.example/profile");
+      // Cap names are shortened (no full URI)
+      expect(createSummary).not.toContain("dev.ucp.shopping.checkout");
+
+      // Subsequent messages omit negotiated metadata for brevity
+      const updateSummary = summaries.find((s) => s?.includes("Status: ready_for_complete"));
+      expect(updateSummary).toBeDefined();
+      expect(updateSummary).not.toContain("caps:");
+      expect(updateSummary).not.toContain("handlers:");
+      expect(updateSummary).not.toContain("platform:");
     });
   });
 

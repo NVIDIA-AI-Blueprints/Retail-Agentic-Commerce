@@ -1,17 +1,18 @@
 """A2A transport service layer for UCP checkout operations.
 
-Handles JSON-RPC 2.0 protocol logic, contextId-to-session mapping,
-action routing, messageId idempotency, and agent card construction.
+Handles contextId-to-session mapping, action routing, and response
+transformation.  Protocol-level concerns (JSON-RPC envelope, idempotency,
+agent card) are handled by the ``agent_executor`` module and the route
+handler in ``main.py``.
 """
 
 from __future__ import annotations
 
 import logging
-import uuid
 from datetime import datetime
 from typing import Any, cast
 
-from fastapi import BackgroundTasks
+from a2a.types import DataPart, Message, Part
 from pydantic import ValidationError
 from sqlmodel import Session
 
@@ -28,7 +29,6 @@ from src.merchant.domain.checkout.service import (
     get_checkout_session,
     update_checkout_session_from_data,
 )
-from src.merchant.protocols.ucp.api.schemas.a2a import A2AMessage, A2APart
 from src.merchant.protocols.ucp.api.schemas.checkout import (
     UCPCapabilityVersion,
     UCPDiscountsInput,
@@ -47,7 +47,6 @@ from src.merchant.protocols.ucp.services.negotiation import (
 from src.merchant.protocols.ucp.services.post_purchase_webhook import (
     trigger_post_purchase_flow_ucp,
 )
-from src.merchant.services.idempotency import get_idempotency_store
 from src.merchant.services.post_purchase import OrderItem
 
 logger = logging.getLogger(__name__)
@@ -61,18 +60,6 @@ UCP_CHECKOUT_KEY = "a2a.ucp.checkout"
 UCP_PAYMENT_DATA_KEY = "a2a.ucp.checkout.payment"
 UCP_RISK_SIGNALS_KEY = "a2a.ucp.checkout.risk_signals"
 UCP_AGENT_HEADER = "UCP-Agent"
-
-# ---------------------------------------------------------------------------
-# JSON-RPC 2.0 Error Codes
-# ---------------------------------------------------------------------------
-
-JSONRPC_PARSE_ERROR = -32700
-JSONRPC_INVALID_REQUEST = -32600
-JSONRPC_METHOD_NOT_FOUND = -32601
-JSONRPC_INVALID_PARAMS = -32602
-JSONRPC_SESSION_NOT_FOUND = -32000
-JSONRPC_INVALID_STATE = -32001
-JSONRPC_DISCOVERY_FAILURE = -32002
 
 # ---------------------------------------------------------------------------
 # Context-to-Session Mapping (in-memory)
@@ -106,85 +93,6 @@ def clear_context_sessions() -> None:
     """Clear all context-to-session mappings (for testing)."""
     _context_sessions.clear()
     _context_order_webhook_urls.clear()
-
-
-# ---------------------------------------------------------------------------
-# JSON-RPC Response Builders
-# ---------------------------------------------------------------------------
-
-
-def build_jsonrpc_error(
-    request_id: Any,
-    code: int,
-    message: str,
-    data: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Build a JSON-RPC 2.0 error response."""
-    error: dict[str, Any] = {"code": code, "message": message}
-    if data is not None:
-        error["data"] = data
-    return {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "error": error,
-    }
-
-
-def build_jsonrpc_result(
-    request_id: Any,
-    context_id: str,
-    parts: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Build a JSON-RPC 2.0 success response wrapping an A2A Message."""
-    return {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "result": {
-            "messageId": str(uuid.uuid4()),
-            "contextId": context_id,
-            "role": "agent",
-            "kind": "message",
-            "parts": parts,
-        },
-    }
-
-
-# ---------------------------------------------------------------------------
-# Idempotency via existing IdempotencyStore
-# ---------------------------------------------------------------------------
-
-
-def check_message_idempotency(
-    message_id: str, request_body: bytes
-) -> dict[str, Any] | None:
-    """Return cached response for a duplicate messageId, or None."""
-    store = get_idempotency_store()
-    entry, _is_conflict = store.get(
-        idempotency_key=f"a2a:{message_id}",
-        body=request_body,
-        path="/a2a",
-        method="POST",
-    )
-    if entry is not None:
-        return entry.response_body
-    return None
-
-
-def store_message_idempotency(
-    message_id: str,
-    request_body: bytes,
-    response_body: dict[str, Any],
-) -> None:
-    """Persist a response keyed by messageId for future duplicate detection."""
-    store = get_idempotency_store()
-    store.store(
-        idempotency_key=f"a2a:{message_id}",
-        body=request_body,
-        path="/a2a",
-        method="POST",
-        response_status=200,
-        response_body=response_body,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -245,19 +153,19 @@ async def negotiate_a2a_capabilities(
 
 
 # ---------------------------------------------------------------------------
-# Action Extraction Helpers
+# Action Extraction Helpers (using SDK Part / DataPart types)
 # ---------------------------------------------------------------------------
 
 
-def extract_action(message: A2AMessage) -> tuple[str, dict[str, Any]]:
+def extract_action(message: Message) -> tuple[str, dict[str, Any]]:
     """Extract the action name and its data payload from the first DataPart.
 
     Returns (action_name, data_dict_without_action_key).
     Raises ValueError when no action is found.
     """
     for part in message.parts:
-        if part.data and "action" in part.data:
-            data = dict(part.data)
+        if isinstance(part.root, DataPart) and part.root.data and "action" in part.root.data:
+            data = dict(part.root.data)
             action = data.pop("action")
             if not isinstance(action, str):
                 raise ValueError("action must be a string")
@@ -266,17 +174,17 @@ def extract_action(message: A2AMessage) -> tuple[str, dict[str, Any]]:
 
 
 def extract_payment_data(
-    parts: list[A2APart],
+    parts: list[Part],
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """Extract payment instruments and risk signals from DataParts."""
     payment: dict[str, Any] | None = None
     risk_signals: dict[str, Any] | None = None
     for part in parts:
-        if part.data:
-            if UCP_PAYMENT_DATA_KEY in part.data:
-                payment = part.data[UCP_PAYMENT_DATA_KEY]
-            if UCP_RISK_SIGNALS_KEY in part.data:
-                risk_signals = part.data[UCP_RISK_SIGNALS_KEY]
+        if isinstance(part.root, DataPart) and part.root.data:
+            if UCP_PAYMENT_DATA_KEY in part.root.data:
+                payment = part.root.data[UCP_PAYMENT_DATA_KEY]
+            if UCP_RISK_SIGNALS_KEY in part.root.data:
+                risk_signals = part.root.data[UCP_RISK_SIGNALS_KEY]
     return payment, risk_signals
 
 
@@ -310,7 +218,7 @@ def _extract_line_items(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Action Handlers (delegate to Phase 2 checkout service)
+# Action Handlers (delegate to checkout service)
 # ---------------------------------------------------------------------------
 
 
@@ -441,17 +349,7 @@ def handle_get(
 
 
 def _resolve_payment_provider(handler_id: str) -> PaymentProviderEnum:
-    """Map a UCP payment handler_id to the internal PaymentProviderEnum.
-
-    The business advertises payment handlers in the UCP profile (e.g.,
-    ``com.example.processor_tokenizer``).  The platform submits a
-    ``handler_id`` referencing one of those handlers.  This function maps
-    that handler_id to the internal provider enum used by the checkout
-    service.
-
-    This reference implementation currently supports one negotiated
-    handler (processor_tokenizer -> Stripe). Unknown handlers are rejected.
-    """
+    """Map a UCP payment handler_id to the internal PaymentProviderEnum."""
     handler_map: dict[str, PaymentProviderEnum] = {
         "processor_tokenizer": PaymentProviderEnum.STRIPE,
     }
@@ -491,12 +389,12 @@ def _extract_order_items(session: CheckoutSessionResponse) -> list[OrderItem]:
 
 
 async def handle_complete(
-    parts: list[A2APart],
+    parts: list[Part],
     context_id: str,
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
     payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
-    background_tasks: BackgroundTasks | None = None,
+    fire_background: Any | None = None,
 ) -> dict[str, Any]:
     """Handle complete_checkout action with payment data from DataParts.
 
@@ -551,8 +449,8 @@ async def handle_complete(
         fallback_webhook_url = get_settings().ucp_order_webhook_url
         webhook_url = negotiated_webhook_url or fallback_webhook_url
 
-        if background_tasks:
-            background_tasks.add_task(
+        if fire_background is not None:
+            fire_background(
                 trigger_post_purchase_flow_ucp,
                 checkout_session=acp_response,
                 customer_name=_extract_customer_name(acp_response),
@@ -620,13 +518,13 @@ SUPPORTED_ACTIONS = {
 async def dispatch_action(
     action: str,
     data: dict[str, Any],
-    message: A2AMessage,
+    message: Message,
     context_id: str,
     db: Session,
     negotiated: dict[str, list[UCPCapabilityVersion]],
     payment_handlers: dict[str, list[UCPPaymentHandler]] | None = None,
     order_webhook_url: str | None = None,
-    background_tasks: BackgroundTasks | None = None,
+    fire_background: Any | None = None,
 ) -> dict[str, Any]:
     """Route an action string to the appropriate handler.
 
@@ -665,81 +563,8 @@ async def dispatch_action(
             db,
             negotiated,
             payment_handlers,
-            background_tasks=background_tasks,
+            fire_background=fire_background,
         )
 
     # cancel_checkout
     return handle_cancel(context_id, db, negotiated, payment_handlers)
-
-
-# ---------------------------------------------------------------------------
-# Agent Card Builder
-# ---------------------------------------------------------------------------
-
-
-def _build_agent_card_capabilities(
-    base_url: str,
-) -> dict[str, list[dict[str, Any]]]:
-    """Derive Agent Card capabilities from the business profile.
-
-    This ensures the Agent Card and ``/.well-known/ucp`` discovery
-    advertise the same capabilities from a single source of truth
-    (``build_business_profile``).  The format is converted from the
-    Pydantic ``UCPCapabilityVersion`` models to the map-keyed dict
-    form required by the A2A Agent Card spec.
-    """
-    profile = build_business_profile(request_base_url=base_url)
-    caps: dict[str, list[dict[str, Any]]] = {}
-    for cap_name, versions in profile.ucp.capabilities.items():
-        cap_entries: list[dict[str, Any]] = []
-        for ver in versions:
-            entry: dict[str, Any] = {"version": ver.version}
-            if ver.extends:
-                entry["extends"] = ver.extends
-            cap_entries.append(entry)
-        caps[cap_name] = cap_entries
-    return caps
-
-
-def build_agent_card(base_url: str) -> dict[str, Any]:
-    """Build the A2A Agent Card dynamically from configuration.
-
-    Capabilities are derived from ``build_business_profile()`` so they
-    stay in sync with the UCP discovery endpoint.
-    """
-    return {
-        "name": "Agentic Commerce Merchant Agent",
-        "description": "UCP-compliant merchant checkout agent",
-        "protocolVersion": "0.3.0",
-        "url": f"{base_url}/a2a",
-        "preferredTransport": "JSONRPC",
-        "version": "1.0.0",
-        "provider": {
-            "organization": "Agentic Commerce",
-            "url": base_url,
-        },
-        "capabilities": {
-            "extensions": [
-                {
-                    "uri": A2A_UCP_EXTENSION_URL,
-                    "description": "Business agent supporting UCP",
-                    "params": {
-                        "capabilities": _build_agent_card_capabilities(base_url),
-                    },
-                }
-            ],
-            "streaming": False,
-        },
-        "defaultInputModes": ["text", "text/plain", "application/json"],
-        "defaultOutputModes": ["text", "text/plain", "application/json"],
-        "skills": [
-            {
-                "id": "checkout",
-                "name": "Checkout",
-                "description": (
-                    "Manage checkout sessions - add items, update, complete, or cancel"
-                ),
-                "tags": ["shopping", "checkout", "ucp"],
-            }
-        ],
-    }

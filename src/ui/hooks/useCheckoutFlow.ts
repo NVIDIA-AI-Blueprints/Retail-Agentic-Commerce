@@ -59,23 +59,46 @@ function getUCPLogEndpoint(action: string): string {
   return `/api/proxy/merchant/a2a -> /a2a (jsonrpc:message/send action:${action})`;
 }
 
-function formatUCPStatusSummary(session: CheckoutSessionResponse, details?: string): string {
+/**
+ * Shorten a UCP capability name for display.
+ * "dev.ucp.shopping.checkout" → "checkout"
+ */
+function shortCapName(name: string): string {
+  const parts = name.split(".");
+  return parts[parts.length - 1];
+}
+
+/**
+ * Format a concise UCP status summary for the log panel.
+ *
+ * @param showNegotiated - When true (first message), includes negotiated
+ *   capabilities, payment handlers, and platform URL. Subsequent messages
+ *   omit these since they don't change within a session.
+ */
+function formatUCPStatusSummary(
+  session: CheckoutSessionResponse,
+  details?: string,
+  showNegotiated = false
+): string {
   const statusText = `Status: ${session.ucpRawStatus ?? session.status}`;
-  const capabilities =
-    session.capabilities?.extensions?.map((extension) => extension.name).join(", ") ?? "";
   const metadata: string[] = [];
 
   if (details) {
     metadata.push(details);
   }
-  if (capabilities) {
-    metadata.push(`caps: ${capabilities}`);
-  }
-  if (session.ucpPaymentHandlerIds && session.ucpPaymentHandlerIds.length > 0) {
-    metadata.push(`handlers: ${session.ucpPaymentHandlerIds.join(", ")}`);
-  }
-  if (session.ucpPlatformProfileUrl) {
-    metadata.push(`platform: ${session.ucpPlatformProfileUrl}`);
+
+  if (showNegotiated) {
+    const capabilities =
+      session.capabilities?.extensions?.map((ext) => shortCapName(ext.name)).join(", ") ?? "";
+    if (capabilities) {
+      metadata.push(`caps: ${capabilities}`);
+    }
+    if (session.ucpPaymentHandlerIds && session.ucpPaymentHandlerIds.length > 0) {
+      metadata.push(`handlers: ${session.ucpPaymentHandlerIds.join(", ")}`);
+    }
+    if (session.ucpPlatformProfileUrl) {
+      metadata.push(`platform: ${session.ucpPlatformProfileUrl}`);
+    }
   }
 
   return metadata.length > 0 ? `${statusText} | ${metadata.join(" | ")}` : statusText;
@@ -482,7 +505,7 @@ export function useCheckoutFlow(
           loggerRef.current?.completeEvent(
             eventId,
             "success",
-            formatUCPStatusSummary(session, `Session ${session.id.slice(0, 8)}... created`),
+            formatUCPStatusSummary(session, `Session ${session.id.slice(0, 8)}... created`, true),
             201
           );
         }

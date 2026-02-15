@@ -16,6 +16,7 @@ dependencies = [
     "mcp==1.26.0",
     "pymilvus==2.6.7",
     "ucp-sdk==0.1.0",
+    "a2a-sdk[http-server]==0.3.22",
 ]
 
 [project.optional-dependencies]

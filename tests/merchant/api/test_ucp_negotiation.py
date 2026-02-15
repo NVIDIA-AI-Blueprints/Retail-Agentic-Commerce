@@ -468,7 +468,7 @@ class TestA2ANegotiationFailure:
         assert response.status_code == 200
         body = response.json()
         assert "error" in body
-        assert body["error"]["code"] == -32002
+        assert body["error"]["code"] == -32602
 
 
 # ===========================================================================

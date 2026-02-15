@@ -15,6 +15,7 @@ from src.merchant.protocols.ucp.services.a2a_transport import (
     A2A_UCP_EXTENSION_URL,
     clear_context_sessions,
 )
+from src.merchant.protocols.ucp.services.agent_executor import clear_idempotency_cache
 from src.merchant.protocols.ucp.services.negotiation import clear_profile_cache
 from src.merchant.services.idempotency import reset_idempotency_store
 
@@ -29,6 +30,7 @@ def _reset_state() -> None:
     clear_profile_cache()
     clear_context_sessions()
     reset_idempotency_store()
+    clear_idempotency_cache()
 
 
 @pytest.fixture(autouse=True)
@@ -84,7 +86,7 @@ def _make_request(
     action_data = {"action": action}
     if data:
         action_data.update(data)
-    parts: list[dict[str, Any]] = [{"type": "data", "data": action_data}]
+    parts: list[dict[str, Any]] = [{"kind": "data", "data": action_data}]
     if extra_parts:
         parts.extend(extra_parts)
     message: dict[str, Any] = {
@@ -116,25 +118,29 @@ class TestJsonRpcEnvelope:
         assert response.status_code == 200
         assert response.json()["error"]["code"] == -32700
 
-    def test_missing_jsonrpc_field_returns_invalid_request(
+    def test_missing_jsonrpc_field_returns_invalid_params(
         self, auth_client: TestClient, a2a_headers: dict[str, str]
     ) -> None:
+        # SDK base JSONRPCRequest validation is lenient (jsonrpc has a default),
+        # so this fails at SendMessageRequest validation → -32602.
         response = auth_client.post(
             "/a2a",
             json={"id": "1", "method": "message/send"},
             headers=a2a_headers,
         )
-        assert response.json()["error"]["code"] == -32600
+        assert response.json()["error"]["code"] == -32602
 
-    def test_missing_id_field_returns_invalid_request(
+    def test_missing_id_field_returns_invalid_params(
         self, auth_client: TestClient, a2a_headers: dict[str, str]
     ) -> None:
+        # SDK base JSONRPCRequest passes, then SendMessageRequest requires
+        # id + params → -32602.
         response = auth_client.post(
             "/a2a",
             json={"jsonrpc": "2.0", "method": "message/send"},
             headers=a2a_headers,
         )
-        assert response.json()["error"]["code"] == -32600
+        assert response.json()["error"]["code"] == -32602
 
     def test_wrong_method_returns_method_not_found(
         self, auth_client: TestClient, a2a_headers: dict[str, str]
@@ -295,8 +301,6 @@ class TestCheckoutActions:
         body = response.json()
         assert "error" not in body
         checkout = body["result"]["parts"][0]["data"]["a2a.ucp.checkout"]
-        # A newly created checkout remains incomplete until fulfillment option
-        # selection/update advances readiness for completion.
         assert checkout["status"] == "incomplete"
 
     @pytest.mark.usefixtures("mock_platform_profile")
@@ -424,7 +428,7 @@ class TestCheckoutActions:
             context_id=ctx,
             extra_parts=[
                 {
-                    "type": "data",
+                    "kind": "data",
                     "data": {
                         "a2a.ucp.checkout.payment": {
                             "instruments": [
@@ -508,7 +512,7 @@ class TestCheckoutActions:
             context_id=ctx,
             extra_parts=[
                 {
-                    "type": "data",
+                    "kind": "data",
                     "data": {
                         "a2a.ucp.checkout.payment": {
                             "instruments": [
@@ -548,7 +552,7 @@ class TestApplicationErrors:
     ) -> None:
         request = _make_request("get_checkout", context_id="nonexistent-ctx")
         response = auth_client.post("/a2a", json=request, headers=a2a_headers)
-        assert response.json()["error"]["code"] == -32000
+        assert response.json()["error"]["code"] == -32602
 
     @pytest.mark.usefixtures("mock_platform_profile")
     def test_unknown_action_returns_invalid_params(
@@ -571,7 +575,7 @@ class TestApplicationErrors:
                     "role": "user",
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
-                    "parts": [{"type": "text", "text": "hello"}],
+                    "parts": [{"kind": "text", "text": "hello"}],
                 }
             },
         }
@@ -594,7 +598,7 @@ class TestApplicationErrors:
             context_id=ctx,
             extra_parts=[
                 {
-                    "type": "data",
+                    "kind": "data",
                     "data": {
                         "a2a.ucp.checkout.payment": {
                             "instruments": [
