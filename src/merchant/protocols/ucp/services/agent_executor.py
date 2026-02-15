@@ -99,22 +99,16 @@ class UCPCheckoutAgentExecutor(AgentExecutor):
     JSON-RPC parsing, error codes, and response wrapping.
     """
 
-    async def execute(
-        self, context: RequestContext, event_queue: EventQueue
-    ) -> None:
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         """Execute UCP checkout logic for a single message/send request."""
         message = context.message
         if message is None:
-            raise ServerError(
-                error=InvalidParamsError(message="No message in request")
-            )
+            raise ServerError(error=InvalidParamsError(message="No message in request"))
 
         # ---- 1. Check idempotency by messageId ----
         cached = check_idempotency(message.message_id)
         if cached is not None:
-            logger.info(
-                "A2A idempotency hit for messageId=%s", message.message_id
-            )
+            logger.info("A2A idempotency hit for messageId=%s", message.message_id)
             await event_queue.enqueue_event(cached)
             return
 
@@ -157,9 +151,7 @@ class UCPCheckoutAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(failure_msg)
             return
         except (ValueError, httpx.RequestError) as exc:
-            raise ServerError(
-                error=InvalidParamsError(message=str(exc))
-            ) from exc
+            raise ServerError(error=InvalidParamsError(message=str(exc))) from exc
 
         # ---- 6. Extract and dispatch action ----
         with Session(get_engine()) as db:
@@ -191,9 +183,7 @@ class UCPCheckoutAgentExecutor(AgentExecutor):
                     error=InvalidParamsError(message=exc.message)
                 ) from exc
             except ValueError as exc:
-                raise ServerError(
-                    error=InvalidParamsError(message=str(exc))
-                ) from exc
+                raise ServerError(error=InvalidParamsError(message=str(exc))) from exc
 
         # ---- 7. Build response Message, enqueue, store idempotency ----
         response_message = _build_response_message(context_id, data_part)
@@ -220,16 +210,12 @@ def _validate_ucp_headers(headers: dict[str, str]) -> None:
     if not ucp_agent_value:
         raise UcpHeaderError(f"Missing required header: {UCP_AGENT_HEADER}")
 
-    x_a2a_ext = headers.get("x-a2a-extensions") or headers.get(
-        "X-A2A-Extensions"
-    )
+    x_a2a_ext = headers.get("x-a2a-extensions") or headers.get("X-A2A-Extensions")
     if not x_a2a_ext:
         raise UcpHeaderError("Missing required header: X-A2A-Extensions")
 
     if A2A_UCP_EXTENSION_URL not in x_a2a_ext:
-        raise UcpHeaderError(
-            "X-A2A-Extensions must contain UCP extension URI"
-        )
+        raise UcpHeaderError("X-A2A-Extensions must contain UCP extension URI")
 
 
 # ---------------------------------------------------------------------------
@@ -247,9 +233,7 @@ def _fire_background(func: Any, *args: Any, **kwargs: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _build_response_message(
-    context_id: str, data_part: dict[str, Any]
-) -> Message:
+def _build_response_message(context_id: str, data_part: dict[str, Any]) -> Message:
     """Wrap a checkout DataPart dict in an SDK Message."""
     return Message(
         role=Role.agent,
@@ -282,9 +266,7 @@ def build_negotiation_failure_message(
     }
     if settings.ucp_continue_url:
         failure_body["continue_url"] = settings.ucp_continue_url
-    return _build_response_message(
-        context_id, {UCP_CHECKOUT_KEY: failure_body}
-    )
+    return _build_response_message(context_id, {UCP_CHECKOUT_KEY: failure_body})
 
 
 # ---------------------------------------------------------------------------

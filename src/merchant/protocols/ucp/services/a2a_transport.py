@@ -164,7 +164,11 @@ def extract_action(message: Message) -> tuple[str, dict[str, Any]]:
     Raises ValueError when no action is found.
     """
     for part in message.parts:
-        if isinstance(part.root, DataPart) and part.root.data and "action" in part.root.data:
+        if (
+            isinstance(part.root, DataPart)
+            and part.root.data
+            and "action" in part.root.data
+        ):
             data = dict(part.root.data)
             action = data.pop("action")
             if not isinstance(action, str):
