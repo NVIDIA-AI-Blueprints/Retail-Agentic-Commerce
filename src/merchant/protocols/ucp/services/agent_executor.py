@@ -200,8 +200,10 @@ class UCPCheckoutAgentExecutor(AgentExecutor):
         store_idempotency(message.message_id, response_message)
         await event_queue.enqueue_event(response_message)
 
-    async def cancel(  # noqa: ARG002
-        self, context: RequestContext, event_queue: EventQueue
+    async def cancel(
+        self,
+        context: RequestContext,  # noqa: ARG002
+        event_queue: EventQueue,  # noqa: ARG002
     ) -> None:
         """Cancel is not supported for UCP checkout."""
         raise ServerError(error=UnsupportedOperationError())
