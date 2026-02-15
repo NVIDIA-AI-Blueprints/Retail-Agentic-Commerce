@@ -65,7 +65,7 @@ function getUCPLogEndpoint(action: string): string {
  */
 function shortCapName(name: string): string {
   const parts = name.split(".");
-  return parts[parts.length - 1];
+  return parts.at(-1) ?? name;
 }
 
 /**

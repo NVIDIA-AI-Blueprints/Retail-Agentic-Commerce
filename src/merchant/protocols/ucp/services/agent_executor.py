@@ -14,13 +14,12 @@ import uuid
 from typing import Any
 
 import httpx
-from sqlmodel import Session
-
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
+    AgentExtension,
     AgentProvider,
     AgentSkill,
     DataPart,
@@ -31,6 +30,7 @@ from a2a.types import (
     UnsupportedOperationError,
 )
 from a2a.utils.errors import ServerError
+from sqlmodel import Session
 
 from src.merchant.config import get_settings
 from src.merchant.db import get_engine
@@ -41,8 +41,8 @@ from src.merchant.domain.checkout.service import (
 )
 from src.merchant.protocols.ucp.services.a2a_transport import (
     A2A_UCP_EXTENSION_URL,
-    UCP_CHECKOUT_KEY,
     UCP_AGENT_HEADER,
+    UCP_CHECKOUT_KEY,
     dispatch_action,
     extract_action,
     negotiate_a2a_capabilities,
@@ -176,12 +176,12 @@ class UCPCheckoutAgentExecutor(AgentExecutor):
                     order_webhook_url=order_webhook_url,
                     fire_background=_fire_background,
                 )
-            except SessionNotFoundError:
+            except SessionNotFoundError as exc:
                 raise ServerError(
                     error=InvalidParamsError(
                         message="Checkout session not found for this context"
                     )
-                )
+                ) from exc
             except ProductNotFoundError as exc:
                 raise ServerError(
                     error=InvalidParamsError(message=exc.message)
@@ -201,7 +201,7 @@ class UCPCheckoutAgentExecutor(AgentExecutor):
         await event_queue.enqueue_event(response_message)
 
     async def cancel(
-        self, context: RequestContext, event_queue: EventQueue
+        self, _context: RequestContext, _event_queue: EventQueue
     ) -> None:
         """Cancel is not supported for UCP checkout."""
         raise ServerError(error=UnsupportedOperationError())
@@ -331,13 +331,13 @@ def build_sdk_agent_card(base_url: str) -> AgentCard:
         capabilities=AgentCapabilities(
             streaming=False,
             extensions=[
-                {
-                    "uri": A2A_UCP_EXTENSION_URL,
-                    "description": "Business agent supporting UCP",
-                    "params": {
+                AgentExtension(
+                    uri=A2A_UCP_EXTENSION_URL,
+                    description="Business agent supporting UCP",
+                    params={
                         "capabilities": _build_agent_card_capabilities(base_url),
                     },
-                }
+                )
             ],
         ),
         default_input_modes=["text", "text/plain", "application/json"],

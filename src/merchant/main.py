@@ -113,7 +113,7 @@ _a2a_app = A2AStarletteApplication(agent_card=_agent_card, http_handler=_handler
 )
 async def a2a_rpc(request: Request) -> Response:
     """Delegate JSON-RPC handling to the SDK transport stack."""
-    return await _a2a_app._handle_requests(request)
+    return await _a2a_app._handle_requests(request)  # type: ignore[reportPrivateUsage]
 
 
 @app.get(
@@ -123,4 +123,4 @@ async def a2a_rpc(request: Request) -> Response:
 )
 async def agent_card_endpoint(request: Request) -> Response:
     """Return SDK-built A2A Agent Card for discovery."""
-    return await _a2a_app._handle_get_agent_card(request)
+    return await _a2a_app._handle_get_agent_card(request)  # type: ignore[reportPrivateUsage]
