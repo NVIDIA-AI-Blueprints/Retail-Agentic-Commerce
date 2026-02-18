@@ -179,7 +179,7 @@ services:
   recommendation-agent:
     image: nat-agents:latest
     container_name: nat-recommendation-agent
-    command: nat serve --config_file configs/recommendation-ultrafast.yml --host 0.0.0.0 --port 8004
+    command: nat serve --config_file configs/recommendation.yml --host 0.0.0.0 --port 8004
     expose:
       - "8004"
     environment:

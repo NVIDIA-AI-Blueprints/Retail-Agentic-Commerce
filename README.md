@@ -295,7 +295,7 @@ nat serve --config_file configs/post-purchase.yml --port 8003
 # Terminal 6
 cd src/agents
 source .venv/bin/activate
-nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
+nat serve --config_file configs/recommendation.yml --port 8004
 ```
 
 ```bash
