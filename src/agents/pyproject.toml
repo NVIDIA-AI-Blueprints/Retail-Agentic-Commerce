@@ -3,7 +3,7 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools >= 64", "setuptools-scm>=8"]
 
 [tool.setuptools]
-packages = []
+py-modules = ["register"]
 
 [project]
 name = "acp-agents"
@@ -39,3 +39,6 @@ reportCallIssue = "warning"
 
 [tool.uv] 
 managed = true
+
+[project.entry-points.'nat.components']
+acp_agents = "register"

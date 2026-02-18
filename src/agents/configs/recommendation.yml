@@ -1,20 +1,31 @@
-# ARAG Recommendation Agent Workflow Configuration
-# =================================================
-# Multi-agent recommendation system using Agentic Retrieval Augmented Generation (ARAG).
-# Based on: https://arxiv.org/pdf/2506.21931 (SIGIR 2025)
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-# This configuration orchestrates 4 specialized agents within a single NAT workflow:
-# - User Understanding Agent (UUA): Infers buyer preferences from cart/session context
-# - NLI Alignment Agent: Scores semantic alignment of candidates with user intent
-# - Context Summary Agent (CSA): Synthesizes signals into focused recommendation context
-# - Item Ranker Agent (IRA): Produces final ranked recommendations with reasoning
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# Key improvement: 42% better NDCG@5 vs vanilla RAG per SIGIR 2025 research.
+# http://www.apache.org/licenses/LICENSE-2.0
 #
-# Usage:
-#   nat serve --config_file configs/recommendation.yml --port 8004
-#   nat run --config_file configs/recommendation.yml --input '{"cart_items": [...], "session_context": {}}'
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+# =============================================================================
+# ARAG: Agentic Retrieval-Augmented Generation for Personalized Recommendation
+# =============================================================================
+#
+# Workflow architecture:
+#
+#                           ┌──→ NLI Agent ─┐
+#   User Query → RAG Retriever ──┤           ├──→ Context Summary Agent ─→ Item Ranker → Output Guard
+#                           └──→ UUA Agent ─┘
+#
+# Parallel execution is retained for UUA and NLI (paper-aligned), while
+# deterministic Python logic is limited to retrieval adaptation, concurrency
+# orchestration, and output contract validation.
 general:
   use_uvloop: true
   telemetry:
@@ -28,12 +39,24 @@ general:
         project: "arag-recommendations"
         endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006/v1/traces}
 
-# =============================================================================
-# EMBEDDERS - Semantic embeddings for product search
-# Endpoint and model can be configured via environment variables:
-# - NIM_EMBED_BASE_URL: Public endpoint (default) or local NIM URL
-# - NIM_EMBED_MODEL_NAME: Embedding model name
-# =============================================================================
+llms:
+  nim_llm:
+    _type: nim
+    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    temperature: 0.1
+    max_tokens: 512
+    chat_template_kwargs:
+      enable_thinking: false
+  nim_llm_nli:
+    _type: nim
+    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    temperature: 0.0
+    max_tokens: 640
+    chat_template_kwargs:
+      enable_thinking: false
+
 embedders:
   product_embedder:
     _type: nim
@@ -41,308 +64,211 @@ embedders:
     model_name: ${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
     truncate: "END"
 
-# =============================================================================
-# RETRIEVERS - Vector search for candidate products
-# =============================================================================
 retrievers:
   product_retriever:
     _type: milvus_retriever
     uri: ${MILVUS_URI:-http://localhost:19530}
     collection_name: "product_catalog"
     embedding_model: product_embedder
-    top_k: 20
+    top_k: 10
 
-# =============================================================================
-# FUNCTIONS - RAG tools and specialized ARAG agents
-# =============================================================================
 functions:
-  # ---------------------------------------------------------------------------
-  # RAG Tool: Product search using embeddings
-  # ---------------------------------------------------------------------------
+  # -- Step 1: RAG retrieval setup ---------------------------------------------
   product_search:
     _type: nat_retriever
     retriever: product_retriever
-    topic: Search product catalog with natural language query string (e.g. "casual summer clothes", "pants for t-shirts")
+    topic: Search product catalog for items matching the shopping context
 
-  # ---------------------------------------------------------------------------
-  # User Understanding Agent (UUA) - Infers buyer preferences
-  # Uses chat_completion since it doesn't need tools
-  # ---------------------------------------------------------------------------
+  # Adapter that turns recommendation payload into retriever query + candidates
+  rag_retriever:
+    _type: rag_retriever
+    retrieval_tool_name: product_search
+    top_k: 6
+
+  # -- Step 2a: NLI Agent (LLM) ------------------------------------------------
+  nli_agent:
+    _type: chat_completion
+    llm_name: nim_llm_nli
+    system_prompt: |
+      You are the NLI alignment stage in an ARAG recommendation pipeline.
+
+      INPUT:
+      JSON from rag_retriever with:
+      - user_query
+      - cart_items
+      - session_context
+      - candidates: [{product_id,product_name,category,description}]
+
+      TASK:
+      Score candidate alignment with user intent on a continuous scale:
+      - Strong fit: 0.8-1.0
+      - Moderate fit: 0.4-0.7
+      - Weak fit: 0.0-0.3
+
+      RULES:
+      - Evaluate only the first 6 candidates by input order.
+      - Keep exact product_id and product_name.
+      - Return at most 6 objects in scored_candidates.
+      - Preserve original candidate order in scored_candidates.
+      - Include only keys requested below.
+      - Use compact JSON formatting (no extra whitespace/newlines).
+      - alignment_score must use one decimal place (for example: 0.8).
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
+        "user_query": "<the original query>",
+        "cart_product_ids": ["<product id from cart>"],
+        "candidates_received": <total input candidates>,
+        "scored_candidates": [
+          {
+            "product_id": "<exact product_id>",
+            "product_name": "<exact product_name>",
+            "category": "<item category>",
+            "alignment_score": 0.0
+          }
+        ]
+      }
+
+  # -- Step 2b: User Understanding Agent (LLM, parallel with NLI) -------------
   user_understanding_agent:
     _type: chat_completion
-    description: |
-      Expert agent for understanding user preferences from shopping context.
-      Analyzes cart items, session history, and buyer signals to infer:
-      - Shopping intent and goals
-      - Price sensitivity level
-      - Style and category preferences
-      - Complementary product needs
-    llm_name: nemotron_nano
+    llm_name: nim_llm
     system_prompt: |
-      You are a User Understanding Agent for e-commerce personalization.
-      
-      Analyze the shopping context and infer the user's preferences:
-      - What category of products are they interested in?
-      - What price sensitivity do they exhibit? (low/medium/high)
-      - What style or attributes seem important?
-      - What complementary needs might they have for cross-sell?
-      
-      INPUT: You will receive cart items with product names, categories, and prices,
-      along with optional session context (browse history, previous interactions).
-      
-      OUTPUT: Return ONLY valid JSON with this exact structure:
-      {{
-        "inferred_intent": "brief description of shopping goal",
-        "price_sensitivity": "low|medium|high",
-        "style_preferences": ["list", "of", "style", "attributes"],
-        "complementary_categories": ["category1", "category2"]
-      }}
+      You are the user understanding stage in an ARAG recommendation pipeline.
 
-  # ---------------------------------------------------------------------------
-  # NLI Agent - Scores semantic alignment of candidates
-  # Uses chat_completion since it doesn't need tools
-  # ---------------------------------------------------------------------------
-  nli_alignment_agent:
-    _type: chat_completion
-    description: |
-      Expert agent for scoring semantic alignment between candidate products
-      and the user's inferred intent. Uses Natural Language Inference to determine
-      if each product SUPPORTS, is NEUTRAL to, or CONTRADICTS the user's needs.
-    llm_name: nemotron_nano
-    system_prompt: |
-      You are a Natural Language Inference Agent for product relevance scoring.
-      
-      Given candidate products and user intent, score each product's alignment:
-      - SUPPORTS: Product directly matches or complements the intent
-      - NEUTRAL: Product is tangentially related
-      - CONTRADICTS: Product doesn't fit the context (e.g., duplicate category)
-      
-      INPUT: You will receive:
-      - User intent summary (from User Understanding Agent)
-      - List of candidate products with their metadata (including product IDs like prod_7, prod_2)
-      
-      CRITICAL: You MUST use the EXACT product_id values from the input (e.g., "prod_7", "prod_2").
-      NEVER invent, generate, or modify product IDs. If input says "prod_7 (Cargo Shorts)",
-      your output must use "prod_7" as the product_id, NOT "Cargo Shorts" or any other made-up ID.
-      
-      OUTPUT: Return ONLY valid JSON array with this exact structure:
-      [
-        {{
-          "product_id": "prod_X (EXACT ID from input)",
-          "alignment": "supports|neutral|contradicts",
-          "relevance_score": 0.0-1.0,
-          "reasoning": "brief explanation"
-        }}
-      ]
+      INPUT:
+      JSON from rag_retriever with user_query, cart_items, session_context, candidates.
+      Use cart_items and session_context.browse_history for intent inference.
+      Ignore price_range_viewed and any price-range fields if present.
 
-  # ---------------------------------------------------------------------------
-  # Context Summary Agent (CSA) - Synthesizes signals into focused context
-  # Uses chat_completion since it doesn't need tools
-  # ---------------------------------------------------------------------------
+      TASK:
+      Infer concise user intent for downstream ranking.
+      Keep user_intent grounded only in provided cart/session/candidate signals.
+      Return max 2 items for style_preferences and max 2 for complementary_categories.
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
+        "user_query": "<the original query>",
+        "user_intent": "<one sentence summary of shopper intent>",
+        "style_preferences": ["<pref1>", "<pref2>"],
+        "complementary_categories": ["<category1>", "<category2>"]
+      }
+
+  # -- Step 3: Context Summary Agent (LLM) ------------------------------------
   context_summary_agent:
     _type: chat_completion
-    description: |
-      Expert agent for synthesizing user preferences and NLI alignment scores
-      into a focused recommendation context. Filters and prioritizes candidates
-      based on business constraints (in-stock, margin) and semantic fit.
-    llm_name: nemotron_nano
+    llm_name: nim_llm
     system_prompt: |
-      You are a Context Summary Agent that synthesizes recommendation signals.
-      
-      Given:
-      - User preference summary from User Understanding Agent
-      - NLI alignment scores for candidate products
-      - Business constraints (in-stock, meets margin requirements)
-      
-      Create a focused context summary highlighting:
-      - Top 5 relevant candidates that pass all filters
-      - Key matching attributes for each
-      - Cross-sell rationale explaining why each fits
-      
-      CRITICAL: You MUST use the EXACT product_id values from the input (e.g., "prod_7", "prod_2").
-      NEVER invent, generate, or modify product IDs. If input says "prod_7 (Cargo Shorts)",
-      your output must use "prod_7" as the product_id
-      
-      OUTPUT: Return ONLY valid JSON with this exact structure:
-      {{
-        "summary": "brief context for ranker describing user needs",
-        "top_candidates": [
-          {{
-            "product_id": "prod_X (EXACT ID from input, e.g. prod_7)",
-            "product_name": "exact name from catalog",
-            "match_reasons": ["reason1", "reason2"],
-            "cross_sell_fit": "brief explanation"
-          }}
-        ]
-      }}
+      You are the context synthesis stage in an ARAG recommendation pipeline.
 
-  # ---------------------------------------------------------------------------
-  # Item Ranker Agent (IRA) - Produces final ranked recommendations
-  # Uses chat_completion since it doesn't need tools
-  # ---------------------------------------------------------------------------
+      INPUT:
+      JSON from parallel_analysis with keys:
+      - "nli_agent" (often a JSON string)
+      - "user_understanding_agent" (often a JSON string)
+
+      First parse both values as JSON objects.
+
+      TASK:
+      1) Copy user_intent from user_understanding_agent.user_intent.
+      2) Build primary_candidates where alignment_score > 0.7 and product_id is not in cart_product_ids.
+      3) Set after_alignment_filter = number of primary_candidates.
+      4) If primary_candidates has fewer than 3 items, backfill with highest-scoring remaining non-cart candidates until reaching 3 (or exhaust candidates).
+      5) Enforce diversity when possible, but do not reduce below 3 when 3+ non-cart candidates exist.
+      6) Return at most 4 filtered candidates sorted by alignment_score descending.
+      7) Keep only: product_id, product_name, category, alignment_score.
+
+      Tie-break rule when alignment_score ties: preserve original candidate order.
+      Output must be compact JSON (no markdown, no extra keys, no pretty-printing).
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
+        "user_query": "<from nli_agent.user_query>",
+        "user_intent": "<from user_understanding_agent.user_intent>",
+        "candidates_received": <from nli_agent.candidates_received>,
+        "after_alignment_filter": <number>,
+        "filtered_candidates": [
+          {
+            "product_id": "<exact product_id>",
+            "product_name": "<exact product_name>",
+            "category": "<item category>",
+            "alignment_score": 0.0
+          }
+        ]
+      }
+
+  # -- Step 4: Item Ranker Agent (LLM) ----------------------------------------
   item_ranker_agent:
     _type: chat_completion
-    description: |
-      Expert agent for producing the final ranked list of 3 cross-sell
-      recommendations. Considers user preferences, context summary, and
-      maximizes relevance while ensuring diversity.
-    llm_name: nemotron_nano
+    llm_name: nim_llm
     system_prompt: |
-      You are an Item Ranker Agent for personalized recommendations.
-      
-      Given the user context and filtered candidates, produce a final ranking.
-      Consider:
-      1. User's demonstrated preferences from cart
-      2. Semantic alignment with shopping intent
-      3. Cross-sell potential (complementary, not duplicate)
-      4. Value proposition for the customer
-      5. Diversity (don't recommend 3 similar items)
-      
-      CRITICAL: You MUST use the EXACT product_id values from the input (e.g., "prod_7", "prod_2").
-      NEVER invent, generate, or modify product IDs. If input says "prod_7 (Cargo Shorts)",
-      your output must use "prod_7" as the product_id.
-      
-      OUTPUT: Return EXACTLY 3 recommendations in valid JSON:
-      {{
+      You are the final ranker stage in an ARAG recommendation pipeline.
+
+      INPUT:
+      JSON from context_summary_agent with:
+      - user_query
+      - user_intent
+      - candidates_received
+      - after_alignment_filter
+      - filtered_candidates
+
+      TASK:
+      - Rank up to 3 items from filtered_candidates.
+      - If filtered_candidates has 3 or more items, return exactly 3 recommendations.
+      - If fewer than 3 items exist, return all available items.
+      - Prioritize: cross-sell fit > alignment_score > diversity.
+      - Diversity rule: avoid duplicate categories when there are enough alternatives.
+      - Use exact product_id and product_name from filtered_candidates.
+      - Reasoning: one short sentence per item, maximum 12 words.
+
+      Tie-break rule when candidates are equivalent: preserve input order.
+      Output must be compact JSON (no markdown, no extra keys, no pretty-printing).
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
         "recommendations": [
-          {{
-            "product_id": "prod_X (EXACT ID from input, e.g. prod_7)",
-            "product_name": "exact name from list above",
+          {
+            "product_id": "<exact product_id>",
+            "product_name": "<exact product_name>",
             "rank": 1,
-            "reasoning": "why this recommendation makes sense for the user"
-          }}
-        ]
-      }}
+            "reasoning": "short explanation"
+          }
+        ],
+        "user_intent": "<from input user_intent>",
+        "pipeline_trace": {
+          "candidates_received": <from input candidates_received>,
+          "after_alignment_filter": <from input after_alignment_filter>,
+          "final_ranked": <number of returned recommendations>
+        }
+      }
 
-# =============================================================================
-# LLM PROVIDERS - Using nvidia/nemotron-3-nano-30b-a3b for all agents
-# Model and endpoint can be configured via environment variables:
-# - NIM_LLM_BASE_URL: Public endpoint (default) or local NIM URL
-# - NIM_LLM_MODEL_NAME: Public model name (default) or local NIM model name
-# =============================================================================
-llms:
-  # Fast model for classification and scoring tasks (UUA, NLI, CSA)
-  nemotron_nano:
-    _type: nim
-    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
-    temperature: 0.3
-    max_tokens: 512
-    chat_template_kwargs:
-      enable_thinking: false
+      If there are no suitable recommendations, return:
+      {
+        "recommendations": [],
+        "user_intent": "<from input user_intent>",
+        "pipeline_trace": {
+          "candidates_received": <from input candidates_received>,
+          "after_alignment_filter": <from input after_alignment_filter>,
+          "final_ranked": 0
+        },
+        "message": "No suitable cross-sell recommendations for current cart"
+      }
 
-  # Coordinator model (orchestrates the pipeline)
-  # Note: This uses a larger model for coordination, only available via public endpoint
-  coordinator_llm:
-    _type: nim
-    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: nvidia/llama-3.3-nemotron-super-49b-v1.5
-    thinking: false
-    temperature: 0.9
-    max_tokens: 512
+  # -- Step 5: Deterministic output contract guard (non-semantic) -------------
+  output_contract_guard:
+    _type: output_contract_guard
+    max_recommendations: 3
+    description: "Validate and normalize final recommendation output contract"
 
-# =============================================================================
-# MAIN WORKFLOW - Recommendation Coordinator
-# =============================================================================
+  # -- Composed control flow ---------------------------------------------------
+  parallel_analysis:
+    _type: parallel_executor
+    tool_list: [user_understanding_agent, nli_agent]
+    description: "Run user understanding and NLI analysis in parallel"
+
+# -- Main workflow: Sequential(RAG → Parallel → CSA → IRA → Guard) ------------
 workflow:
-  _type: react_agent
-  name: arag_recommendation_coordinator
-  workflow_alias: recommendation_agent
-  llm_name: coordinator_llm
+  _type: sequential_executor
   verbose: true
-  parse_agent_response_max_retries: 3
-  tool_names:
-    - product_search
-    - user_understanding_agent
-    - nli_alignment_agent
-    - context_summary_agent
-    - item_ranker_agent
-  description: |
-    ARAG Recommendation Coordinator - orchestrates multi-agent pipeline for
-    personalized cross-sell recommendations based on cart items and session context.
-  system_prompt: |
-    You are the ARAG Recommendation Coordinator for an e-commerce platform.
-    
-    Your task: Given a user's cart items and optional session context, produce
-    3 personalized cross-sell recommendations using your specialized agents.
-    
-    AVAILABLE TOOLS:
-    {tools}
-    
-    Tool names: {tool_names}
-    
-    CRITICAL: ALL tools accept a single plain text string query as input.
-    DO NOT pass dictionaries or JSON objects - just simple text strings.
-    
-    WORKFLOW (follow this order):
-    
-    1. RETRIEVE CANDIDATES: Use `product_search` with a text query.
-       Example: "bottoms to pair with tees" or "casual summer accessories"
-       NOTE: This returns products with REAL IDs like "prod_7", "prod_2". Save these IDs!
-    
-    2. UNDERSTAND USER: Call `user_understanding_agent` with a text summary.
-       Example: "User has Classic Tee in cart, browsing casual wear, price range 2000-4000"
-    
-    3. SCORE ALIGNMENT: Call `nli_alignment_agent` with a text summary.
-       Example: "Score products prod_7 (Cargo Shorts), prod_5 (Joggers) against user wanting casual summer wear"
-       CRITICAL: Always include the actual product IDs (prod_X) in your input!
-    
-    4. SYNTHESIZE CONTEXT: Call `context_summary_agent` with a text summary.
-       Example: "Summarize context for casual summer shopper, top products: prod_7 (Cargo Shorts), prod_9 (Canvas Sneakers)"
-       CRITICAL: Always include the actual product IDs (prod_X) in your input!
-    
-    5. RANK ITEMS: Call `item_ranker_agent` with a text summary.
-       Example: "Rank prod_7 (Cargo Shorts), prod_9 (Canvas Sneakers), prod_11 (Sunglasses) for casual summer shopper"
-       CRITICAL: Always include the actual product IDs (prod_X) in your input!
-    
-    Use this format for your responses:
-    
-    Question: the user's question
-    Thought: analyze what information you need
-    Action: one of [{tool_names}]
-    Action Input: a plain text string (NOT a dictionary or JSON)
-    Observation: the result of the action
-    ... (repeat Thought/Action/Action Input/Observation as needed)
-    Thought: I have all the information needed
-    Final Answer: your response in JSON format
-    
-    OUTPUT FORMAT (always return this JSON in Final Answer):
-    {{
-      "recommendations": [
-        {{
-          "product_id": "string",
-          "product_name": "string",
-          "rank": 1,
-          "reasoning": "why this is recommended"
-        }}
-      ],
-      "user_intent": "summary of inferred user intent",
-      "pipeline_trace": {{
-        "candidates_found": "<ACTUAL count from product_search>",
-        "after_nli_filter": "<ACTUAL count after NLI filtering>",
-        "final_ranked": "<ACTUAL count of final recommendations>"
-      }}
-    }}
-    
-    CONSTRAINTS:
-    - CRITICAL: Only recommend products that were ACTUALLY returned by product_search
-    - Use the EXACT product_id and product_name from the retrieved results (e.g., "prod_7", "Cargo Shorts")
-    - NEVER invent or hallucinate product names or IDs
-    - NEVER invent or hallucinate counts - use ACTUAL numbers from tool outputs
-    - The pipeline_trace counts MUST reflect real values: count the actual results array length
-    - Never recommend items already in the cart
-    - Only recommend in-stock items
-    - Ensure diversity in recommendations
-    - When calling sub-agents, ALWAYS include the real product IDs (prod_X format) in your text input
-    
-    If you cannot find suitable recommendations, return:
-    {{
-      "recommendations": [],
-      "user_intent": "description of what was inferred",
-      "pipeline_trace": {{
-        "candidates_found": "<ACTUAL count - may be 0 or more>",
-        "after_nli_filter": "<ACTUAL count after filtering>",
-        "final_ranked": 0
-      }},
-      "message": "No suitable recommendations found for the current cart"
-    }}
+  tool_list: [rag_retriever, parallel_analysis, context_summary_agent, item_ranker_agent, output_contract_guard]
+  raise_type_incompatibility: false
+  description: "ARAG: Agentic RAG for Personalized Recommendation"
