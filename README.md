@@ -4,7 +4,17 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
 
+<div align="center">
+
+![NVIDIA Logo](https://avatars.githubusercontent.com/u/178940881?s=200&v=4)
+
+</div>
+
 A reference implementation of the Agentic Commerce Protocol (ACP) and Universal Commerce Protocol (UCP), built for merchant-controlled checkout, payments, and agent orchestration.
+
+## Architecture
+
+![Shopping Assistant Diagram](docs/agentic-commerce-diagram.jpeg)
 
 ## What You Get
 
@@ -393,6 +403,6 @@ docs/
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE).
+GOVERNING TERMS: The Blueprint scripts are governed by Apache License, Version 2.0, and enables use of separate open source and proprietary software governed by their respective licenses: [Nemotron-Nano-V3](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/nemotron-3-nano?version=1.7.0), (ii) MIT license for [NV-EmbedQA-E5-v5](https://build.nvidia.com/nvidia/nv-embedqa-e5-v5).
 
-Third-party dependencies may be downloaded during setup. Review their licenses before use.
+This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use, found in [License-3rd-party.txt](/LICENSE-3rd-party.txt).
