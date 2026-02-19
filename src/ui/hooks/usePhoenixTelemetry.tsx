@@ -41,7 +41,7 @@ interface UsePhoenixTelemetryResult {
 
 const AGENT_PROJECTS: Record<AgentType, string> = {
   promotion: "promotion-agent",
-  recommendation: "arag-recommendations-ultrafast",
+  recommendation: "arag-recommendations",
   post_purchase: "post-purchase-agent",
   search: "search-agent",
 };

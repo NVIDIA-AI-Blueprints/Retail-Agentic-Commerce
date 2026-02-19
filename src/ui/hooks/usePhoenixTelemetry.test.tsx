@@ -21,7 +21,7 @@ describe("fetchPhoenixAgentPerformance", () => {
         return jsonResponse({
           data: [
             { id: "proj_promo", name: "promotion-agent" },
-            { id: "proj_reco", name: "arag-recommendations-ultrafast" },
+            { id: "proj_reco", name: "arag-recommendations" },
             { id: "proj_post", name: "post-purchase-agent" },
             { id: "proj_search", name: "search-agent" },
           ],
