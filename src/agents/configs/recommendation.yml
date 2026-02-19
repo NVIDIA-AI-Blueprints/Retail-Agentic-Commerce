@@ -83,7 +83,7 @@ functions:
   rag_retriever:
     _type: rag_retriever
     retrieval_tool_name: product_search
-    top_k: 6
+    top_k: 10
 
   # -- Step 2a: NLI Agent (LLM) ------------------------------------------------
   nli_agent:
@@ -106,9 +106,9 @@ functions:
       - Weak fit: 0.0-0.3
 
       RULES:
-      - Evaluate only the first 6 candidates by input order.
+      - Evaluate only the first 10 candidates by input order.
       - Keep exact product_id and product_name.
-      - Return at most 6 objects in scored_candidates.
+      - Return at most 10 objects in scored_candidates.
       - Preserve original candidate order in scored_candidates.
       - Include only keys requested below.
       - Use compact JSON formatting (no extra whitespace/newlines).

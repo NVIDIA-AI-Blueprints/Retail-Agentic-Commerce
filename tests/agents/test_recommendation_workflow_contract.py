@@ -14,8 +14,8 @@ def test_recommendation_workflow_uses_llm_first_parallel_arag() -> None:
     )
     assert "tool_list: [user_understanding_agent, nli_agent]" in config_text
     assert "_type: output_contract_guard" in config_text
-    assert "top_k: 6" in config_text
-    assert "Evaluate only the first 6 candidates by input order." in config_text
+    assert "top_k: 10" in config_text
+    assert "Evaluate only the first 10 candidates by input order." in config_text
 
     for legacy_component in (
         "_type: nli_scorer",
