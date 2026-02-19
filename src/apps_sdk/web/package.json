@@ -19,7 +19,15 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
+  "pnpm": {
+    "overrides": {
+      "ajv": "8.18.0",
+      "eslint>ajv": "6.12.6",
+      "@eslint/eslintrc>ajv": "6.12.6"
+    }
+  },
   "devDependencies": {
+    "ajv": "8.18.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/jest-dom": "^6.0.0",
     "@types/react": "^19.0.0",
