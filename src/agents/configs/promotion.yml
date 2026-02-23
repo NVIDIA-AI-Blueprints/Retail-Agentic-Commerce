@@ -33,6 +33,19 @@ llms:
     chat_template_kwargs:
       enable_thinking: false
 
+# =============================================================================
+# EVALUATION LLMs - Used by eval evaluators, not the main workflow
+# Override with NIM_EVAL_LLM_BASE_URL / NIM_EVAL_LLM_MODEL_NAME
+# =============================================================================
+  nim_eval_llm:
+    _type: nim
+    base_url: ${NIM_EVAL_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_EVAL_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    temperature: 0.0
+    max_tokens: 1024
+    chat_template_kwargs:
+      enable_thinking: false
+
 # Simple chat completion workflow (no tools needed)
 workflow:
   description: "Promotion Strategy Arbiter that selects promotion actions based on pre-computed business signals"
@@ -94,3 +107,49 @@ workflow:
       "reason_codes": ["REASON_CODE_1", "REASON_CODE_2"],
       "reasoning": "Brief one-sentence explanation of your decision"
     }
+
+# =============================================================================
+# EVALUATION & PROFILING
+# Run with: nat eval --config_file configs/promotion.yml
+# =============================================================================
+eval:
+  general:
+    output_dir: ./.tmp/eval/promotion_agent
+    verbose: true
+    max_concurrency: 3
+    dataset:
+      _type: json
+      file_path: data/eval/promotion_eval.json
+      id_key: "id"
+      structure:
+        question_key: question
+        answer_key: answer
+    profiler:
+      token_uniqueness_forecast: true
+      workflow_runtime_forecast: true
+      compute_llm_metrics: true
+      csv_exclude_io_text: true
+      prompt_caching_prefixes:
+        enable: true
+        min_frequency: 0.1
+
+  evaluators:
+    accuracy:
+      _type: ragas
+      metric: AnswerAccuracy
+      llm_name: nim_eval_llm
+    classification_quality:
+      _type: tunable_rag_evaluator
+      llm_name: nim_eval_llm
+      default_scoring: true
+      default_score_weights:
+        coverage: 0.3
+        correctness: 0.5
+        relevance: 0.2
+      judge_llm_prompt: >
+        You are evaluating a promotion strategy agent's classification decision.
+        Score the response based on:
+        - Correctness: Did it select the right promotion action given inventory pressure and competition position?
+        - Coverage: Did it include all appropriate reason codes for its decision?
+        - Relevance: Is the reasoning aligned with the business decision guidelines?
+        Rate each dimension from 0.0 to 1.0.

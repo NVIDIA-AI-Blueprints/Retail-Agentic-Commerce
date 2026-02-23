@@ -332,6 +332,19 @@ pnpm install
 pnpm dev
 ```
 
+## Hardware Requirements (Local NIM Deployment)
+
+Local NIM deployment requires NVIDIA GPUs to host the inference models. The following table summarizes the models and their GPU requirements:
+
+| Model | Purpose | Minimum GPU | Recommended GPU |
+|-------|---------|-------------|-----------------|
+| [Nemotron-Nano-30B-A3B](https://build.nvidia.com/nvidia/nemotron-3-nano-30b-a3b) | LLM — prompt planning, recommendations, search, promotions | 1× A100 (80 GB) | 1× H100 (80 GB) |
+| [NV-EmbedQA-E5-v5](https://build.nvidia.com/nvidia/nv-embedqa-e5-v5) | Embedding — semantic search and product retrieval | 1× A100 (80 GB) | 1× H100 (80 GB) |
+
+**Total:** 2× A100 (80 GB) minimum, 2× H100 (80 GB) recommended for best performance.
+
+> **Note:** These requirements apply only to self-hosted local NIM deployment. The default deployment uses public NVIDIA API endpoints and does not require any GPU hardware.
+
 ## Optional: Local NIM Deployment (GPU)
 
 Only needed for self-hosted local inference. The default deployment already works with public endpoints.

@@ -612,12 +612,21 @@ To add a new NAT agent:
 src/agents/
 ├── pyproject.toml           # Shared dependencies for all agents
 ├── README.md                # This file
-└── configs/
-    ├── promotion.yml        # Promotion strategy arbiter (port 8002)
-    ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
-    ├── recommendation.yml   # ARAG multi-agent recommendations (full version)
-    ├── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
-    └── search.yml           # RAG product search agent (port 8005)
+├── register.py              # Custom NAT component registration
+├── configs/
+│   ├── promotion.yml        # Promotion strategy arbiter (port 8002)
+│   ├── post-purchase.yml    # Multilingual shipping messages (port 8003)
+│   ├── recommendation.yml   # ARAG multi-agent recommendations (full version)
+│   ├── recommendation-ultrafast.yml  # ARAG recommendations optimized for speed (port 8004)
+│   └── search.yml           # RAG product search agent (port 8005)
+├── data/
+│   └── eval/                # Evaluation datasets (JSON)
+│       ├── search_eval.json
+│       ├── recommendation_eval.json
+│       ├── promotion_eval.json
+│       └── post_purchase_eval.json
+└── scripts/
+    └── seed_milvus.py       # Milvus vector DB initialization
 ```
 
 ## Development
@@ -643,6 +652,158 @@ nat validate --config_file configs/promotion.yml
 
 # Run with verbose output
 nat run --config_file configs/promotion.yml --input '...' --verbose
+```
+
+## Evaluation & Profiling
+
+Each agent config includes an `eval` section for automated quality evaluation and performance profiling using NAT's built-in evaluation framework.
+
+### Running Evaluations
+
+```bash
+cd src/agents
+source .venv/bin/activate
+
+# Run eval for a specific agent
+nat eval --config_file configs/promotion.yml
+nat eval --config_file configs/post-purchase.yml
+nat eval --config_file configs/search.yml
+nat eval --config_file configs/recommendation-ultrafast.yml
+nat eval --config_file configs/recommendation.yml
+```
+
+### Environment Variables
+
+When using a private NIM endpoint, set these before running evals:
+
+```bash
+export NIM_LLM_BASE_URL=http://<your-nim-host>:8002/v1
+export NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+export NIM_EMBED_BASE_URL=http://<your-nim-host>:8005/v1
+export NIM_EVAL_LLM_BASE_URL=http://<your-nim-host>:8002/v1
+export NIM_EVAL_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+```
+
+Without these, the configs fall back to the public `https://integrate.api.nvidia.com/v1` endpoint (requires `NVIDIA_API_KEY`).
+
+### Eval Datasets
+
+Test datasets live in `data/eval/` as JSON files with `id`, `question` (input), and `answer` (expected output) fields:
+
+| Dataset | Samples | Agent |
+|---------|---------|-------|
+| `search_eval.json` | 10 | Search Agent |
+| `recommendation_eval.json` | 10 | Recommendation (both variants) |
+| `promotion_eval.json` | 10 | Promotion Agent |
+| `post_purchase_eval.json` | 10 | Post-Purchase Agent |
+
+### Evaluators by Agent
+
+| Agent | Evaluator | Type | What It Measures |
+|-------|-----------|------|------------------|
+| **Search** | accuracy | ragas AnswerAccuracy | Are the right products returned? |
+| | relevance | ragas ContextRelevance | Are search results relevant to the query? |
+| | trajectory | trajectory | Is the tool-calling reasoning correct? |
+| **Recommendation** | accuracy | ragas AnswerAccuracy | Are recommendations appropriate? |
+| | trajectory | trajectory | Is the ARAG pipeline reasoning correct? |
+| **Promotion** | accuracy | ragas AnswerAccuracy | Is the promotion decision correct? |
+| | classification_quality | tunable_rag_evaluator | Coverage, correctness, and relevance of decisions |
+| **Post-Purchase** | accuracy | ragas AnswerAccuracy | Is the message correct? |
+| | generation_quality | tunable_rag_evaluator | Coverage, correctness, and relevance of generated messages |
+
+### Profiler Configuration
+
+All agents include profiler settings that generate performance metrics:
+
+```yaml
+profiler:
+  token_uniqueness_forecast: true     # Token reuse analysis across queries
+  workflow_runtime_forecast: true      # Expected workflow latency estimates
+  compute_llm_metrics: true            # Inference timing, token counts, cost
+  csv_exclude_io_text: true            # Keep CSV output compact
+  prompt_caching_prefixes:             # Identify cacheable prompt prefixes
+    enable: true
+    min_frequency: 0.1
+  bottleneck_analysis:                 # Call hierarchy bottleneck detection
+    enable_nested_stack: true          # (search + recommendation agents)
+  concurrency_spike_analysis:          # Concurrent operation spike detection
+    enable: true
+    spike_threshold: 5
+```
+
+### Profiler Output Files
+
+After each eval run, profiler output is written to `.tmp/eval/<agent>/`:
+
+| File | Description |
+|------|-------------|
+| `workflow_output.json` | Per-sample execution results |
+| `accuracy_output.json` | Evaluator scores per sample |
+| `standardized_data_all.csv` | Per-request profiler metrics |
+| `workflow_profiling_metrics.json` | Aggregated performance statistics |
+| `workflow_profiling_report.txt` | Human-readable summary |
+| `gantt_chart.png` | Timeline visualization of pipeline stages |
+| `inference_optimization.json` | LLM optimization signals |
+| `all_requests_profiler_traces.json` | Full trace events |
+
+### Benchmark Results
+
+Results from eval runs on the full 10-sample datasets:
+
+| Agent | Evaluator | Score | Workflow p95 | LLM Latency p95 |
+|-------|-----------|-------|-------------|-----------------|
+| Promotion | accuracy | 0.90 | 0.93s | 0.90s |
+| | classification_quality | 0.82 | | |
+| Post-Purchase | accuracy | 1.00 | 1.12s | 1.12s |
+| | generation_quality | 0.93 | | |
+| Search | relevance | 1.00 | 3.00s | 1.97s |
+| | accuracy | 0.70 | | |
+| | trajectory | 0.40 | | |
+| Recommendation (Ultrafast) | accuracy | 0.70 | 2.74s | 2.12s |
+| | trajectory | 0.85 | | |
+| Recommendation (Sequential) | accuracy | 0.80 | 5.08s | 1.46s |
+| | trajectory | 0.90 | | |
+
+### Adding Evals to a New Agent
+
+When creating a new agent config, add an `eval` section at the bottom:
+
+```yaml
+# 1. Add eval LLM(s) to the llms section
+llms:
+  # ... your workflow LLMs ...
+  nim_eval_llm:
+    _type: nim
+    base_url: ${NIM_EVAL_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_EVAL_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    temperature: 0.0
+    max_tokens: 1024
+    chat_template_kwargs:
+      enable_thinking: false
+
+# 2. Add eval section
+eval:
+  general:
+    output_dir: ./.tmp/eval/<agent_name>
+    verbose: true
+    max_concurrency: 2
+    dataset:
+      _type: json
+      file_path: data/eval/<agent>_eval.json
+      id_key: "id"
+      structure:
+        question_key: question
+        answer_key: answer
+    profiler:
+      token_uniqueness_forecast: true
+      workflow_runtime_forecast: true
+      compute_llm_metrics: true
+      csv_exclude_io_text: true
+  evaluators:
+    accuracy:
+      _type: ragas
+      metric: AnswerAccuracy
+      llm_name: nim_eval_llm
 ```
 
 ## Troubleshooting

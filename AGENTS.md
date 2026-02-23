@@ -92,6 +92,11 @@ When debugging:
 Before changing code, read:
 - `.cursor/skills/features/SKILL.md` for Python backend standards
 - `.cursor/skills/ui/SKILL.md` for frontend standards
+- `.cursor/skills/pre-commit-analysis/SKILL.md` for pre-commit validation
+
+### Setup Skill
+
+Trigger: **"setup"** or **"install"** — launches the full Docker deployment with public NIM endpoints. See `.cursor/skills/setup/SKILL.md`.
 
 ## Project Overview
 

@@ -153,3 +153,6 @@ coverage/
 *.pem
 
 .playwright-mcp/
+
+# Agent evals output
+src/agents/.tmp/

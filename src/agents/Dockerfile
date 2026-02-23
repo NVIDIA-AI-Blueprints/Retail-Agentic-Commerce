@@ -14,8 +14,8 @@ RUN pip install uv
 
 WORKDIR /app
 
-# Copy agent-specific pyproject.toml and README
-COPY src/agents/pyproject.toml src/agents/README.md ./
+# Copy agent-specific pyproject.toml, README, and custom component registration
+COPY src/agents/pyproject.toml src/agents/README.md src/agents/register.py ./
 
 # Install dependencies with prerelease support for nvidia-nat
 RUN uv pip install -e ".[dev]" --prerelease=allow --system
