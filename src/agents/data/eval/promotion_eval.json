@@ -1,0 +1,52 @@
+[
+  {
+    "id": "promo_001",
+    "question": "{\"product_id\": \"prod_101\", \"product_name\": \"Classic Bomber Jacket\", \"base_price_cents\": 8900, \"stock_count\": 120, \"min_margin\": 0.20, \"lowest_competitor_price_cents\": 7500, \"signals\": {\"inventory_pressure\": \"high\", \"competition_position\": \"above_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"DISCOUNT_10_PCT\", \"DISCOUNT_15_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_101\", \"action\": \"DISCOUNT_10_PCT\", \"reason_codes\": [\"HIGH_INVENTORY\", \"ABOVE_MARKET\"], \"reasoning\": \"High inventory and above-market pricing justify a meaningful discount to move stock and compete\"}"
+  },
+  {
+    "id": "promo_002",
+    "question": "{\"product_id\": \"prod_201\", \"product_name\": \"Basic White Tee\", \"base_price_cents\": 2500, \"stock_count\": 15, \"min_margin\": 0.30, \"lowest_competitor_price_cents\": 2800, \"signals\": {\"inventory_pressure\": \"low\", \"competition_position\": \"below_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_201\", \"action\": \"NO_PROMO\", \"reason_codes\": [\"LOW_INVENTORY\", \"BELOW_MARKET\", \"NO_URGENCY\"], \"reasoning\": \"Low stock and already competitive pricing mean no discount is needed\"}"
+  },
+  {
+    "id": "promo_003",
+    "question": "{\"product_id\": \"prod_301\", \"product_name\": \"Premium Wool Coat\", \"base_price_cents\": 29900, \"stock_count\": 85, \"min_margin\": 0.25, \"lowest_competitor_price_cents\": 27900, \"signals\": {\"inventory_pressure\": \"high\", \"competition_position\": \"above_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"DISCOUNT_10_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_301\", \"action\": \"DISCOUNT_10_PCT\", \"reason_codes\": [\"HIGH_INVENTORY\", \"ABOVE_MARKET\"], \"reasoning\": \"High stock pressure combined with above-market pricing warrants a discount to improve competitiveness\"}"
+  },
+  {
+    "id": "promo_004",
+    "question": "{\"product_id\": \"prod_401\", \"product_name\": \"Silk Blouse\", \"base_price_cents\": 7900, \"stock_count\": 200, \"min_margin\": 0.15, \"lowest_competitor_price_cents\": 7900, \"signals\": {\"inventory_pressure\": \"high\", \"competition_position\": \"at_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"DISCOUNT_10_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_401\", \"action\": \"DISCOUNT_5_PCT\", \"reason_codes\": [\"HIGH_INVENTORY\", \"AT_MARKET\"], \"reasoning\": \"High inventory with at-market pricing suggests a modest discount to help move stock\"}"
+  },
+  {
+    "id": "promo_005",
+    "question": "{\"product_id\": \"prod_501\", \"product_name\": \"Running Shoes Pro\", \"base_price_cents\": 12900, \"stock_count\": 75, \"min_margin\": 0.20, \"lowest_competitor_price_cents\": 14900, \"signals\": {\"inventory_pressure\": \"high\", \"competition_position\": \"below_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_501\", \"action\": \"NO_PROMO\", \"reason_codes\": [\"BELOW_MARKET\", \"MARGIN_PROTECTED\"], \"reasoning\": \"Already priced below competitors so inventory should move naturally without discounting\"}"
+  },
+  {
+    "id": "promo_006",
+    "question": "{\"product_id\": \"prod_601\", \"product_name\": \"Leather Belt\", \"base_price_cents\": 4500, \"stock_count\": 30, \"min_margin\": 0.25, \"lowest_competitor_price_cents\": 3900, \"signals\": {\"inventory_pressure\": \"low\", \"competition_position\": \"above_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_601\", \"action\": \"NO_PROMO\", \"reason_codes\": [\"LOW_INVENTORY\", \"NO_URGENCY\"], \"reasoning\": \"Low inventory means no urgency to discount despite above-market pricing\"}"
+  },
+  {
+    "id": "promo_007",
+    "question": "{\"product_id\": \"prod_701\", \"product_name\": \"Denim Jacket\", \"base_price_cents\": 6900, \"stock_count\": 150, \"min_margin\": 0.15, \"lowest_competitor_price_cents\": 5500, \"signals\": {\"inventory_pressure\": \"high\", \"competition_position\": \"above_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"DISCOUNT_10_PCT\", \"DISCOUNT_15_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_701\", \"action\": \"DISCOUNT_15_PCT\", \"reason_codes\": [\"HIGH_INVENTORY\", \"ABOVE_MARKET\"], \"reasoning\": \"Very high stock with significantly above-market pricing justifies the maximum available discount\"}"
+  },
+  {
+    "id": "promo_008",
+    "question": "{\"product_id\": \"prod_801\", \"product_name\": \"Canvas Sneakers\", \"base_price_cents\": 5900, \"stock_count\": 45, \"min_margin\": 0.20, \"lowest_competitor_price_cents\": 5900, \"signals\": {\"inventory_pressure\": \"low\", \"competition_position\": \"at_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_801\", \"action\": \"NO_PROMO\", \"reason_codes\": [\"LOW_INVENTORY\", \"AT_MARKET\", \"NO_URGENCY\"], \"reasoning\": \"Low inventory and at-market pricing indicate no promotion is needed\"}"
+  },
+  {
+    "id": "promo_009",
+    "question": "{\"product_id\": \"prod_901\", \"product_name\": \"Cashmere Sweater\", \"base_price_cents\": 18900, \"stock_count\": 95, \"min_margin\": 0.30, \"lowest_competitor_price_cents\": 16900, \"signals\": {\"inventory_pressure\": \"high\", \"competition_position\": \"above_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"DISCOUNT_10_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_901\", \"action\": \"DISCOUNT_10_PCT\", \"reason_codes\": [\"HIGH_INVENTORY\", \"ABOVE_MARKET\"], \"reasoning\": \"High inventory and above-market pricing warrant a discount while respecting the 30% margin constraint\"}"
+  },
+  {
+    "id": "promo_010",
+    "question": "{\"product_id\": \"prod_1001\", \"product_name\": \"Yoga Pants\", \"base_price_cents\": 6500, \"stock_count\": 60, \"min_margin\": 0.20, \"lowest_competitor_price_cents\": 6500, \"signals\": {\"inventory_pressure\": \"high\", \"competition_position\": \"at_market\"}, \"allowed_actions\": [\"NO_PROMO\", \"DISCOUNT_5_PCT\", \"FREE_SHIPPING\"]}",
+    "answer": "{\"product_id\": \"prod_1001\", \"action\": \"DISCOUNT_5_PCT\", \"reason_codes\": [\"HIGH_INVENTORY\", \"AT_MARKET\"], \"reasoning\": \"High inventory with at-market pricing suggests a small discount to help accelerate sales\"}"
+  }
+]

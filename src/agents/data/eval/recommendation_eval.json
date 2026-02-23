@@ -1,0 +1,52 @@
+[
+  {
+    "id": "rec_001",
+    "question": "{\"user_query\": \"looking for something to go with my new bomber jacket\", \"cart_items\": [{\"product_id\": \"prod_101\", \"product_name\": \"Classic Bomber Jacket\", \"category\": \"outerwear\", \"price_cents\": 8900}], \"session_context\": {\"browse_history\": [\"casual pants\", \"sneakers\"], \"price_range_viewed\": [3000, 9000]}}",
+    "answer": "JSON with recommendations array of up to 3 cross-sell items complementary to bomber jacket (e.g., casual pants, sneakers, accessories), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_002",
+    "question": "{\"user_query\": \"complete my workout outfit\", \"cart_items\": [{\"product_id\": \"prod_201\", \"product_name\": \"Performance Running Shorts\", \"category\": \"activewear\", \"price_cents\": 4500}], \"session_context\": {\"browse_history\": [\"running shoes\", \"sports bras\", \"water bottles\"], \"price_range_viewed\": [2000, 6000]}}",
+    "answer": "JSON with recommendations array of up to 3 workout-complementary items (e.g., running shoes, sports tops, accessories), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_003",
+    "question": "{\"user_query\": \"need accessories for a formal event\", \"cart_items\": [{\"product_id\": \"prod_301\", \"product_name\": \"Tailored Navy Suit\", \"category\": \"suits\", \"price_cents\": 24900}, {\"product_id\": \"prod_302\", \"product_name\": \"White Dress Shirt\", \"category\": \"tops\", \"price_cents\": 5900}], \"session_context\": {\"browse_history\": [\"ties\", \"cufflinks\", \"dress shoes\"], \"price_range_viewed\": [3000, 15000]}}",
+    "answer": "JSON with recommendations array of up to 3 formal accessories (e.g., tie, dress shoes, cufflinks), excluding items already in cart, each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_004",
+    "question": "{\"user_query\": \"summer vacation essentials\", \"cart_items\": [{\"product_id\": \"prod_401\", \"product_name\": \"Floral Maxi Dress\", \"category\": \"dresses\", \"price_cents\": 6900}], \"session_context\": {\"browse_history\": [\"sandals\", \"sun hats\", \"sunglasses\"], \"price_range_viewed\": [1500, 7000]}}",
+    "answer": "JSON with recommendations array of up to 3 summer vacation items (e.g., sandals, sun hat, sunglasses), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_005",
+    "question": "{\"user_query\": \"what else do I need\", \"cart_items\": [{\"product_id\": \"prod_501\", \"product_name\": \"Leather Crossbody Bag\", \"category\": \"bags\", \"price_cents\": 12900}], \"session_context\": {\"browse_history\": [\"wallets\", \"scarves\"], \"price_range_viewed\": [5000, 15000]}}",
+    "answer": "JSON with recommendations array of up to 3 complementary items for a bag purchase (e.g., wallet, scarf, keychain), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_006",
+    "question": "{\"user_query\": \"building a capsule wardrobe\", \"cart_items\": [{\"product_id\": \"prod_601\", \"product_name\": \"Basic White Tee\", \"category\": \"tops\", \"price_cents\": 2500}, {\"product_id\": \"prod_602\", \"product_name\": \"Classic Dark Jeans\", \"category\": \"bottoms\", \"price_cents\": 7900}], \"session_context\": {\"browse_history\": [\"neutral colors\", \"minimalist fashion\"], \"price_range_viewed\": [2000, 10000]}}",
+    "answer": "JSON with recommendations array of up to 3 capsule wardrobe essentials (e.g., blazer, sneakers, neutral accessories), excluding cart items, each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_007",
+    "question": "{\"user_query\": \"gift ideas for my partner\", \"cart_items\": [{\"product_id\": \"prod_701\", \"product_name\": \"Cashmere Scarf\", \"category\": \"accessories\", \"price_cents\": 8900}], \"session_context\": {\"browse_history\": [\"jewelry\", \"watches\", \"perfume\"], \"price_range_viewed\": [5000, 20000]}}",
+    "answer": "JSON with recommendations array of up to 3 gift-appropriate items (e.g., jewelry, watch, gloves), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_008",
+    "question": "{\"user_query\": \"cozy winter layers\", \"cart_items\": [{\"product_id\": \"prod_801\", \"product_name\": \"Puffer Vest\", \"category\": \"outerwear\", \"price_cents\": 11900}], \"session_context\": {\"browse_history\": [\"thermal underwear\", \"wool socks\", \"beanies\"], \"price_range_viewed\": [1500, 12000]}}",
+    "answer": "JSON with recommendations array of up to 3 winter layering items (e.g., thermal top, wool socks, beanie), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_009",
+    "question": "{\"user_query\": \"date night outfit\", \"cart_items\": [{\"product_id\": \"prod_901\", \"product_name\": \"Silk Blouse\", \"category\": \"tops\", \"price_cents\": 7900}], \"session_context\": {\"browse_history\": [\"skirts\", \"heels\", \"clutch bags\"], \"price_range_viewed\": [4000, 12000]}}",
+    "answer": "JSON with recommendations array of up to 3 date night items (e.g., skirt, heels, clutch), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  },
+  {
+    "id": "rec_010",
+    "question": "{\"user_query\": \"back to school shopping\", \"cart_items\": [{\"product_id\": \"prod_1001\", \"product_name\": \"Canvas Backpack\", \"category\": \"bags\", \"price_cents\": 4900}], \"session_context\": {\"browse_history\": [\"hoodies\", \"sneakers\", \"jeans\"], \"price_range_viewed\": [2000, 8000]}}",
+    "answer": "JSON with recommendations array of up to 3 back-to-school items (e.g., hoodie, sneakers, jeans), each with product_id, product_name, rank, reasoning, plus user_intent and pipeline_trace"
+  }
+]

@@ -35,6 +35,16 @@ llms:
     chat_template_kwargs:
       enable_thinking: false
 
+# =============================================================================
+# EVALUATION LLMs - Judge model for eval evaluators, not the main workflow
+# Uses a larger model than the agent for unbiased evaluation scoring
+# =============================================================================
+  nim_eval_llm:
+    _type: nim
+    model_name: meta/llama-3.1-70b-instruct
+    temperature: 0.0
+    max_tokens: 1024
+
 # Simple chat completion workflow (no tools needed)
 workflow:
   description: "Post-Purchase Message Generator that creates multilingual shipping updates with brand persona"
@@ -153,3 +163,55 @@ workflow:
       "subject": "Your Classic Tee is on its way! 🚚",
       "message": "Hey John! Great news - your Classic Tee is on its way! 🚚\n\nTrack your package: https://track.example.com/abc123\n\nExpected delivery: January 28, 2026\n\n- The Acme T-Shirts Team"
     }
+
+# =============================================================================
+# EVALUATION & PROFILING
+# Run with: nat eval --config_file configs/post-purchase.yml
+# =============================================================================
+eval:
+  general:
+    output_dir: ./.tmp/eval/post_purchase_agent
+    verbose: true
+    max_concurrency: 3
+    dataset:
+      _type: json
+      file_path: data/eval/post_purchase_eval.json
+      id_key: "id"
+      structure:
+        question_key: question
+        answer_key: answer
+    profiler:
+      token_uniqueness_forecast: true
+      workflow_runtime_forecast: true
+      compute_llm_metrics: true
+      csv_exclude_io_text: true
+      prompt_caching_prefixes:
+        enable: true
+        min_frequency: 0.1
+      bottleneck_analysis:
+        enable_nested_stack: true
+      concurrency_spike_analysis:
+        enable: true
+        spike_threshold: 5
+
+  evaluators:
+    accuracy:
+      _type: ragas
+      metric: AnswerAccuracy
+      llm_name: nim_eval_llm
+    generation_quality:
+      _type: tunable_rag_evaluator
+      llm_name: nim_eval_llm
+      default_scoring: true
+      default_score_weights:
+        coverage: 0.4
+        correctness: 0.3
+        relevance: 0.3
+      judge_llm_prompt: >
+        You are evaluating a post-purchase message generator's output quality.
+        Score the response based on:
+        - Coverage: Does the message include all required elements (order details, tracking URL when applicable, company signature)?
+        - Correctness: Is the message in the correct language and does it match the specified tone?
+        - Relevance: Is the message appropriate for the shipping status and brand persona?
+        Rate each dimension from 0.0 to 1.0.
+

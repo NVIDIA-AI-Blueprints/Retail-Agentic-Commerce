@@ -1,0 +1,52 @@
+[
+  {
+    "id": "search_001",
+    "question": "{\"query\": \"comfortable running shoes\", \"category\": \"footwear\", \"limit\": 5}",
+    "answer": "JSON with results array containing relevant running shoes from footwear category, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_002",
+    "question": "{\"query\": \"winter jacket waterproof\", \"category\": \"outerwear\", \"limit\": 3}",
+    "answer": "JSON with results array containing up to 3 waterproof winter jackets from outerwear category, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_003",
+    "question": "{\"query\": \"casual t-shirt cotton\", \"category\": null, \"limit\": 5}",
+    "answer": "JSON with results array containing relevant cotton t-shirts, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_004",
+    "question": "{\"query\": \"leather belt men\", \"category\": \"accessories\", \"limit\": 3}",
+    "answer": "JSON with results array containing up to 3 men's leather belts from accessories category, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_005",
+    "question": "{\"query\": \"yoga pants high waist\", \"category\": \"activewear\", \"limit\": 5}",
+    "answer": "JSON with results array containing relevant high-waist yoga pants from activewear category, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_006",
+    "question": "{\"query\": \"dress shoes formal black\", \"category\": \"footwear\", \"limit\": 3}",
+    "answer": "JSON with results array containing up to 3 black formal dress shoes, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_007",
+    "question": "{\"query\": \"sunglasses polarized\", \"category\": \"accessories\", \"limit\": 5}",
+    "answer": "JSON with results array containing relevant polarized sunglasses from accessories category, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_008",
+    "question": "{\"query\": \"nonexistent product xyz123\", \"category\": null, \"limit\": 5}",
+    "answer": "JSON with empty results array since no products match the nonsensical query"
+  },
+  {
+    "id": "search_009",
+    "question": "{\"query\": \"denim jeans slim fit\", \"category\": \"bottoms\", \"limit\": 5}",
+    "answer": "JSON with results array containing relevant slim fit denim jeans, each with product_id, product_name, snippet, and distance fields"
+  },
+  {
+    "id": "search_010",
+    "question": "{\"query\": \"wool sweater crew neck\", \"category\": \"tops\", \"limit\": 3}",
+    "answer": "JSON with results array containing up to 3 wool crew neck sweaters, each with product_id, product_name, snippet, and distance fields"
+  }
+]

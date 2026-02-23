@@ -1,0 +1,52 @@
+[
+  {
+    "id": "pp_001",
+    "question": "{\"brand_persona\": {\"company_name\": \"Acme T-Shirts\", \"tone\": \"friendly\", \"preferred_language\": \"en\"}, \"order\": {\"order_id\": \"order_001\", \"customer_name\": \"Sarah\", \"items\": [{\"name\": \"Classic Tee\", \"quantity\": 2}], \"tracking_url\": null, \"estimated_delivery\": \"2026-02-25\"}, \"status\": \"order_confirmed\"}",
+    "answer": "JSON with order_id, status order_confirmed, language en, a friendly English subject line, and a warm message confirming the order for 2 Classic Tees signed by Acme T-Shirts"
+  },
+  {
+    "id": "pp_002",
+    "question": "{\"brand_persona\": {\"company_name\": \"Luxe Fashion\", \"tone\": \"professional\", \"preferred_language\": \"en\"}, \"order\": {\"order_id\": \"order_002\", \"customer_name\": \"James\", \"items\": [{\"name\": \"Tailored Suit\", \"quantity\": 1}, {\"name\": \"Silk Tie\", \"quantity\": 1}], \"tracking_url\": \"https://track.example.com/abc123\", \"estimated_delivery\": \"2026-02-28\"}, \"status\": \"order_shipped\"}",
+    "answer": "JSON with order_id, status order_shipped, language en, a professional English subject line, and a formal message with tracking URL and estimated delivery date, signed by Luxe Fashion"
+  },
+  {
+    "id": "pp_003",
+    "question": "{\"brand_persona\": {\"company_name\": \"Moda Urbana\", \"tone\": \"casual\", \"preferred_language\": \"es\"}, \"order\": {\"order_id\": \"order_003\", \"customer_name\": \"Carlos\", \"items\": [{\"name\": \"Zapatillas Deportivas\", \"quantity\": 1}], \"tracking_url\": \"https://track.example.com/def456\", \"estimated_delivery\": \"2026-02-26\"}, \"status\": \"out_for_delivery\"}",
+    "answer": "JSON with order_id, status out_for_delivery, language es, a casual Spanish subject line, and an informal Spanish message with tracking URL mentioning delivery today, signed by Moda Urbana"
+  },
+  {
+    "id": "pp_004",
+    "question": "{\"brand_persona\": {\"company_name\": \"Maison Élégance\", \"tone\": \"professional\", \"preferred_language\": \"fr\"}, \"order\": {\"order_id\": \"order_004\", \"customer_name\": \"Marie\", \"items\": [{\"name\": \"Robe de Soirée\", \"quantity\": 1}, {\"name\": \"Clutch Doré\", \"quantity\": 1}], \"tracking_url\": null, \"estimated_delivery\": \"2026-03-01\"}, \"status\": \"delivered\"}",
+    "answer": "JSON with order_id, status delivered, language fr, a professional French subject line, and a formal French message confirming delivery of the items and inviting feedback, signed by Maison Élégance"
+  },
+  {
+    "id": "pp_005",
+    "question": "{\"brand_persona\": {\"company_name\": \"Quick Sports\", \"tone\": \"urgent\", \"preferred_language\": \"en\"}, \"order\": {\"order_id\": \"order_005\", \"customer_name\": \"Mike\", \"items\": [{\"name\": \"Running Shoes\", \"quantity\": 1}, {\"name\": \"Sports Socks\", \"quantity\": 3}], \"tracking_url\": \"https://track.example.com/ghi789\", \"estimated_delivery\": \"2026-02-22\"}, \"status\": \"order_shipped\"}",
+    "answer": "JSON with order_id, status order_shipped, language en, an urgent English subject line, and a direct action-oriented message with tracking URL and delivery date, signed by Quick Sports"
+  },
+  {
+    "id": "pp_006",
+    "question": "{\"brand_persona\": {\"company_name\": \"Tienda Feliz\", \"tone\": \"friendly\", \"preferred_language\": \"es\"}, \"order\": {\"order_id\": \"order_006\", \"customer_name\": \"Ana\", \"items\": [{\"name\": \"Bolso de Cuero\", \"quantity\": 1}], \"tracking_url\": null, \"estimated_delivery\": \"2026-03-05\"}, \"status\": \"order_confirmed\"}",
+    "answer": "JSON with order_id, status order_confirmed, language es, a friendly Spanish subject line, and a warm Spanish message confirming the leather bag order, signed by Tienda Feliz"
+  },
+  {
+    "id": "pp_007",
+    "question": "{\"brand_persona\": {\"company_name\": \"Le Petit Boutique\", \"tone\": \"casual\", \"preferred_language\": \"fr\"}, \"order\": {\"order_id\": \"order_007\", \"customer_name\": \"Pierre\", \"items\": [{\"name\": \"Jean Slim\", \"quantity\": 1}, {\"name\": \"T-shirt Basique\", \"quantity\": 2}], \"tracking_url\": \"https://track.example.com/jkl012\", \"estimated_delivery\": \"2026-02-27\"}, \"status\": \"order_shipped\"}",
+    "answer": "JSON with order_id, status order_shipped, language fr, a casual French subject line, and a relaxed informal French message with tracking URL and delivery date, signed by Le Petit Boutique"
+  },
+  {
+    "id": "pp_008",
+    "question": "{\"brand_persona\": {\"company_name\": \"Urban Style\", \"tone\": \"casual\", \"preferred_language\": \"en\"}, \"order\": {\"order_id\": \"order_008\", \"customer_name\": \"Alex\", \"items\": [{\"name\": \"Hoodie\", \"quantity\": 1}, {\"name\": \"Cap\", \"quantity\": 1}, {\"name\": \"Sneakers\", \"quantity\": 1}], \"tracking_url\": \"https://track.example.com/mno345\", \"estimated_delivery\": \"2026-02-23\"}, \"status\": \"out_for_delivery\"}",
+    "answer": "JSON with order_id, status out_for_delivery, language en, a casual English subject line, and a relaxed message about same-day delivery with tracking URL, signed by Urban Style"
+  },
+  {
+    "id": "pp_009",
+    "question": "{\"brand_persona\": {\"company_name\": \"Elegancia\", \"tone\": \"professional\", \"preferred_language\": \"es\"}, \"order\": {\"order_id\": \"order_009\", \"customer_name\": \"Isabella\", \"items\": [{\"name\": \"Vestido Formal\", \"quantity\": 1}], \"tracking_url\": null, \"estimated_delivery\": \"2026-03-02\"}, \"status\": \"delivered\"}",
+    "answer": "JSON with order_id, status delivered, language es, a professional Spanish subject line, and a formal Spanish message confirming delivery and inviting feedback using usted form, signed by Elegancia"
+  },
+  {
+    "id": "pp_010",
+    "question": "{\"brand_persona\": {\"company_name\": \"FitGear\", \"tone\": \"friendly\", \"preferred_language\": \"en\"}, \"order\": {\"order_id\": \"order_010\", \"customer_name\": \"Jordan\", \"items\": [{\"name\": \"Yoga Mat\", \"quantity\": 1}, {\"name\": \"Resistance Bands\", \"quantity\": 1}], \"tracking_url\": null, \"estimated_delivery\": \"2026-02-28\"}, \"status\": \"order_confirmed\"}",
+    "answer": "JSON with order_id, status order_confirmed, language en, a friendly English subject line, and a warm enthusiastic message confirming the fitness gear order, signed by FitGear"
+  }
+]
