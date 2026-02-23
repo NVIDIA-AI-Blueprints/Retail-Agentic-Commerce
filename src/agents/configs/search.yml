@@ -69,25 +69,19 @@ llms:
       enable_thinking: false
 
 # =============================================================================
-# EVALUATION LLMs - Used by eval evaluators, not the main workflow
-# Override with NIM_EVAL_LLM_BASE_URL / NIM_EVAL_LLM_MODEL_NAME
+# EVALUATION LLMs - Judge model for eval evaluators, not the main workflow
+# Uses a larger model than the agent for unbiased evaluation scoring
 # =============================================================================
   nim_eval_llm:
     _type: nim
-    base_url: ${NIM_EVAL_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: ${NIM_EVAL_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    model_name: openai/gpt-oss-120b
     temperature: 0.0
     max_tokens: 1024
-    chat_template_kwargs:
-      enable_thinking: false
   nim_trajectory_eval_llm:
     _type: nim
-    base_url: ${NIM_EVAL_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: ${NIM_EVAL_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    model_name: openai/gpt-oss-120b
     temperature: 0.0
     max_tokens: 2048
-    chat_template_kwargs:
-      enable_thinking: false
 
 # =============================================================================
 # MAIN WORKFLOW - Tool-calling agent
