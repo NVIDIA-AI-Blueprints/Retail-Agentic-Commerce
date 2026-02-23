@@ -374,9 +374,12 @@ docker compose -f docker-compose.infra.yml -f docker-compose-nim.yml -f docker-c
 
 Docker (via nginx):
 
-- Merchant API: http://localhost/api/docs
-- PSP: http://localhost/psp/docs
-- Apps SDK MCP: http://localhost/apps-sdk/docs
+- Merchant API health: http://localhost/api/health
+- PSP health: http://localhost/psp/health
+- Apps SDK MCP health: http://localhost/apps-sdk/health
+- Merchant OpenAPI: http://localhost/api/openapi.json
+- PSP OpenAPI: http://localhost/psp/openapi.json
+- Apps SDK OpenAPI: http://localhost/apps-sdk/openapi.json
 
 Local development (direct ports):
 

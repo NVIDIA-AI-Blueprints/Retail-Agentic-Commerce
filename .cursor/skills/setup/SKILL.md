@@ -123,9 +123,12 @@ for name, url in [
 Setup complete (Docker). All services are running.
 
   Demo UI:        http://localhost
-  API Docs:       http://localhost/api/docs
-  PSP Docs:       http://localhost/psp/docs
-  Apps SDK Docs:  http://localhost/apps-sdk/docs
+  API Health:     http://localhost/api/health
+  PSP Health:     http://localhost/psp/health
+  Apps SDK Health: http://localhost/apps-sdk/health
+  API OpenAPI:    http://localhost/api/openapi.json
+  PSP OpenAPI:    http://localhost/psp/openapi.json
+  Apps SDK OpenAPI: http://localhost/apps-sdk/openapi.json
   Phoenix Traces: http://localhost:6006
   MinIO Console:  http://localhost:9001
 ```

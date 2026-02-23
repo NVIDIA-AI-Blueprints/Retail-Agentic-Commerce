@@ -61,12 +61,12 @@ llms:
   # Uses a larger model than the agent for unbiased evaluation scoring
   nim_eval_llm:
     _type: nim
-    model_name: openai/gpt-oss-120b
+    model_name: meta/llama-3.1-70b-instruct
     temperature: 0.0
     max_tokens: 1024
   nim_trajectory_eval_llm:
     _type: nim
-    model_name: openai/gpt-oss-120b
+    model_name: meta/llama-3.1-70b-instruct
     temperature: 0.0
     max_tokens: 2048
 

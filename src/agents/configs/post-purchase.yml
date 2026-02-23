@@ -41,7 +41,7 @@ llms:
 # =============================================================================
   nim_eval_llm:
     _type: nim
-    model_name: openai/gpt-oss-120b
+    model_name: meta/llama-3.1-70b-instruct
     temperature: 0.0
     max_tokens: 1024
 
