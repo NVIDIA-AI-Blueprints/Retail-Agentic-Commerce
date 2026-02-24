@@ -31,7 +31,6 @@ from src.apps_sdk.events import (
 )
 from src.apps_sdk.recommendation_helpers import (
     call_recommendation_agent,
-    record_purchase_attribution as _record_purchase_attribution,
 )
 from src.apps_sdk.recommendation_helpers import (
     cart_meta as _cart_meta,
@@ -47,6 +46,9 @@ from src.apps_sdk.recommendation_helpers import (
 )
 from src.apps_sdk.recommendation_helpers import (
     record_apps_sdk_outcome as _record_apps_sdk_outcome,
+)
+from src.apps_sdk.recommendation_helpers import (
+    record_purchase_attribution as _record_purchase_attribution,
 )
 from src.apps_sdk.recommendation_helpers import (
     record_recommendation_attribution_event as _record_recommendation_attribution_event,

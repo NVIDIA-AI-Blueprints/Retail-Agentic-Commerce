@@ -14,6 +14,7 @@ from src.apps_sdk.events import (
 )
 from src.apps_sdk.recommendation_helpers import (
     record_purchase_attribution,
+    record_recommendation_attribution_event,
 )
 from src.apps_sdk.schemas import (
     ACPCreateSessionRequest,
