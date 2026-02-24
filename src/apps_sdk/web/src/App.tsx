@@ -383,7 +383,7 @@ export function App() {
 
   // ── Derive cart state from ACP session ──────────────────────────────────
   useEffect(() => {
-    const newCartState = cartStateFromSession(acpSession, cartItems, sessionId || "");
+    const newCartState = cartStateFromSession(acpSession, cartItems, sessionId ?? "");
     if (isPendingCartUpdate) {
       newCartState.isCalculating = true;
     }
