@@ -23,6 +23,8 @@ from src.apps_sdk.config import get_apps_sdk_settings
 from src.apps_sdk.events import (
     emit_agent_activity_event,
     emit_checkout_event,
+    emit_recommendation_complete_event,
+    emit_recommendation_pending_event,
 )
 from src.apps_sdk.events import (
     router as events_router,
@@ -46,6 +48,9 @@ from src.apps_sdk.recommendation_helpers import (
     record_apps_sdk_outcome as _record_apps_sdk_outcome,
 )
 from src.apps_sdk.recommendation_helpers import (
+    record_purchase_attribution as _record_purchase_attribution,
+)
+from src.apps_sdk.recommendation_helpers import (
     record_recommendation_attribution_event as _record_recommendation_attribution_event,
 )
 from src.apps_sdk.recommendation_helpers import (
@@ -59,6 +64,7 @@ from src.apps_sdk.schemas import (
     CartOutput,
     CheckoutInput,
     CheckoutOutput,
+    CreateCheckoutSessionInput,
     GetCartInput,
     GetRecommendationsInput,
     GetRecommendationsOutput,
@@ -68,7 +74,9 @@ from src.apps_sdk.schemas import (
     RemoveFromCartInput,
     SearchProductsInput,
     SearchProductsOutput,
+    TrackRecommendationClickInput,
     UpdateCartQuantityInput,
+    UpdateCheckoutSessionInput,
     UserOutput,
 )
 from src.apps_sdk.tools import (
@@ -79,6 +87,7 @@ from src.apps_sdk.tools import (
     search_products,
     update_cart_quantity,
 )
+from src.apps_sdk.tools.acp_sessions import create_acp_session, update_acp_session
 from src.apps_sdk.widget_endpoints import (
     DIST_DIR,
     PUBLIC_DIR,
@@ -215,6 +224,39 @@ async def list_mcp_tools() -> list[types.Tool]:
                 readOnlyHint=True,
             ),
         ),
+        types.Tool(
+            name="create-checkout-session",
+            title="Create Checkout Session",
+            description="Create a new ACP checkout session with the Merchant API. Returns session with line items, promotions, and totals.",
+            inputSchema=CreateCheckoutSessionInput.model_json_schema(by_alias=True),
+            annotations=types.ToolAnnotations(
+                destructiveHint=False,
+                openWorldHint=True,
+                readOnlyHint=False,
+            ),
+        ),
+        types.Tool(
+            name="update-checkout-session",
+            title="Update Checkout Session",
+            description="Update an existing ACP checkout session (items, shipping, discounts). Returns updated session with recalculated totals.",
+            inputSchema=UpdateCheckoutSessionInput.model_json_schema(by_alias=True),
+            annotations=types.ToolAnnotations(
+                destructiveHint=False,
+                openWorldHint=True,
+                readOnlyHint=False,
+            ),
+        ),
+        types.Tool(
+            name="track-recommendation-click",
+            title="Track Recommendation Click",
+            description="Record a recommendation click event for attribution analytics.",
+            inputSchema=TrackRecommendationClickInput.model_json_schema(by_alias=True),
+            annotations=types.ToolAnnotations(
+                destructiveHint=False,
+                openWorldHint=True,
+                readOnlyHint=False,
+            ),
+        ),
     ]
 
 
@@ -247,209 +289,321 @@ async def list_mcp_resources() -> list[types.Resource]:
 # =============================================================================
 
 
+def _ok(text: str, result: dict[str, Any], **kwargs: Any) -> types.ServerResult:
+    """Build a successful ServerResult with text + structured content."""
+    return types.ServerResult(
+        types.CallToolResult(
+            content=[types.TextContent(type="text", text=text)],
+            structuredContent=result,
+            **kwargs,
+        )
+    )
+
+
+def _err(text: str, **kwargs: Any) -> types.ServerResult:
+    """Build an error ServerResult."""
+    return types.ServerResult(
+        types.CallToolResult(
+            content=[types.TextContent(type="text", text=text)],
+            isError=True,
+            **kwargs,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# Individual tool handlers
+# ---------------------------------------------------------------------------
+
+
+async def _handle_search_products(args: dict[str, Any]) -> types.ServerResult:
+    payload = SearchProductsInput.model_validate(args)
+    started = time.perf_counter()
+    result = await search_products(payload.query, payload.category, payload.limit)
+    error_message = (
+        str(result.get("error")) if result.get("error") is not None else None
+    )
+    status, error_code = _classify_outcome_status(
+        agent_type="search",
+        error_message=error_message,
+    )
+    await _record_apps_sdk_outcome(
+        agent_type="search",
+        status=status,
+        latency_ms=int((time.perf_counter() - started) * 1000),
+        error_code=error_code,
+    )
+    meta = result.get("_meta", _search_meta())
+    if result.get("error"):
+        return _err(str(result.get("error")), structuredContent=result, _meta=meta)
+    return _ok(
+        f"Found {result.get('totalResults', 0)} products for '{payload.query}'",
+        result,
+        _meta=meta,
+    )
+
+
+async def _handle_add_to_cart(args: dict[str, Any]) -> types.ServerResult:
+    payload = AddToCartInput.model_validate(args)
+    result = await add_to_cart(payload.product_id, payload.quantity, payload.cart_id)
+    return _ok(
+        f"Added {payload.quantity} item(s) to cart",
+        result,
+        _meta=result.get("_meta", _cart_meta(result.get("cartId", ""))),
+    )
+
+
+async def _handle_remove_from_cart(args: dict[str, Any]) -> types.ServerResult:
+    payload = RemoveFromCartInput.model_validate(args)
+    result = await remove_from_cart(payload.product_id, payload.cart_id)
+    return _ok(
+        "Item removed from cart",
+        result,
+        _meta=result.get("_meta", _cart_meta(payload.cart_id)),
+    )
+
+
+async def _handle_update_cart_quantity(args: dict[str, Any]) -> types.ServerResult:
+    payload = UpdateCartQuantityInput.model_validate(args)
+    result = await update_cart_quantity(
+        payload.product_id,
+        payload.quantity,
+        payload.cart_id,
+    )
+    return _ok(
+        f"Cart quantity updated to {payload.quantity}",
+        result,
+        _meta=result.get("_meta", _cart_meta(payload.cart_id)),
+    )
+
+
+async def _handle_get_cart(args: dict[str, Any]) -> types.ServerResult:
+    payload = GetCartInput.model_validate(args)
+    result = await get_cart(payload.cart_id)
+    return _ok(
+        f"Cart has {result.get('itemCount', 0)} items",
+        result,
+        _meta=result.get("_meta", _cart_meta(payload.cart_id)),
+    )
+
+
+async def _handle_checkout(args: dict[str, Any]) -> types.ServerResult:
+    payload = CheckoutInput.model_validate(args)
+
+    if payload.cart_items:
+        from src.apps_sdk.tools.cart import carts
+
+        carts[payload.cart_id] = [
+            {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "basePrice": item.get("basePrice"),
+                "quantity": item.get("quantity"),
+                "variant": item.get("variant"),
+                "size": item.get("size"),
+            }
+            for item in payload.cart_items
+        ]
+
+    result = await checkout(payload.cart_id, customer_name=payload.customer_name)
+
+    if result.get("success") and payload.cart_items:
+        await _record_purchase_attribution(
+            cart_items=payload.cart_items,
+            session_id=payload.cart_id,
+            order_id=str(result.get("orderId") or ""),
+        )
+
+    success = result.get("success", False)
+    return _ok(
+        result.get("message", "Checkout failed"),
+        result,
+        _meta=result.get("_meta", _checkout_meta(success)),
+    )
+
+
+async def _handle_get_recommendations(args: dict[str, Any]) -> types.ServerResult:
+    payload = GetRecommendationsInput.model_validate(args)
+    recommendation_request_id = f"rec_{uuid4().hex[:12]}"
+
+    rec_event_id = f"agent_rec_{uuid4().hex[:12]}"
+    cart_items_for_sse = [
+        {"productId": ci.product_id, "name": ci.name, "price": ci.price}
+        for ci in payload.cart_items
+    ]
+
+    emit_recommendation_pending_event(
+        event_id=rec_event_id,
+        product_id=payload.product_id,
+        product_name=payload.product_name,
+        cart_items=cart_items_for_sse,
+    )
+
+    started = time.perf_counter()
+    result = await call_recommendation_agent(
+        payload.product_id,
+        payload.product_name,
+        payload.cart_items,
+    )
+    error_message = (
+        str(result.get("error")) if result.get("error") is not None else None
+    )
+    status, error_code = _classify_outcome_status(
+        agent_type="recommendation",
+        error_message=error_message,
+    )
+    await _record_apps_sdk_outcome(
+        agent_type="recommendation",
+        status=status,
+        latency_ms=int((time.perf_counter() - started) * 1000),
+        error_code=error_code,
+    )
+
+    raw_recommendations = _extract_raw_recommendations(result)
+    await _record_recommendation_impressions(
+        raw_recommendations,
+        payload.session_id,
+        recommendation_request_id,
+    )
+
+    result["recommendationRequestId"] = recommendation_request_id
+    latency_ms = int((time.perf_counter() - started) * 1000)
+
+    emit_recommendation_complete_event(
+        event_id=rec_event_id,
+        product_id=payload.product_id,
+        product_name=payload.product_name,
+        cart_items=cart_items_for_sse,
+        recommendations=[
+            {
+                "productId": rec.get("product_id") or rec.get("productId") or "",
+                "productName": rec.get("product_name") or rec.get("productName") or "",
+                "rank": rec.get("rank", idx + 1),
+                "reasoning": rec.get("reasoning", ""),
+            }
+            for idx, rec in enumerate(raw_recommendations)
+        ],
+        user_intent=result.get("userIntent"),
+        pipeline_trace=result.get("pipelineTrace"),
+        recommendation_request_id=recommendation_request_id,
+        latency_ms=latency_ms,
+        error=error_message,
+    )
+
+    return _ok(
+        f"Found {len(raw_recommendations)} recommendations",
+        result,
+        _meta=_recommendations_meta(),
+    )
+
+
+def _extract_raw_recommendations(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract and normalise the recommendations list from the agent response."""
+    raw_value: Any = result.get("recommendations")
+    if not isinstance(raw_value, list):
+        return []
+    return [
+        cast(dict[str, Any], rec)
+        for rec in cast(list[Any], raw_value)
+        if isinstance(rec, dict)
+    ]
+
+
+async def _record_recommendation_impressions(
+    raw_recommendations: list[dict[str, Any]],
+    session_id: str | None,
+    recommendation_request_id: str,
+) -> None:
+    """Record an impression attribution event for each recommendation."""
+    for index, rec in enumerate(raw_recommendations):
+        product_id = rec.get("product_id") or rec.get("productId")
+        if not isinstance(product_id, str) or not product_id:
+            continue
+        position_value = rec.get("rank")
+        position = int(position_value) if isinstance(position_value, int) else index + 1
+        await _record_recommendation_attribution_event(
+            event_type="impression",
+            product_id=product_id,
+            session_id=session_id,
+            recommendation_request_id=recommendation_request_id,
+            position=position,
+        )
+
+
+async def _handle_create_checkout_session(args: dict[str, Any]) -> types.ServerResult:
+    payload = CreateCheckoutSessionInput.model_validate(args)
+    try:
+        result = await create_acp_session(
+            items=payload.items,
+            buyer=payload.buyer,
+            fulfillment_address=payload.fulfillment_address,
+            discounts=payload.discounts,
+        )
+        return _ok(f"Checkout session {result.get('id', '')} created", result)
+    except Exception as e:
+        logger.exception("create-checkout-session failed")
+        return _err(str(e))
+
+
+async def _handle_update_checkout_session(args: dict[str, Any]) -> types.ServerResult:
+    payload = UpdateCheckoutSessionInput.model_validate(args)
+    try:
+        result = await update_acp_session(
+            session_id=payload.session_id,
+            items=payload.items,
+            fulfillment_option_id=payload.fulfillment_option_id,
+            fulfillment_address=payload.fulfillment_address,
+            discounts=payload.discounts,
+        )
+        return _ok(f"Session {payload.session_id} updated", result)
+    except Exception as e:
+        logger.exception("update-checkout-session failed for %s", payload.session_id)
+        return _err(str(e))
+
+
+async def _handle_track_recommendation_click(
+    args: dict[str, Any],
+) -> types.ServerResult:
+    payload = TrackRecommendationClickInput.model_validate(args)
+    await _record_recommendation_attribution_event(
+        event_type="click",
+        product_id=payload.product_id,
+        session_id=payload.session_id,
+        recommendation_request_id=payload.recommendation_request_id,
+        position=payload.position,
+        source=payload.source,
+    )
+    return _ok("Click tracked", {"recorded": True})
+
+
+# ---------------------------------------------------------------------------
+# Dispatch table — maps tool name to handler
+# ---------------------------------------------------------------------------
+
+_TOOL_HANDLERS: dict[
+    str,
+    Any,  # Callable[[dict[str, Any]], Awaitable[types.ServerResult]]
+] = {
+    "search-products": _handle_search_products,
+    "add-to-cart": _handle_add_to_cart,
+    "remove-from-cart": _handle_remove_from_cart,
+    "update-cart-quantity": _handle_update_cart_quantity,
+    "get-cart": _handle_get_cart,
+    "checkout": _handle_checkout,
+    "get-recommendations": _handle_get_recommendations,
+    "create-checkout-session": _handle_create_checkout_session,
+    "update-checkout-session": _handle_update_checkout_session,
+    "track-recommendation-click": _handle_track_recommendation_click,
+}
+
+
 async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
     """Route and handle all tool calls."""
     tool_name = req.params.name
-    args = req.params.arguments or {}
-
-    if tool_name == "search-products":
-        payload = SearchProductsInput.model_validate(args)
-        started = time.perf_counter()
-        result = await search_products(payload.query, payload.category, payload.limit)
-        error_message = (
-            str(result.get("error")) if result.get("error") is not None else None
-        )
-        status, error_code = _classify_outcome_status(
-            agent_type="search",
-            error_message=error_message,
-        )
-        await _record_apps_sdk_outcome(
-            agent_type="search",
-            status=status,
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            error_code=error_code,
-        )
-        if result.get("error"):
-            return types.ServerResult(
-                types.CallToolResult(
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=str(result.get("error")),
-                        )
-                    ],
-                    structuredContent=result,
-                    _meta=result.get("_meta", _search_meta()),
-                    isError=True,
-                )
-            )
-        return types.ServerResult(
-            types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text=f"Found {result.get('totalResults', 0)} products for '{payload.query}'",
-                    )
-                ],
-                structuredContent=result,
-                _meta=result.get("_meta", _search_meta()),
-            )
-        )
-
-    if tool_name == "add-to-cart":
-        payload = AddToCartInput.model_validate(args)
-        result = await add_to_cart(
-            payload.product_id, payload.quantity, payload.cart_id
-        )
-        return types.ServerResult(
-            types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text=f"Added {payload.quantity} item(s) to cart",
-                    )
-                ],
-                structuredContent=result,
-                _meta=result.get("_meta", _cart_meta(result.get("cartId", ""))),
-            )
-        )
-
-    if tool_name == "remove-from-cart":
-        payload = RemoveFromCartInput.model_validate(args)
-        result = await remove_from_cart(payload.product_id, payload.cart_id)
-        return types.ServerResult(
-            types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text="Item removed from cart",
-                    )
-                ],
-                structuredContent=result,
-                _meta=result.get("_meta", _cart_meta(payload.cart_id)),
-            )
-        )
-
-    if tool_name == "update-cart-quantity":
-        payload = UpdateCartQuantityInput.model_validate(args)
-        result = await update_cart_quantity(
-            payload.product_id, payload.quantity, payload.cart_id
-        )
-        return types.ServerResult(
-            types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text=f"Cart quantity updated to {payload.quantity}",
-                    )
-                ],
-                structuredContent=result,
-                _meta=result.get("_meta", _cart_meta(payload.cart_id)),
-            )
-        )
-
-    if tool_name == "get-cart":
-        payload = GetCartInput.model_validate(args)
-        result = await get_cart(payload.cart_id)
-        return types.ServerResult(
-            types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text=f"Cart has {result.get('itemCount', 0)} items",
-                    )
-                ],
-                structuredContent=result,
-                _meta=result.get("_meta", _cart_meta(payload.cart_id)),
-            )
-        )
-
-    if tool_name == "checkout":
-        payload = CheckoutInput.model_validate(args)
-        result = await checkout(payload.cart_id)
-        success = result.get("success", False)
-        message = result.get("message", "Checkout failed")
-        return types.ServerResult(
-            types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text=message,
-                    )
-                ],
-                structuredContent=result,
-                _meta=result.get("_meta", _checkout_meta(success)),
-            )
-        )
-
-    if tool_name == "get-recommendations":
-        payload = GetRecommendationsInput.model_validate(args)
-        recommendation_request_id = f"rec_{uuid4().hex[:12]}"
-        started = time.perf_counter()
-        result = await call_recommendation_agent(
-            payload.product_id,
-            payload.product_name,
-            payload.cart_items,
-        )
-        error_message = (
-            str(result.get("error")) if result.get("error") is not None else None
-        )
-        status, error_code = _classify_outcome_status(
-            agent_type="recommendation",
-            error_message=error_message,
-        )
-        await _record_apps_sdk_outcome(
-            agent_type="recommendation",
-            status=status,
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            error_code=error_code,
-        )
-        raw_recommendations_value: Any = result.get("recommendations")
-        raw_recommendations: list[dict[str, Any]] = (
-            [
-                cast(dict[str, Any], rec)
-                for rec in cast(list[Any], raw_recommendations_value)
-                if isinstance(rec, dict)
-            ]
-            if isinstance(raw_recommendations_value, list)
-            else []
-        )
-        for index, rec in enumerate(raw_recommendations):
-            product_id = rec.get("product_id") or rec.get("productId")
-            if not isinstance(product_id, str) or not product_id:
-                continue
-            position_value = rec.get("rank")
-            position = (
-                int(position_value) if isinstance(position_value, int) else index + 1
-            )
-            await _record_recommendation_attribution_event(
-                event_type="impression",
-                product_id=product_id,
-                session_id=payload.session_id,
-                recommendation_request_id=recommendation_request_id,
-                position=position,
-            )
-        result["recommendationRequestId"] = recommendation_request_id
-        rec_count = len(result.get("recommendations", []))
-        return types.ServerResult(
-            types.CallToolResult(
-                content=[
-                    types.TextContent(
-                        type="text",
-                        text=f"Found {rec_count} recommendations",
-                    )
-                ],
-                structuredContent=result,
-                _meta=_recommendations_meta(),
-            )
-        )
-
-    return types.ServerResult(
-        types.CallToolResult(
-            content=[types.TextContent(type="text", text=f"Unknown tool: {tool_name}")],
-            isError=True,
-        )
-    )
+    handler = _TOOL_HANDLERS.get(tool_name)
+    if handler is None:
+        return _err(f"Unknown tool: {tool_name}")
+    return await handler(req.params.arguments or {})
 
 
 # Register the handler
@@ -527,4 +681,10 @@ __all__ = [
     "GetRecommendationsOutput",
     "ProductOutput",
     "UserOutput",
+    "CreateCheckoutSessionInput",
+    "UpdateCheckoutSessionInput",
+    "TrackRecommendationClickInput",
+    # Shared ACP session functions.
+    "create_acp_session",
+    "update_acp_session",
 ]

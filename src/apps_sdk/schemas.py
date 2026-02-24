@@ -50,6 +50,16 @@ class CheckoutInput(BaseModel):
     """Schema for checkout tool."""
 
     cart_id: str = Field(..., alias="cartId", description="Cart ID to checkout")
+    cart_items: list[dict[str, Any]] | None = Field(
+        None,
+        alias="cartItems",
+        description="Optional cart items to sync before checkout (widget use case)",
+    )
+    customer_name: str | None = Field(
+        None,
+        alias="customerName",
+        description="Optional customer name for personalized messages",
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -322,3 +332,59 @@ class ACPUpdateSessionRequest(BaseModel):
     discounts: dict[str, list[str]] | None = Field(None)
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+# =============================================================================
+# MCP Tool Input Schemas (used by callTool from widget)
+# =============================================================================
+
+
+class CreateCheckoutSessionInput(BaseModel):
+    """Schema for create-checkout-session MCP tool."""
+
+    items: list[dict[str, Any]] = Field(..., description="Items with id and quantity")
+    buyer: dict[str, str] | None = Field(
+        None, description="Buyer info (first_name, last_name, email)"
+    )
+    fulfillment_address: dict[str, str] | None = Field(
+        None, alias="fulfillmentAddress", description="Shipping address"
+    )
+    discounts: dict[str, list[str]] | None = Field(None, description="Discount codes")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class UpdateCheckoutSessionInput(BaseModel):
+    """Schema for update-checkout-session MCP tool."""
+
+    session_id: str = Field(..., alias="sessionId", description="Session ID to update")
+    items: list[dict[str, Any]] | None = Field(None, description="Updated items")
+    fulfillment_option_id: str | None = Field(
+        None, alias="fulfillmentOptionId", description="Selected fulfillment option"
+    )
+    fulfillment_address: dict[str, str] | None = Field(
+        None, alias="fulfillmentAddress", description="Updated shipping address"
+    )
+    discounts: dict[str, list[str]] | None = Field(None, description="Discount codes")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class TrackRecommendationClickInput(BaseModel):
+    """Schema for track-recommendation-click MCP tool."""
+
+    product_id: str = Field(..., alias="productId", description="Clicked product ID")
+    recommendation_request_id: str = Field(
+        ...,
+        alias="recommendationRequestId",
+        description="Recommendation request ID for attribution",
+    )
+    session_id: str | None = Field(
+        None, alias="sessionId", description="Cart/session ID"
+    )
+    position: int | None = Field(None, description="Position in recommendation list")
+    source: str = Field(
+        default="apps_sdk_widget", description="Click source identifier"
+    )
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")

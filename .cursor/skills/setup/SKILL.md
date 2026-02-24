@@ -143,153 +143,58 @@ Setup complete (Docker). All services are running.
 
 ## Mode B: Local Development
 
-### Prerequisites
+### Quick Start
 
-- Docker 24+ and Docker Compose v2 (for infrastructure only)
-- Python 3.12+ with `uv` installed
-- Node.js 18+ with `pnpm` installed
-
-Verify:
+Run the automated setup script from the project root:
 
 ```bash
-docker --version
-docker compose version
-docker info > /dev/null 2>&1
-uv --version
-python3 --version
-node --version
-pnpm --version
+./install.sh
 ```
 
-If any check fails, stop and inform the user what to install.
-
-### 1. Start Infrastructure in Docker
+To stop all services:
 
 ```bash
-docker network create acp-infra-network || true
-docker compose -f docker-compose.infra.yml up -d
+./stop.sh
 ```
 
-### 2. Install and Run Backend Services
+### What the Script Does
 
-From the project root, set up the Python environment and start each service in a separate terminal:
+1. **Validates prerequisites** — Python 3.12+, `uv`, Node.js 18+, `pnpm`
+2. **Configures environment** — Creates `.env` from `env.example` if missing, validates `NVIDIA_API_KEY`
+3. **Installs dependencies** — Root venv (`uv sync`), agents venv (`uv pip install`), UI (`pnpm install`), Apps SDK widget
+4. **Starts 8 services** in background with PID tracking
+5. **Runs health checks** and prints a status table
 
-```bash
-# Setup (once)
-uv venv
-source .venv/bin/activate
-uv sync
-```
+### Services Started
 
-```bash
-# Terminal 1 — Merchant API (port 8000)
-source .venv/bin/activate
-uvicorn src.merchant.main:app --reload
-```
-
-```bash
-# Terminal 2 — PSP (port 8001)
-source .venv/bin/activate
-uvicorn src.payment.main:app --reload --port 8001
-```
-
-```bash
-# Terminal 3 — Apps SDK MCP (port 2091)
-source .venv/bin/activate
-uvicorn src.apps_sdk.main:app --reload --port 2091
-```
-
-### 3. Install and Run NAT Agents
-
-Agents have their own environment under `src/agents` and need NIM environment variables loaded:
-
-```bash
-# Setup (once)
-cd src/agents
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-```
-
-Each agent terminal must have the NIM env vars loaded from the project root `.env`. Source them before starting:
-
-```bash
-# Terminal 4 — Promotion Agent (port 8002)
-cd src/agents
-source .venv/bin/activate
-source <(grep -E '^(NVIDIA_API_KEY|NIM_LLM_BASE_URL|NIM_LLM_MODEL_NAME|NIM_EMBED_BASE_URL|NIM_EMBED_MODEL_NAME|MILVUS_URI|PHOENIX_ENDPOINT)=' ../../.env | sed 's/^/export /')
-nat serve --config_file configs/promotion.yml --port 8002
-```
-
-```bash
-# Terminal 5 — Post-Purchase Agent (port 8003)
-cd src/agents
-source .venv/bin/activate
-source <(grep -E '^(NVIDIA_API_KEY|NIM_LLM_BASE_URL|NIM_LLM_MODEL_NAME|NIM_EMBED_BASE_URL|NIM_EMBED_MODEL_NAME|MILVUS_URI|PHOENIX_ENDPOINT)=' ../../.env | sed 's/^/export /')
-nat serve --config_file configs/post-purchase.yml --port 8003
-```
-
-```bash
-# Terminal 6 — Recommendation Agent (port 8004)
-cd src/agents
-source .venv/bin/activate
-source <(grep -E '^(NVIDIA_API_KEY|NIM_LLM_BASE_URL|NIM_LLM_MODEL_NAME|NIM_EMBED_BASE_URL|NIM_EMBED_MODEL_NAME|MILVUS_URI|PHOENIX_ENDPOINT)=' ../../.env | sed 's/^/export /')
-nat serve --config_file configs/recommendation.yml --port 8004
-```
-
-```bash
-# Terminal 7 — Search Agent (port 8005)
-cd src/agents
-source .venv/bin/activate
-source <(grep -E '^(NVIDIA_API_KEY|NIM_LLM_BASE_URL|NIM_LLM_MODEL_NAME|NIM_EMBED_BASE_URL|NIM_EMBED_MODEL_NAME|MILVUS_URI|PHOENIX_ENDPOINT)=' ../../.env | sed 's/^/export /')
-nat serve --config_file configs/search.yml --port 8005
-```
-
-### 4. Run UIs
-
-```bash
-# Terminal 8 — Demo UI (port 3000)
-cd src/ui
-cp env.example .env.local  # only needed on first setup
-pnpm install
-pnpm dev
-```
-
-```bash
-# Terminal 9 — Apps SDK Widget dev server (port 3001)
-cd src/apps_sdk/web
-pnpm install
-pnpm dev
-```
-
-### Health Verification
-
-```bash
-# Core services
-curl -s http://localhost:8000/health
-curl -s http://localhost:8001/health
-curl -s http://localhost:2091/health
-
-# NAT agents
-curl -s http://localhost:8002/health
-curl -s http://localhost:8003/health
-curl -s http://localhost:8004/health
-curl -s http://localhost:8005/health
-```
+| Service              | Port | Log File                          |
+|----------------------|------|-----------------------------------|
+| Merchant API         | 8000 | `logs/merchant.log`               |
+| PSP                  | 8001 | `logs/psp.log`                    |
+| Apps SDK MCP         | 2091 | `logs/apps-sdk.log`               |
+| Promotion Agent      | 8002 | `logs/promotion-agent.log`        |
+| Post-Purchase Agent  | 8003 | `logs/post-purchase-agent.log`    |
+| Recommendation Agent | 8004 | `logs/recommendation-agent.log`   |
+| Search Agent         | 8005 | `logs/search-agent.log`           |
+| Demo UI              | 3000 | `logs/ui.log`                     |
 
 ### Post-Setup Summary
 
 ```
-Setup complete (Local). All services are running.
-
-  Demo UI:        http://localhost:3000
-  Merchant API:   http://localhost:8000/docs
-  PSP:            http://localhost:8001/docs
-  Apps SDK MCP:   http://localhost:2091/docs
-  Apps SDK Widget: http://localhost:3001
-  Phoenix Traces: http://localhost:6006
-  MinIO Console:  http://localhost:9001
+  Demo UI:         http://localhost:3000
+  Merchant API:    http://localhost:8000/docs
+  PSP:             http://localhost:8001/docs
+  Apps SDK MCP:    http://localhost:2091/docs
+  Phoenix Traces:  http://localhost:6006  (requires Docker infra)
+  MinIO Console:   http://localhost:9001  (requires Docker infra)
 ```
+
+### Troubleshooting
+
+- **View logs**: `tail -f logs/<service>.log`
+- **Port conflicts**: `lsof -i :<port>` — stop the conflicting process or change the port
+- **Re-run setup**: `./install.sh` stops existing services first (idempotent)
+- **Docker infrastructure** (Milvus, Phoenix, MinIO): Optional. Start with `docker compose -f docker-compose.infra.yml up -d`
 
 ---
 

@@ -62,7 +62,7 @@ def emit_agent_activity_event(
     stock_count: int = 0,
     base_price: int = 0,
 ) -> None:
-    """Emit an agent activity event to all SSE subscribers."""
+    """Emit a promotion agent activity event to all SSE subscribers."""
     event = {
         "id": f"agent_{datetime.now().timestamp()}",
         "agentType": agent_type,
@@ -78,6 +78,73 @@ def emit_agent_activity_event(
     }
     checkout_events.append(event)
 
+    for queue in event_subscribers:
+        with contextlib.suppress(asyncio.QueueFull):
+            queue.put_nowait(event)
+
+
+def emit_recommendation_pending_event(
+    *,
+    event_id: str,
+    product_id: str,
+    product_name: str,
+    cart_items: list[dict[str, Any]],
+) -> None:
+    """Emit a *pending* recommendation event so the Agent Activity Panel
+    immediately shows a "Generating" card while the ARAG agent works.
+    """
+    event: dict[str, Any] = {
+        "id": event_id,
+        "agentType": "recommendation",
+        "status": "pending",
+        "productId": product_id,
+        "productName": product_name,
+        "cartItems": cart_items,
+        "timestamp": datetime.now().isoformat(),
+    }
+    checkout_events.append(event)
+    for queue in event_subscribers:
+        with contextlib.suppress(asyncio.QueueFull):
+            queue.put_nowait(event)
+
+
+def emit_recommendation_complete_event(
+    *,
+    event_id: str,
+    product_id: str,
+    product_name: str,
+    cart_items: list[dict[str, Any]],
+    recommendations: list[dict[str, Any]],
+    user_intent: str | None = None,
+    pipeline_trace: dict[str, Any] | None = None,
+    recommendation_request_id: str | None = None,
+    latency_ms: int = 0,
+    error: str | None = None,
+) -> None:
+    """Emit a *completed* recommendation event that updates the pending card
+    with the final results (or error).
+    """
+    status = "error" if error else "success"
+    event: dict[str, Any] = {
+        "id": event_id,
+        "agentType": "recommendation",
+        "status": status,
+        "productId": product_id,
+        "productName": product_name,
+        "cartItems": cart_items,
+        "recommendations": recommendations,
+        "recommendationRequestId": recommendation_request_id,
+        "latencyMs": latency_ms,
+        "timestamp": datetime.now().isoformat(),
+    }
+    if user_intent is not None:
+        event["userIntent"] = user_intent
+    if pipeline_trace is not None:
+        event["pipelineTrace"] = pipeline_trace
+    if error is not None:
+        event["error"] = error
+
+    checkout_events.append(event)
     for queue in event_subscribers:
         with contextlib.suppress(asyncio.QueueFull):
             queue.put_nowait(event)

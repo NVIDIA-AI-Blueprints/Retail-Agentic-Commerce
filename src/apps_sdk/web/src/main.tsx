@@ -14,9 +14,116 @@ applyDocumentTheme(savedTheme ?? (systemPrefersDark ? "dark" : "light"));
 // Store for simulated bridge data
 let simulatedToolOutput: ToolOutput | null = null;
 
+// Persisted widget state in simulated mode (stored in memory)
+let simulatedWidgetState: unknown = null;
+
+/**
+ * Determine the MCP server base URL for the simulated bridge.
+ * Uses the same 3-way detection as the rest of the widget:
+ * 1. Vite dev server → localhost:2091
+ * 2. Nginx proxy (/apps-sdk/) → /apps-sdk
+ * 3. Direct → ""
+ */
+function getMcpBaseUrl(): string {
+  const isViteDevServer = window.location.port === "3001" || window.location.port === "3002";
+  const isAppsSdkPath = window.location.pathname.startsWith("/apps-sdk/");
+
+  if (isViteDevServer) {
+    return "http://localhost:2091";
+  } else if (isAppsSdkPath) {
+    return "/apps-sdk";
+  } else {
+    return "";
+  }
+}
+
+interface McpJsonRpcResponse {
+  result?: {
+    structuredContent?: Record<string, unknown>;
+    content?: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  };
+  error?: { code: number; message: string };
+}
+
+/**
+ * Parse the raw response text (SSE stream or plain JSON) into a JSON-RPC response.
+ */
+function parseMcpResponse(text: string): McpJsonRpcResponse | null {
+  // Try SSE stream first — look for "data: " lines containing a JSON-RPC result
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("data: ")) continue;
+    try {
+      const data = JSON.parse(line.slice(6)) as McpJsonRpcResponse;
+      if (data.result || data.error) return data;
+    } catch {
+      // Continue parsing remaining lines
+    }
+  }
+  // Fallback to plain JSON
+  try {
+    return JSON.parse(text) as McpJsonRpcResponse;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract the tool result string from a parsed MCP JSON-RPC response.
+ */
+function extractToolResult(mcpResponse: McpJsonRpcResponse): string {
+  const structured = mcpResponse.result?.structuredContent;
+  if (structured) return JSON.stringify(structured);
+  const textContent = mcpResponse.result?.content?.[0]?.text;
+  return textContent ?? JSON.stringify({ success: false, error: "Empty response" });
+}
+
+/**
+ * Call an MCP tool directly via JSON-RPC to the MCP server.
+ * Parses the SSE response stream to extract the tool result.
+ * This is used by the simulated bridge in dev mode.
+ */
+async function callMcpTool(
+  name: string,
+  args: Record<string, unknown>
+): Promise<{ result: string }> {
+  const mcpBaseUrl = getMcpBaseUrl();
+  const response = await fetch(`${mcpBaseUrl}/api/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: Date.now(),
+      method: "tools/call",
+      params: { name, arguments: args },
+    }),
+    signal: AbortSignal.timeout(65000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`MCP server returned ${response.status}: ${response.statusText || "Unknown error"}`);
+  }
+
+  const text = await response.text();
+  const mcpResponse = parseMcpResponse(text);
+
+  if (!mcpResponse) {
+    throw new Error("No valid response from MCP server");
+  }
+  if (mcpResponse.error) {
+    throw new Error(`MCP error: ${mcpResponse.error.message}`);
+  }
+
+  return { result: extractToolResult(mcpResponse) };
+}
+
 /**
  * Create a simulated window.openai object for standalone mode.
  * This mimics what the client agent injects in production.
+ * callTool sends JSON-RPC directly to the MCP server (like the real host does).
  */
 function createSimulatedOpenAi(globals?: Partial<OpenAiGlobals>): OpenAiGlobals {
   return {
@@ -26,35 +133,24 @@ function createSimulatedOpenAi(globals?: Partial<OpenAiGlobals>): OpenAiGlobals 
     displayMode: globals?.displayMode ?? "inline",
     toolInput: globals?.toolInput ?? {},
     toolOutput: globals?.toolOutput ?? simulatedToolOutput,
-    widgetState: globals?.widgetState ?? null,
+    widgetState: globals?.widgetState ?? (simulatedWidgetState as OpenAiGlobals["widgetState"]),
 
-    // Methods that communicate with parent
+    // Persist widget state in memory for simulated mode
     setWidgetState: async (state: unknown) => {
       console.log("[SimulatedBridge] setWidgetState:", state);
+      simulatedWidgetState = state;
     },
 
+    // Direct MCP JSON-RPC call (no postMessage relay)
     callTool: async (name: string, args: Record<string, unknown>) => {
       console.log("[SimulatedBridge] callTool:", name, args);
-      
-      // Send to parent for processing
-      window.parent.postMessage({ type: "CALL_TOOL", toolName: name, args }, "*");
-      
-      // Wait for response
-      return new Promise((resolve) => {
-        const handleResponse = (event: MessageEvent) => {
-          if (event.data?.type === "TOOL_RESULT" && event.data?.toolName === name) {
-            window.removeEventListener("message", handleResponse);
-            resolve({ result: event.data.result });
-          }
-        };
-        window.addEventListener("message", handleResponse);
-        
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          window.removeEventListener("message", handleResponse);
-          resolve({ result: JSON.stringify({ success: false, error: "Timeout" }) });
-        }, 30000);
-      });
+      try {
+        return await callMcpTool(name, args);
+      } catch (error) {
+        console.error("[SimulatedBridge] callTool failed:", error);
+        const msg = error instanceof Error ? error.message : "callTool failed";
+        return { result: JSON.stringify({ success: false, error: msg }) };
+      }
     },
 
     sendFollowUpMessage: async (args: { prompt: string }) => {

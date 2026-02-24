@@ -4,7 +4,6 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { useACPLog } from "@/hooks/useACPLog";
 import { useMCPClient } from "@/hooks/useMCPClient";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
-import type { RecommendationInputSignals, RecommendationDecision } from "@/types";
 
 /**
  * Props for the MerchantIframeContainer component
@@ -36,12 +35,6 @@ const FALLBACK_WIDGET_URL =
  * Shows the skeleton loader for this duration before revealing the iframe.
  */
 const LOADING_DELAY_MS = 4000;
-
-/**
- * Minimum delay for recommendation requests in milliseconds.
- * Ensures the skeleton loader is visible for at least this duration.
- */
-const MIN_RECOMMENDATION_DELAY_MS = 1000;
 
 /**
  * Minimum delay for search refresh loading animation in milliseconds.
@@ -94,7 +87,7 @@ export function MerchantIframeContainer({
   const { logEvent, completeEvent } = useACPLog();
 
   // MCP client hook for URL discovery and tool calls
-  const { getWidgetUrl, callTool, callToolWithWidget } = useMCPClient();
+  const { getWidgetUrl, callToolWithWidget } = useMCPClient();
 
   // Agent activity logging for recommendation events
   const { logAgentCall, completeAgentCall } = useAgentActivityLog();
@@ -263,194 +256,15 @@ export function MerchantIframeContainer({
   }, [iframeSrc]);
 
   /**
-   * Handle GET_RECOMMENDATIONS request from iframe.
-   * Calls the MCP tool and logs to Agent Activity panel.
-   * Ensures a minimum delay for UX (skeleton visibility).
-   */
-  const handleRecommendationRequest = useCallback(
-    async (data: {
-      productId: string;
-      productName: string;
-      cartItems: Array<{ productId: string; name: string; price: number }>;
-      source?: string;
-      sessionId?: string;
-    }) => {
-      const source = data.source || "product_detail";
-      // Record start time for minimum delay calculation
-      const startTime = Date.now();
-
-      // Create input signals for agent activity logging
-      const inputSignals: RecommendationInputSignals = {
-        productId: data.productId,
-        productName: data.productName,
-        cartItems: data.cartItems,
-      };
-
-      // Log the start of the recommendation request
-      const agentEventId = logAgentCall("recommendation", inputSignals);
-
-      // Log to ACP protocol inspector
-      const contextLabel = source === "checkout" ? "cart checkout" : data.productName;
-      const acpEventId = logEvent(
-        "session_update",
-        "POST",
-        "/api/mcp (tools/call: get-recommendations)",
-        `Getting recommendations for ${contextLabel}...`
-      );
-
-      /**
-       * Helper to ensure minimum delay before sending result.
-       * This ensures the skeleton loader is visible for at least MIN_RECOMMENDATION_DELAY_MS.
-       */
-      const waitForMinDelay = async () => {
-        const elapsed = Date.now() - startTime;
-        const remaining = MIN_RECOMMENDATION_DELAY_MS - elapsed;
-        if (remaining > 0) {
-          await new Promise((resolve) => setTimeout(resolve, remaining));
-        }
-      };
-
-      try {
-        // Call the MCP tool
-        const result = await callTool("get-recommendations", {
-          productId: data.productId,
-          productName: data.productName,
-          cartItems: data.cartItems,
-          sessionId: data.sessionId,
-        });
-
-        // Parse the result - ensure recommendations is an array
-        const rawRecommendations = Array.isArray(result?.recommendations)
-          ? result.recommendations
-          : [];
-        const userIntent = typeof result?.userIntent === "string" ? result.userIntent : undefined;
-        const rawPipelineTrace = result?.pipelineTrace as
-          | {
-              candidatesFound?: number;
-              afterNliFilter?: number;
-              finalRanked?: number;
-            }
-          | undefined;
-
-        // Map recommendations to typed format
-        type RawRec = {
-          productId?: string;
-          product_id?: string;
-          productName?: string;
-          product_name?: string;
-          rank: number;
-          reasoning: string;
-        };
-        const mappedRecommendations = rawRecommendations.map((rec: RawRec) => ({
-          productId: rec.productId ?? rec.product_id ?? "",
-          productName: rec.productName ?? rec.product_name ?? "",
-          rank: rec.rank,
-          reasoning: rec.reasoning,
-        }));
-
-        // Create decision for agent activity log
-        const decision: RecommendationDecision = {
-          recommendations: mappedRecommendations,
-          ...(userIntent !== undefined && { userIntent }),
-          ...(rawPipelineTrace && {
-            pipelineTrace: {
-              candidatesFound: rawPipelineTrace.candidatesFound ?? 0,
-              afterNliFilter: rawPipelineTrace.afterNliFilter ?? 0,
-              finalRanked: rawPipelineTrace.finalRanked ?? 0,
-            },
-          }),
-        };
-
-        // Complete agent activity log
-        completeAgentCall(agentEventId, "success", decision);
-
-        // Complete ACP log
-        completeEvent(
-          acpEventId,
-          "success",
-          `Found ${rawRecommendations.length} recommendations`,
-          200
-        );
-
-        // Ensure minimum delay for UX before sending result
-        await waitForMinDelay();
-
-        // Send result back to iframe with source for routing
-        const messageToSend = {
-          type: "RECOMMENDATIONS_RESULT",
-          source,
-          recommendationRequestId:
-            typeof result?.recommendationRequestId === "string"
-              ? result.recommendationRequestId
-              : undefined,
-          recommendations: rawRecommendations,
-          userIntent,
-          pipelineTrace: rawPipelineTrace,
-        };
-        if (iframeRef.current?.contentWindow) {
-          iframeRef.current.contentWindow.postMessage(messageToSend, "*");
-        }
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Failed to get recommendations";
-
-        // Complete agent activity log with error
-        completeAgentCall(agentEventId, "error", undefined, errorMessage);
-
-        // Complete ACP log with error
-        completeEvent(acpEventId, "error", errorMessage, 500);
-
-        // Ensure minimum delay for UX before sending error
-        await waitForMinDelay();
-
-        // Send error back to iframe with source for routing
-        iframeRef.current?.contentWindow?.postMessage(
-          {
-            type: "RECOMMENDATIONS_RESULT",
-            source,
-            recommendations: [],
-            error: errorMessage,
-          },
-          "*"
-        );
-      }
-    },
-    [logAgentCall, completeAgentCall, logEvent, completeEvent, callTool]
-  );
-
-  /**
    * Handle messages from the iframe.
-   * Handles checkout completion and recommendation requests.
+   * The widget now calls MCP tools directly via callTool, so we only
+   * need to listen for checkout completion notifications.
    */
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       const message = event.data;
 
       if (typeof message !== "object" || message === null) return;
-
-      // Handle recommendation request from widget
-      if (message.type === "GET_RECOMMENDATIONS") {
-        const requestData: {
-          productId: string;
-          productName: string;
-          cartItems: Array<{ productId: string; name: string; price: number }>;
-          source?: string;
-          sessionId?: string;
-        } = {
-          productId: message.productId as string,
-          productName: message.productName as string,
-          cartItems:
-            (message.cartItems as Array<{ productId: string; name: string; price: number }>) ?? [],
-        };
-        if (message.source) {
-          requestData.source = message.source as string;
-        }
-        if (message.sessionId) {
-          requestData.sessionId = message.sessionId as string;
-        }
-        handleRecommendationRequest(requestData);
-        return;
-      }
 
       // Listen for checkout completion notification from the widget (optional)
       // Note: The widget is isolated and doesn't send postMessage for checkout events.
@@ -461,7 +275,7 @@ export function MerchantIframeContainer({
         }
       }
     },
-    [onCheckoutComplete, handleRecommendationRequest]
+    [onCheckoutComplete]
   );
 
   /**
@@ -512,12 +326,8 @@ export function MerchantIframeContainer({
             toolOutput: toolOutput,
           };
           latestGlobalsRef.current = globals;
-          if (bridgeInitializedRef.current) {
-            postGlobalsToIframe(globals, "UPDATE_OPENAI_GLOBALS");
-          } else {
-            postGlobalsToIframe(globals, "UPDATE_OPENAI_GLOBALS");
-            bridgeInitializedRef.current = true;
-          }
+          postGlobalsToIframe(globals, "UPDATE_OPENAI_GLOBALS");
+          bridgeInitializedRef.current = true;
 
           if (toolError) {
             completeEvent(acpEventId, "error", toolError, 500);

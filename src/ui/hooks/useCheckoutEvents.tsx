@@ -3,7 +3,14 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useACPLog, type ACPEventType } from "./useACPLog";
 import { useAgentActivityLog } from "./useAgentActivityLog";
-import type { PromotionInputSignals, PromotionDecision } from "@/types";
+import type {
+  PromotionInputSignals,
+  PromotionDecision,
+  RecommendationInputSignals,
+  RecommendationDecision,
+  RecommendationItem,
+  RecommendationPipelineTrace,
+} from "@/types";
 
 /**
  * SSE event from the MCP server
@@ -22,11 +29,11 @@ interface CheckoutSSEEvent {
 }
 
 /**
- * Agent activity SSE event from the MCP server
+ * Agent activity SSE event from the MCP server (promotion)
  */
-interface AgentActivitySSEEvent {
+interface PromotionActivitySSEEvent {
   id: string;
-  agentType: string;
+  agentType: "promotion";
   productId: string;
   productName: string;
   action: string;
@@ -36,6 +43,87 @@ interface AgentActivitySSEEvent {
   stockCount: number;
   basePrice: number;
   timestamp: string;
+}
+
+/**
+ * Agent activity SSE event from the MCP server (recommendation)
+ */
+interface RecommendationActivitySSEEvent {
+  id: string;
+  agentType: "recommendation";
+  status: "pending" | "success" | "error";
+  productId: string;
+  productName: string;
+  cartItems: Array<{ productId: string; name: string; price: number }>;
+  // Fields below are only present on complete (success/error) events
+  recommendations?: Array<{
+    productId: string;
+    productName: string;
+    rank: number;
+    reasoning: string;
+  }>;
+  userIntent?: string;
+  pipelineTrace?: {
+    candidatesFound?: number;
+    afterNliFilter?: number;
+    finalRanked?: number;
+  };
+  recommendationRequestId?: string;
+  latencyMs?: number;
+  error?: string;
+  timestamp: string;
+}
+
+type AgentActivitySSEEvent = PromotionActivitySSEEvent | RecommendationActivitySSEEvent;
+
+// ---------------------------------------------------------------------------
+// Pure helpers for agent activity event processing
+// ---------------------------------------------------------------------------
+
+function buildPromotionSignals(data: PromotionActivitySSEEvent): {
+  inputSignals: PromotionInputSignals;
+  decision: PromotionDecision;
+} {
+  return {
+    inputSignals: {
+      productId: data.productId,
+      productName: data.productName,
+      stockCount: data.stockCount,
+      basePrice: data.basePrice,
+      competitorPrice: null,
+      inventoryPressure: data.stockCount > 50 ? "high" : "low",
+      competitionPosition: inferCompetitionPosition(data.reasonCodes),
+    },
+    decision: {
+      action: data.action,
+      discountAmount: data.discountAmount,
+      reasonCodes: data.reasonCodes,
+      reasoning: data.reasoning,
+    },
+  };
+}
+
+function buildRecommendationDecision(data: RecommendationActivitySSEEvent): RecommendationDecision {
+  const recommendations: RecommendationItem[] = (data.recommendations ?? []).map((rec) => ({
+    productId: rec.productId ?? "",
+    productName: rec.productName ?? "",
+    rank: rec.rank,
+    reasoning: rec.reasoning,
+  }));
+
+  const pipelineTrace: RecommendationPipelineTrace | undefined = data.pipelineTrace
+    ? {
+        candidatesFound: data.pipelineTrace.candidatesFound ?? 0,
+        afterNliFilter: data.pipelineTrace.afterNliFilter ?? 0,
+        finalRanked: data.pipelineTrace.finalRanked ?? 0,
+      }
+    : undefined;
+
+  return {
+    recommendations,
+    ...(data.userIntent !== undefined && { userIntent: data.userIntent }),
+    ...(pipelineTrace !== undefined && { pipelineTrace }),
+  };
 }
 
 /**
@@ -72,7 +160,7 @@ const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "http://localho
  */
 export function useCheckoutEvents(mcpServerUrl = MCP_SERVER_URL) {
   const { logEvent, completeEvent } = useACPLog();
-  const { addAgentEvent } = useAgentActivityLog();
+  const { addAgentEvent, logAgentCall, completeAgentCall } = useAgentActivityLog();
   const eventSourceRef = useRef<EventSource | null>(null);
   const pendingEventsRef = useRef<Map<string, string>>(new Map());
 
@@ -131,35 +219,43 @@ export function useCheckoutEvents(mcpServerUrl = MCP_SERVER_URL) {
       try {
         const data = JSON.parse(event.data) as AgentActivitySSEEvent;
 
-        // Only handle promotion agent events for now
         if (data.agentType === "promotion") {
-          // Build input signals
-          const inputSignals: PromotionInputSignals = {
-            productId: data.productId,
-            productName: data.productName,
-            stockCount: data.stockCount,
-            basePrice: data.basePrice,
-            competitorPrice: null,
-            inventoryPressure: data.stockCount > 50 ? "high" : "low",
-            competitionPosition: inferCompetitionPosition(data.reasonCodes),
-          };
-
-          // Build decision
-          const decision: PromotionDecision = {
-            action: data.action,
-            discountAmount: data.discountAmount,
-            reasonCodes: data.reasonCodes,
-            reasoning: data.reasoning,
-          };
-
-          // Add to agent activity log
+          const { inputSignals, decision } = buildPromotionSignals(data);
           addAgentEvent("promotion", inputSignals, decision, "success");
+          return;
+        }
+
+        if (data.agentType !== "recommendation") return;
+
+        const recData = data;
+        const inputSignals: RecommendationInputSignals = {
+          productId: recData.productId,
+          productName: recData.productName,
+          cartItems: recData.cartItems ?? [],
+        };
+
+        if (recData.status === "pending") {
+          const localId = logAgentCall("recommendation", inputSignals);
+          pendingEventsRef.current.set(recData.id, localId);
+          return;
+        }
+
+        const decision = buildRecommendationDecision(recData);
+        const status = recData.error ? "error" : "success";
+        const pendingLocalId = pendingEventsRef.current.get(recData.id);
+
+        if (pendingLocalId) {
+          completeAgentCall(pendingLocalId, status, decision, recData.error);
+          pendingEventsRef.current.delete(recData.id);
+        } else {
+          const localId = logAgentCall("recommendation", inputSignals);
+          completeAgentCall(localId, status, decision, recData.error);
         }
       } catch (error) {
         console.error("[useCheckoutEvents] Failed to parse agent activity event:", error);
       }
     },
-    [addAgentEvent]
+    [addAgentEvent, logAgentCall, completeAgentCall]
   );
 
   useEffect(() => {

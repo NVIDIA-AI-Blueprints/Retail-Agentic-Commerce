@@ -127,14 +127,16 @@ flowchart TB
     SEARCH --> MILVUS
 ```
 
-## Quick Start
+## Quick Start (Cursor, Codex, Claude Code)
 
 This is the recommended path. It does not require local NIM containers.
 
 ### Prerequisites
 
-- Docker 24+
-- Docker Compose v2
+- Python 3.12+
+- [uv](https://astral.sh/uv) package manager
+- Node.js 18+ and [pnpm](https://pnpm.io/)
+- Docker 24+ and Docker Compose v2
 - NVIDIA API key ([create one](https://build.nvidia.com/settings/api-keys))
 
 ### 1. Clone and Configure
@@ -153,182 +155,19 @@ NVIDIA_API_KEY=nvapi-xxx
 
 On Cursor, Codex or Claude Code simply run: `setup`
 
-## Manual Docker Deployment
+## Manual Deployment Options
 
-### 1. Create Shared Docker Network (one-time)
+| Mode | Description | Guide |
+|------|-------------|-------|
+| **Docker** (recommended) | Full stack in containers via Docker Compose | [Docker Deployment](deploy/docker-deployment.md) |
+| **Local Development** | Services on host, automated via `install.sh` | [Local Development](deploy/local-development.md) |
 
-```bash
-docker network create acp-infra-network || true
-```
-
-### 2. Start Infrastructure + App Stack
-
-```bash
-docker compose -f docker-compose.infra.yml -f docker-compose.yml up --build -d
-```
-
-### 3. Verify Health
+Quick local start:
 
 ```bash
-curl http://localhost/api/health
-curl http://localhost/psp/health
-curl http://localhost/apps-sdk/health
+./install.sh   # install deps + start all 8 services
+./stop.sh      # stop everything
 ```
-
-Agent services also expose `/health`, but in full Docker deployment they are internal-only (not published on `localhost`).
-
-### 4. Open the Application
-
-- Demo UI: http://localhost
-- Phoenix traces: http://localhost:6006
-- MinIO console: http://localhost:9001
-
-## Service Routes
-
-| Route | Service | Purpose |
-|---|---|---|
-| `/` | UI | Demo frontend |
-| `/api/*` | Merchant API | ACP/UCP, products, checkout, orders |
-| `/psp/*` | PSP | Delegated payment endpoints |
-| `/apps-sdk/*` | Apps SDK MCP | MCP server + widget assets |
-
-## Common Operations
-
-### Logs and Status
-
-```bash
-docker compose -f docker-compose.infra.yml -f docker-compose.yml ps
-docker compose -f docker-compose.infra.yml -f docker-compose.yml logs -f merchant
-docker compose -f docker-compose.infra.yml -f docker-compose.yml logs -f nginx
-```
-
-### Agent Health (Troubleshooting)
-
-Docker deployment (check from inside the merchant container):
-
-```bash
-docker compose -f docker-compose.infra.yml -f docker-compose.yml exec merchant \
-  python -c "import urllib.request as u; print('promotion', u.urlopen('http://promotion-agent:8002/health', timeout=5).status); print('post-purchase', u.urlopen('http://post-purchase-agent:8003/health', timeout=5).status); print('recommendation', u.urlopen('http://recommendation-agent:8004/health', timeout=5).status); print('search', u.urlopen('http://search-agent:8005/health', timeout=5).status)"
-```
-
-Local development (agents started on host ports):
-
-```bash
-curl http://localhost:8002/health
-curl http://localhost:8003/health
-curl http://localhost:8004/health
-curl http://localhost:8005/health
-```
-
-### Stop Services
-
-```bash
-# Stop app + infra containers
-docker compose -f docker-compose.infra.yml -f docker-compose.yml down
-
-# Stop and remove volumes (full reset)
-docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v
-```
-
-### Rebuild
-
-```bash
-docker compose -f docker-compose.infra.yml -f docker-compose.yml build
-docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d
-```
-
-## Local Development (Optional)
-
-Use this when you want faster iteration outside full Docker runtime.
-
-### 1. Start Infra in Docker
-
-```bash
-docker network create acp-infra-network || true
-docker compose -f docker-compose.infra.yml up -d
-```
-
-### 2. Run Backend Services
-
-Run each service in a separate terminal:
-
-```bash
-# Terminal 1
-uv venv
-source .venv/bin/activate
-uv sync
-uvicorn src.merchant.main:app --reload
-```
-
-```bash
-# Terminal 2
-source .venv/bin/activate
-uvicorn src.payment.main:app --reload --port 8001
-```
-
-```bash
-# Terminal 3
-source .venv/bin/activate
-uvicorn src.apps_sdk.main:app --reload --port 2091
-```
-
-### 3. Run NAT Agents
-
-Run each agent in a separate terminal:
-
-```bash
-# Setup once
-cd src/agents
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-```
-
-```bash
-# Terminal 4
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/promotion.yml --port 8002
-```
-
-```bash
-# Terminal 5
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/post-purchase.yml --port 8003
-```
-
-```bash
-# Terminal 6
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/recommendation.yml --port 8004
-```
-
-```bash
-# Terminal 7
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/search.yml --port 8005
-```
-
-### 4. Run UI
-
-```bash
-cd src/ui
-cp env.example .env.local
-pnpm install
-pnpm dev
-```
-
-Optional Apps SDK widget dev server:
-
-```bash
-cd src/apps_sdk/web
-pnpm install
-pnpm dev
-```
-
 ## Hardware Requirements (Local NIM Deployment)
 
 Local NIM deployment requires NVIDIA GPUs to host the inference models. The following table summarizes the models and their GPU requirements:
@@ -346,43 +185,7 @@ Local NIM deployment requires NVIDIA GPUs to host the inference models. The foll
 
 Only needed for self-hosted local inference. The default deployment already works with public endpoints.
 
-### 1. Start Local NIMs
-
-```bash
-docker compose -f docker-compose-nim.yml up -d
-```
-
-### 2. Point Agents to Local NIM in `.env`
-
-```env
-NIM_LLM_BASE_URL=http://nemotron-nano:8000/v1
-NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
-NIM_EMBED_BASE_URL=http://embedqa:8000/v1
-NIM_EMBED_MODEL_NAME=nvidia/nv-embedqa-e5-v5
-```
-
-### 3. Start Full Stack with NIM + Infra + App
-
-```bash
-docker compose -f docker-compose.infra.yml -f docker-compose-nim.yml -f docker-compose.yml up --build -d
-```
-
-## API Docs
-
-Docker (via nginx):
-
-- Merchant API health: http://localhost/api/health
-- PSP health: http://localhost/psp/health
-- Apps SDK MCP health: http://localhost/apps-sdk/health
-- Merchant OpenAPI: http://localhost/api/openapi.json
-- PSP OpenAPI: http://localhost/psp/openapi.json
-- Apps SDK OpenAPI: http://localhost/apps-sdk/openapi.json
-
-Local development (direct ports):
-
-- Merchant API: http://localhost:8000/docs
-- PSP: http://localhost:8001/docs
-- Apps SDK MCP: http://localhost:2091/docs
+For step-by-step instructions (prerequisites, GPU setup, NIM containers, validation), see the **[Local NIM Deployment Notebook](deploy/1_Deploy_Agentic_Commerce.ipynb)**.
 
 ## Project Structure
 
@@ -394,6 +197,11 @@ src/
 ├── agents/        # NAT agents and configs
 └── ui/            # Next.js demo UI
 
+deploy/
+├── docker-deployment.md
+├── local-development.md
+└── 1_Deploy_Agentic_Commerce.ipynb
+
 docs/
 ├── architecture.md
 ├── features/
@@ -402,17 +210,14 @@ docs/
 
 ## Documentation
 
+- [Docker Deployment](deploy/docker-deployment.md)
+- [Local Development](deploy/local-development.md)
 - [Architecture](docs/architecture.md)
 - [Feature Breakdown](docs/features/index.md)
 - [ACP Spec](docs/specs/acp-spec.md)
 - [UCP Spec](docs/specs/ucp-spec.md)
 - [Apps SDK Spec](docs/specs/apps-sdk-spec.md)
 - [Agent Integration](src/agents/README.md)
-
-## Getting Help
-
-- Issues: https://github.com/NVIDIA/Retail-Agentic-Commerce/issues
-- Security: [SECURITY.md](SECURITY.md)
 
 ## License
 
