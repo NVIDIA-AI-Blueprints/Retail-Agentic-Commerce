@@ -227,7 +227,7 @@ export function useCheckoutEvents(mcpServerUrl = MCP_SERVER_URL) {
 
         if (data.agentType !== "recommendation") return;
 
-        const recData = data as RecommendationActivitySSEEvent;
+        const recData = data;
         const inputSignals: RecommendationInputSignals = {
           productId: recData.productId,
           productName: recData.productName,
