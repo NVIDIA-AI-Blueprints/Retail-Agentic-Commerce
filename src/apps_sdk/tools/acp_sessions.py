@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from typing import Any
+from urllib.parse import quote as url_quote
 
 import httpx
 
@@ -186,8 +187,9 @@ async def update_acp_session(
         if discounts is not None:
             body["discounts"] = discounts
 
+        safe_id = url_quote(session_id, safe="")
         response = await client.post(
-            f"{merchant_api_url}/checkout_sessions/{session_id}",
+            f"{merchant_api_url}/checkout_sessions/{safe_id}",
             headers={
                 "Authorization": f"Bearer {merchant_api_key}",
                 "Content-Type": "application/json",

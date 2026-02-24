@@ -173,9 +173,9 @@ def _parse_attribution_fields(
     Returns ``(recommendation_request_id, product_id, quantity, unit_price, position)``
     or ``None`` if the item is not attributable.
     """
-    recommendation_request_id = item.get(
-        "recommendationRequestId"
-    ) or item.get("recommendation_request_id")
+    recommendation_request_id = item.get("recommendationRequestId") or item.get(
+        "recommendation_request_id"
+    )
     product_id = item.get("id") or item.get("productId")
 
     if not isinstance(recommendation_request_id, str) or not recommendation_request_id:

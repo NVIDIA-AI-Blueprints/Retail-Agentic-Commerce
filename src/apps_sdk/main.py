@@ -324,7 +324,8 @@ async def _handle_search_products(args: dict[str, Any]) -> types.ServerResult:
         str(result.get("error")) if result.get("error") is not None else None
     )
     status, error_code = _classify_outcome_status(
-        agent_type="search", error_message=error_message,
+        agent_type="search",
+        error_message=error_message,
     )
     await _record_apps_sdk_outcome(
         agent_type="search",
@@ -365,7 +366,9 @@ async def _handle_remove_from_cart(args: dict[str, Any]) -> types.ServerResult:
 async def _handle_update_cart_quantity(args: dict[str, Any]) -> types.ServerResult:
     payload = UpdateCartQuantityInput.model_validate(args)
     result = await update_cart_quantity(
-        payload.product_id, payload.quantity, payload.cart_id,
+        payload.product_id,
+        payload.quantity,
+        payload.cart_id,
     )
     return _ok(
         f"Cart quantity updated to {payload.quantity}",
@@ -438,13 +441,16 @@ async def _handle_get_recommendations(args: dict[str, Any]) -> types.ServerResul
 
     started = time.perf_counter()
     result = await call_recommendation_agent(
-        payload.product_id, payload.product_name, payload.cart_items,
+        payload.product_id,
+        payload.product_name,
+        payload.cart_items,
     )
     error_message = (
         str(result.get("error")) if result.get("error") is not None else None
     )
     status, error_code = _classify_outcome_status(
-        agent_type="recommendation", error_message=error_message,
+        agent_type="recommendation",
+        error_message=error_message,
     )
     await _record_apps_sdk_outcome(
         agent_type="recommendation",
@@ -455,7 +461,9 @@ async def _handle_get_recommendations(args: dict[str, Any]) -> types.ServerResul
 
     raw_recommendations = _extract_raw_recommendations(result)
     await _record_recommendation_impressions(
-        raw_recommendations, payload.session_id, recommendation_request_id,
+        raw_recommendations,
+        payload.session_id,
+        recommendation_request_id,
     )
 
     result["recommendationRequestId"] = recommendation_request_id
@@ -512,9 +520,7 @@ async def _record_recommendation_impressions(
         if not isinstance(product_id, str) or not product_id:
             continue
         position_value = rec.get("rank")
-        position = (
-            int(position_value) if isinstance(position_value, int) else index + 1
-        )
+        position = int(position_value) if isinstance(position_value, int) else index + 1
         await _record_recommendation_attribution_event(
             event_type="impression",
             product_id=product_id,
@@ -555,7 +561,9 @@ async def _handle_update_checkout_session(args: dict[str, Any]) -> types.ServerR
         return _err(str(e))
 
 
-async def _handle_track_recommendation_click(args: dict[str, Any]) -> types.ServerResult:
+async def _handle_track_recommendation_click(
+    args: dict[str, Any],
+) -> types.ServerResult:
     payload = TrackRecommendationClickInput.model_validate(args)
     await _record_recommendation_attribution_event(
         event_type="click",

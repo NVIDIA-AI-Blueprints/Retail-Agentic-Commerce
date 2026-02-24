@@ -343,7 +343,9 @@ class CreateCheckoutSessionInput(BaseModel):
     """Schema for create-checkout-session MCP tool."""
 
     items: list[dict[str, Any]] = Field(..., description="Items with id and quantity")
-    buyer: dict[str, str] | None = Field(None, description="Buyer info (first_name, last_name, email)")
+    buyer: dict[str, str] | None = Field(
+        None, description="Buyer info (first_name, last_name, email)"
+    )
     fulfillment_address: dict[str, str] | None = Field(
         None, alias="fulfillmentAddress", description="Shipping address"
     )
@@ -373,10 +375,16 @@ class TrackRecommendationClickInput(BaseModel):
 
     product_id: str = Field(..., alias="productId", description="Clicked product ID")
     recommendation_request_id: str = Field(
-        ..., alias="recommendationRequestId", description="Recommendation request ID for attribution"
+        ...,
+        alias="recommendationRequestId",
+        description="Recommendation request ID for attribution",
     )
-    session_id: str | None = Field(None, alias="sessionId", description="Cart/session ID")
+    session_id: str | None = Field(
+        None, alias="sessionId", description="Cart/session ID"
+    )
     position: int | None = Field(None, description="Position in recommendation list")
-    source: str = Field(default="apps_sdk_widget", description="Click source identifier")
+    source: str = Field(
+        default="apps_sdk_widget", description="Click source identifier"
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
