@@ -165,6 +165,52 @@ async def record_recommendation_attribution_event(
         )
 
 
+async def record_purchase_attribution(
+    cart_items: list[dict[str, Any]],
+    session_id: str,
+    order_id: str,
+) -> None:
+    """Record purchase attribution for cart items that originated from recommendations.
+
+    Items without a ``recommendationRequestId`` are silently skipped (they
+    were not recommended, so no attribution is needed).
+    """
+    for item in cart_items:
+        recommendation_request_id = item.get(
+            "recommendationRequestId"
+        ) or item.get("recommendation_request_id")
+        product_id = item.get("id") or item.get("productId")
+
+        if not isinstance(recommendation_request_id, str) or not recommendation_request_id:
+            continue
+        if not isinstance(product_id, str) or not product_id:
+            logger.debug("Skipping purchase attribution — missing product_id: %s", item)
+            continue
+
+        quantity_raw = item.get("quantity")
+        price_raw = (
+            item.get("basePrice") if "basePrice" in item else item.get("base_price")
+        )
+        quantity = (
+            quantity_raw if isinstance(quantity_raw, int) and quantity_raw > 0 else 1
+        )
+        unit_price = price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
+        position_raw = item.get("recommendationPosition")
+        position = position_raw if isinstance(position_raw, int) else None
+
+        await record_recommendation_attribution_event(
+            event_type="purchase",
+            product_id=product_id,
+            session_id=session_id,
+            recommendation_request_id=recommendation_request_id,
+            position=position,
+            order_id=order_id or None,
+            quantity=quantity,
+            revenue_cents=unit_price * quantity,
+            source="apps_sdk_checkout",
+        )
+
+
 def _parse_agent_response(raw_result: Any) -> dict[str, Any]:
     """Parse the ARAG agent response into a typed dictionary."""
     parsed: dict[str, Any] = {}

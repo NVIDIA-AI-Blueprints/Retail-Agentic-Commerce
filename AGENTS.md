@@ -35,6 +35,8 @@ This project implements ACP/UCP flows with strict architecture contracts. Do not
 | Agent integration details | `src/agents/README.md` |
 | System architecture and data flow | `docs/architecture.md` |
 | Feature-specific behavior | `docs/features/index.md` and `docs/features/feature-XX-*.md` |
+| Docker deployment, common operations | `deploy/docker-deployment.md` |
+| Local development, `install.sh`/`stop.sh` | `deploy/local-development.md` |
 
 ### Specification Source of Truth
 

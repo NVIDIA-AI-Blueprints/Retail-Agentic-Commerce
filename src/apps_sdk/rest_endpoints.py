@@ -9,14 +9,11 @@ from uuid import uuid4
 import httpx
 from fastapi import APIRouter, HTTPException
 
-from src.apps_sdk.config import get_apps_sdk_settings
 from src.apps_sdk.events import (
-    checkout_events,
-    emit_agent_activity_event,
     emit_checkout_event,
 )
 from src.apps_sdk.recommendation_helpers import (
-    record_recommendation_attribution_event,
+    record_purchase_attribution,
 )
 from src.apps_sdk.schemas import (
     ACPCreateSessionRequest,
@@ -28,6 +25,11 @@ from src.apps_sdk.schemas import (
     ShippingUpdateRequest,
 )
 from src.apps_sdk.tools import add_to_cart, checkout
+from src.apps_sdk.tools.acp_sessions import (
+    ACPSessionError,
+    create_acp_session,
+    update_acp_session,
+)
 
 router = APIRouter()
 
@@ -42,7 +44,11 @@ active_sessions: dict[str, str] = {}  # cart_id -> session_id
 async def api_recommendation_click(
     request: RecommendationClickRequest,
 ) -> dict[str, bool]:
-    """Track a recommendation click event for attribution analytics."""
+    """Track a recommendation click event for attribution analytics.
+
+    .. deprecated::
+        Prefer the ``track-recommendation-click`` MCP tool for new integrations.
+    """
     await record_recommendation_attribution_event(
         event_type="click",
         product_id=request.product_id,
@@ -178,80 +184,18 @@ async def api_update_shipping(request: ShippingUpdateRequest) -> dict[str, Any]:
 
 @router.post("/acp/sessions", tags=["acp"])
 async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]:
-    """Create a checkout session on the Merchant API."""
-    checkout_events.clear()
+    """Create a checkout session on the Merchant API.
 
-    settings = get_apps_sdk_settings()
-    merchant_api_url = settings.merchant_api_url
-    merchant_api_key = settings.merchant_api_key
-
+    .. deprecated::
+        Prefer the ``create-checkout-session`` MCP tool for new integrations.
+    """
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            body: dict[str, Any] = {"items": request.items}
-            if request.buyer:
-                body["buyer"] = request.buyer
-            if request.fulfillment_address:
-                body["fulfillment_address"] = request.fulfillment_address
-            if request.discounts is not None:
-                body["discounts"] = request.discounts
-
-            response = await client.post(
-                f"{merchant_api_url}/checkout_sessions",
-                headers={
-                    "Authorization": f"Bearer {merchant_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
-            )
-
-            if response.status_code == 201:
-                data = response.json()
-                session_id = data.get("id", "")
-
-                emit_checkout_event(
-                    event_type="session_create",
-                    endpoint="/checkout_sessions",
-                    method="POST",
-                    status="success",
-                    summary=f"Session {session_id[-12:]} created",
-                    status_code=201,
-                    session_id=session_id,
-                )
-
-                line_items = data.get("line_items", [])
-                for line_item in line_items:
-                    promotion = line_item.get("promotion")
-                    if promotion:
-                        item_info = line_item.get("item", {})
-                        product_id = item_info.get("id", "unknown")
-                        product_name = line_item.get("name") or product_id
-                        stock_count = promotion.get("stock_count", 0)
-
-                        emit_agent_activity_event(
-                            agent_type="promotion",
-                            product_id=product_id,
-                            product_name=product_name,
-                            action=promotion.get("action", "NO_PROMO"),
-                            discount_amount=line_item.get("discount", 0),
-                            reason_codes=promotion.get("reason_codes", []),
-                            reasoning=promotion.get("reasoning", ""),
-                            stock_count=stock_count,
-                            base_price=line_item.get("base_amount", 0),
-                        )
-
-                return data
-
-            error_text = response.text
-            emit_checkout_event(
-                event_type="session_create",
-                endpoint="/checkout_sessions",
-                method="POST",
-                status="error",
-                summary=f"Failed: {response.status_code}",
-                status_code=response.status_code,
-            )
-            raise HTTPException(status_code=response.status_code, detail=error_text)
-
+        return await create_acp_session(
+            items=request.items,
+            buyer=request.buyer,
+            fulfillment_address=request.fulfillment_address,
+            discounts=request.discounts,
+        )
     except httpx.ConnectError as e:
         emit_checkout_event(
             event_type="session_create",
@@ -262,76 +206,27 @@ async def acp_create_session(request: ACPCreateSessionRequest) -> dict[str, Any]
             status_code=503,
         )
         raise HTTPException(status_code=503, detail=str(e)) from e
+    except ACPSessionError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @router.post("/acp/sessions/{session_id}", tags=["acp"])
 async def acp_update_session(
     session_id: str, request: ACPUpdateSessionRequest
 ) -> dict[str, Any]:
-    """Update a checkout session on the Merchant API."""
-    settings = get_apps_sdk_settings()
-    merchant_api_url = settings.merchant_api_url
-    merchant_api_key = settings.merchant_api_key
+    """Update a checkout session on the Merchant API.
 
-    update_parts: list[str] = []
-    if request.items:
-        update_parts.append(f"{len(request.items)} items")
-    if request.fulfillment_option_id:
-        update_parts.append("shipping")
-    if request.fulfillment_address:
-        update_parts.append("address")
-    if request.discounts is not None:
-        update_parts.append("discounts")
-    update_summary = ", ".join(update_parts) or "session"
-
+    .. deprecated::
+        Prefer the ``update-checkout-session`` MCP tool for new integrations.
+    """
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            body: dict[str, Any] = {}
-            if request.items is not None:
-                body["items"] = request.items
-            if request.fulfillment_option_id is not None:
-                body["fulfillment_option_id"] = request.fulfillment_option_id
-            if request.fulfillment_address is not None:
-                body["fulfillment_address"] = request.fulfillment_address
-            if request.discounts is not None:
-                body["discounts"] = request.discounts
-
-            response = await client.post(
-                f"{merchant_api_url}/checkout_sessions/{session_id}",
-                headers={
-                    "Authorization": f"Bearer {merchant_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-
-                emit_checkout_event(
-                    event_type="session_update",
-                    endpoint=f"/checkout_sessions/{session_id[-12:]}",
-                    method="POST",
-                    status="success",
-                    summary=f"Updated {update_summary}",
-                    status_code=200,
-                    session_id=session_id,
-                )
-
-                return data
-
-            error_text = response.text
-            emit_checkout_event(
-                event_type="session_update",
-                endpoint=f"/checkout_sessions/{session_id[-12:]}",
-                method="POST",
-                status="error",
-                summary=f"Failed: {response.status_code}",
-                status_code=response.status_code,
-                session_id=session_id,
-            )
-            raise HTTPException(status_code=response.status_code, detail=error_text)
-
+        return await update_acp_session(
+            session_id=session_id,
+            items=request.items,
+            fulfillment_option_id=request.fulfillment_option_id,
+            fulfillment_address=request.fulfillment_address,
+            discounts=request.discounts,
+        )
     except httpx.ConnectError as e:
         emit_checkout_event(
             event_type="session_update",
@@ -343,6 +238,8 @@ async def acp_update_session(
             session_id=session_id,
         )
         raise HTTPException(status_code=503, detail=str(e)) from e
+    except ACPSessionError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @router.post("/cart/sync", tags=["cart"])
@@ -377,7 +274,11 @@ async def api_sync_cart(request: CartCheckoutRequest) -> dict[str, Any]:
 
 @router.post("/cart/checkout", tags=["cart"])
 async def api_checkout(request: CartCheckoutRequest) -> dict[str, Any]:
-    """Process checkout after syncing cart state."""
+    """Process checkout after syncing cart state.
+
+    .. deprecated::
+        Prefer the ``checkout`` MCP tool (with cartItems/customerName) for new integrations.
+    """
     from src.apps_sdk.tools.cart import carts
 
     cart_id = request.cart_id or f"cart_{uuid4().hex[:12]}"
@@ -400,44 +301,10 @@ async def api_checkout(request: CartCheckoutRequest) -> dict[str, Any]:
 
     result = await checkout(cart_id, customer_name=request.customer_name)
 
-    if result.get("success") is True:
-        order_id = str(result.get("orderId") or "")
-        for item in request.cart_items:
-            recommendation_request_id = item.get("recommendationRequestId") or item.get(
-                "recommendation_request_id"
-            )
-            product_id = item.get("id") or item.get("productId")
-            if (
-                not isinstance(recommendation_request_id, str)
-                or not recommendation_request_id
-            ):
-                continue
-            if not isinstance(product_id, str) or not product_id:
-                continue
-            quantity_raw = item.get("quantity")
-            price_raw = (
-                item.get("basePrice") if "basePrice" in item else item.get("base_price")
-            )
-            quantity = (
-                quantity_raw
-                if isinstance(quantity_raw, int) and quantity_raw > 0
-                else 1
-            )
-            unit_price = (
-                price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
-            )
-            position_raw = item.get("recommendationPosition")
-            position = position_raw if isinstance(position_raw, int) else None
-
-            await record_recommendation_attribution_event(
-                event_type="purchase",
-                product_id=product_id,
-                session_id=request.cart_id,
-                recommendation_request_id=recommendation_request_id,
-                position=position,
-                order_id=order_id or None,
-                quantity=quantity,
-                revenue_cents=unit_price * quantity,
-                source="apps_sdk_checkout",
-            )
+    if result.get("success"):
+        await record_purchase_attribution(
+            cart_items=request.cart_items,
+            session_id=request.cart_id,
+            order_id=str(result.get("orderId") or ""),
+        )
     return result

@@ -118,6 +118,9 @@ ipython_config.py
 *.log
 logs/
 
+# Local dev PID tracking
+.local-dev.pids
+
 # Frontend / UI (Node.js, Next.js, React)
 node_modules/
 .next/

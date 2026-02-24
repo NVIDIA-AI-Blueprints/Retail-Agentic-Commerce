@@ -8,8 +8,14 @@ This module exports all available tools for the MCP server:
 - get_cart: Get cart contents
 - update_cart_quantity: Update item quantity in cart
 - checkout: Process checkout via ACP payment flow
+- create_acp_session / update_acp_session: ACP session management
 """
 
+from src.apps_sdk.tools.acp_sessions import (
+    ACPSessionError,
+    create_acp_session,
+    update_acp_session,
+)
 from src.apps_sdk.tools.cart import (
     add_to_cart,
     get_cart,
@@ -26,4 +32,7 @@ __all__ = [
     "get_cart",
     "update_cart_quantity",
     "checkout",
+    "ACPSessionError",
+    "create_acp_session",
+    "update_acp_session",
 ]
