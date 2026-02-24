@@ -37,6 +37,47 @@ function getMcpBaseUrl(): string {
   }
 }
 
+interface McpJsonRpcResponse {
+  result?: {
+    structuredContent?: Record<string, unknown>;
+    content?: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  };
+  error?: { code: number; message: string };
+}
+
+/**
+ * Parse the raw response text (SSE stream or plain JSON) into a JSON-RPC response.
+ */
+function parseMcpResponse(text: string): McpJsonRpcResponse | null {
+  // Try SSE stream first — look for "data: " lines containing a JSON-RPC result
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("data: ")) continue;
+    try {
+      const data = JSON.parse(line.slice(6)) as McpJsonRpcResponse;
+      if (data.result || data.error) return data;
+    } catch {
+      // Continue parsing remaining lines
+    }
+  }
+  // Fallback to plain JSON
+  try {
+    return JSON.parse(text) as McpJsonRpcResponse;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract the tool result string from a parsed MCP JSON-RPC response.
+ */
+function extractToolResult(mcpResponse: McpJsonRpcResponse): string {
+  const structured = mcpResponse.result?.structuredContent;
+  if (structured) return JSON.stringify(structured);
+  const textContent = mcpResponse.result?.content?.[0]?.text;
+  return textContent ?? JSON.stringify({ success: false, error: "Empty response" });
+}
+
 /**
  * Call an MCP tool directly via JSON-RPC to the MCP server.
  * Parses the SSE response stream to extract the tool result.
@@ -67,58 +108,16 @@ async function callMcpTool(
   }
 
   const text = await response.text();
-
-  // Parse SSE stream to find the JSON-RPC result
-  interface McpJsonRpcResponse {
-    result?: {
-      structuredContent?: Record<string, unknown>;
-      content?: Array<{ type: string; text: string }>;
-      isError?: boolean;
-    };
-    error?: { code: number; message: string };
-  }
-
-  let mcpResponse: McpJsonRpcResponse | null = null;
-  const lines = text.split("\n");
-  for (const line of lines) {
-    if (line.startsWith("data: ")) {
-      try {
-        const data = JSON.parse(line.slice(6)) as McpJsonRpcResponse;
-        if (data.result || data.error) {
-          mcpResponse = data;
-        }
-      } catch {
-        // Continue parsing
-      }
-    }
-  }
-
-  // Try plain JSON if no SSE data found
-  if (!mcpResponse) {
-    try {
-      mcpResponse = JSON.parse(text) as McpJsonRpcResponse;
-    } catch {
-      // Not valid JSON
-    }
-  }
+  const mcpResponse = parseMcpResponse(text);
 
   if (!mcpResponse) {
     throw new Error("No valid response from MCP server");
   }
-
   if (mcpResponse.error) {
     throw new Error(`MCP error: ${mcpResponse.error.message}`);
   }
 
-  // Return structuredContent as stringified JSON (matching real CallToolResponse contract)
-  const structured = mcpResponse.result?.structuredContent;
-  if (structured) {
-    return { result: JSON.stringify(structured) };
-  }
-
-  // Fallback to text content
-  const textContent = mcpResponse.result?.content?.[0]?.text;
-  return { result: textContent ?? JSON.stringify({ success: false, error: "Empty response" }) };
+  return { result: extractToolResult(mcpResponse) };
 }
 
 /**

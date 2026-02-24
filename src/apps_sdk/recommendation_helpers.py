@@ -165,6 +165,35 @@ async def record_recommendation_attribution_event(
         )
 
 
+def _parse_attribution_fields(
+    item: dict[str, Any],
+) -> tuple[str, str, int, int, int | None] | None:
+    """Extract and validate attribution fields from a cart item.
+
+    Returns ``(recommendation_request_id, product_id, quantity, unit_price, position)``
+    or ``None`` if the item is not attributable.
+    """
+    recommendation_request_id = item.get(
+        "recommendationRequestId"
+    ) or item.get("recommendation_request_id")
+    product_id = item.get("id") or item.get("productId")
+
+    if not isinstance(recommendation_request_id, str) or not recommendation_request_id:
+        return None
+    if not isinstance(product_id, str) or not product_id:
+        logger.debug("Skipping purchase attribution — missing product_id: %s", item)
+        return None
+
+    quantity_raw = item.get("quantity")
+    price_raw = item.get("basePrice") if "basePrice" in item else item.get("base_price")
+    quantity = quantity_raw if isinstance(quantity_raw, int) and quantity_raw > 0 else 1
+    unit_price = price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
+    position_raw = item.get("recommendationPosition")
+    position = position_raw if isinstance(position_raw, int) else None
+
+    return recommendation_request_id, product_id, quantity, unit_price, position
+
+
 async def record_purchase_attribution(
     cart_items: list[dict[str, Any]],
     session_id: str,
@@ -176,33 +205,15 @@ async def record_purchase_attribution(
     were not recommended, so no attribution is needed).
     """
     for item in cart_items:
-        recommendation_request_id = item.get(
-            "recommendationRequestId"
-        ) or item.get("recommendation_request_id")
-        product_id = item.get("id") or item.get("productId")
-
-        if not isinstance(recommendation_request_id, str) or not recommendation_request_id:
+        fields = _parse_attribution_fields(item)
+        if fields is None:
             continue
-        if not isinstance(product_id, str) or not product_id:
-            logger.debug("Skipping purchase attribution — missing product_id: %s", item)
-            continue
-
-        quantity_raw = item.get("quantity")
-        price_raw = (
-            item.get("basePrice") if "basePrice" in item else item.get("base_price")
-        )
-        quantity = (
-            quantity_raw if isinstance(quantity_raw, int) and quantity_raw > 0 else 1
-        )
-        unit_price = price_raw if isinstance(price_raw, int) and price_raw >= 0 else 0
-        position_raw = item.get("recommendationPosition")
-        position = position_raw if isinstance(position_raw, int) else None
-
+        rec_id, product_id, quantity, unit_price, position = fields
         await record_recommendation_attribution_event(
             event_type="purchase",
             product_id=product_id,
             session_id=session_id,
-            recommendation_request_id=recommendation_request_id,
+            recommendation_request_id=rec_id,
             position=position,
             order_id=order_id or None,
             quantity=quantity,

@@ -76,6 +76,56 @@ interface RecommendationActivitySSEEvent {
 
 type AgentActivitySSEEvent = PromotionActivitySSEEvent | RecommendationActivitySSEEvent;
 
+// ---------------------------------------------------------------------------
+// Pure helpers for agent activity event processing
+// ---------------------------------------------------------------------------
+
+function buildPromotionSignals(data: PromotionActivitySSEEvent): {
+  inputSignals: PromotionInputSignals;
+  decision: PromotionDecision;
+} {
+  return {
+    inputSignals: {
+      productId: data.productId,
+      productName: data.productName,
+      stockCount: data.stockCount,
+      basePrice: data.basePrice,
+      competitorPrice: null,
+      inventoryPressure: data.stockCount > 50 ? "high" : "low",
+      competitionPosition: inferCompetitionPosition(data.reasonCodes),
+    },
+    decision: {
+      action: data.action,
+      discountAmount: data.discountAmount,
+      reasonCodes: data.reasonCodes,
+      reasoning: data.reasoning,
+    },
+  };
+}
+
+function buildRecommendationDecision(data: RecommendationActivitySSEEvent): RecommendationDecision {
+  const recommendations: RecommendationItem[] = (data.recommendations ?? []).map((rec) => ({
+    productId: rec.productId ?? "",
+    productName: rec.productName ?? "",
+    rank: rec.rank,
+    reasoning: rec.reasoning,
+  }));
+
+  const pipelineTrace: RecommendationPipelineTrace | undefined = data.pipelineTrace
+    ? {
+        candidatesFound: data.pipelineTrace.candidatesFound ?? 0,
+        afterNliFilter: data.pipelineTrace.afterNliFilter ?? 0,
+        finalRanked: data.pipelineTrace.finalRanked ?? 0,
+      }
+    : undefined;
+
+  return {
+    recommendations,
+    ...(data.userIntent !== undefined && { userIntent: data.userIntent }),
+    ...(pipelineTrace !== undefined && { pipelineTrace }),
+  };
+}
+
 /**
  * Map SSE event type to ACP log event type
  */
@@ -170,76 +220,36 @@ export function useCheckoutEvents(mcpServerUrl = MCP_SERVER_URL) {
         const data = JSON.parse(event.data) as AgentActivitySSEEvent;
 
         if (data.agentType === "promotion") {
-          const promoData = data as PromotionActivitySSEEvent;
-          const inputSignals: PromotionInputSignals = {
-            productId: promoData.productId,
-            productName: promoData.productName,
-            stockCount: promoData.stockCount,
-            basePrice: promoData.basePrice,
-            competitorPrice: null,
-            inventoryPressure: promoData.stockCount > 50 ? "high" : "low",
-            competitionPosition: inferCompetitionPosition(promoData.reasonCodes),
-          };
-
-          const decision: PromotionDecision = {
-            action: promoData.action,
-            discountAmount: promoData.discountAmount,
-            reasonCodes: promoData.reasonCodes,
-            reasoning: promoData.reasoning,
-          };
-
+          const { inputSignals, decision } = buildPromotionSignals(data);
           addAgentEvent("promotion", inputSignals, decision, "success");
-        } else if (data.agentType === "recommendation") {
-          const recData = data as RecommendationActivitySSEEvent;
-          const inputSignals: RecommendationInputSignals = {
-            productId: recData.productId,
-            productName: recData.productName,
-            cartItems: recData.cartItems ?? [],
-          };
+          return;
+        }
 
-          if (recData.status === "pending") {
-            // Create a pending event — shows "Generating" in the panel
-            const localId = logAgentCall("recommendation", inputSignals);
-            // Track so we can complete it when the result arrives
-            pendingEventsRef.current.set(recData.id, localId);
-          } else {
-            // Build the decision from completed data
-            const recommendations: RecommendationItem[] = (recData.recommendations ?? []).map(
-              (rec) => ({
-                productId: rec.productId ?? "",
-                productName: rec.productName ?? "",
-                rank: rec.rank,
-                reasoning: rec.reasoning,
-              })
-            );
+        if (data.agentType !== "recommendation") return;
 
-            const pipelineTrace: RecommendationPipelineTrace | undefined = recData.pipelineTrace
-              ? {
-                  candidatesFound: recData.pipelineTrace.candidatesFound ?? 0,
-                  afterNliFilter: recData.pipelineTrace.afterNliFilter ?? 0,
-                  finalRanked: recData.pipelineTrace.finalRanked ?? 0,
-                }
-              : undefined;
+        const recData = data as RecommendationActivitySSEEvent;
+        const inputSignals: RecommendationInputSignals = {
+          productId: recData.productId,
+          productName: recData.productName,
+          cartItems: recData.cartItems ?? [],
+        };
 
-            const decision: RecommendationDecision = {
-              recommendations,
-              ...(recData.userIntent !== undefined && { userIntent: recData.userIntent }),
-              ...(pipelineTrace !== undefined && { pipelineTrace }),
-            };
+        if (recData.status === "pending") {
+          const localId = logAgentCall("recommendation", inputSignals);
+          pendingEventsRef.current.set(recData.id, localId);
+          return;
+        }
 
-            const status = recData.error ? "error" : "success";
+        const decision = buildRecommendationDecision(recData);
+        const status = recData.error ? "error" : "success";
+        const pendingLocalId = pendingEventsRef.current.get(recData.id);
 
-            // Find and complete the pending event
-            const pendingLocalId = pendingEventsRef.current.get(recData.id);
-            if (pendingLocalId) {
-              completeAgentCall(pendingLocalId, status, decision, recData.error);
-              pendingEventsRef.current.delete(recData.id);
-            } else {
-              // No pending event — create a completed event directly (race/reconnect)
-              const localId = logAgentCall("recommendation", inputSignals);
-              completeAgentCall(localId, status, decision, recData.error);
-            }
-          }
+        if (pendingLocalId) {
+          completeAgentCall(pendingLocalId, status, decision, recData.error);
+          pendingEventsRef.current.delete(recData.id);
+        } else {
+          const localId = logAgentCall("recommendation", inputSignals);
+          completeAgentCall(localId, status, decision, recData.error);
         }
       } catch (error) {
         console.error("[useCheckoutEvents] Failed to parse agent activity event:", error);
