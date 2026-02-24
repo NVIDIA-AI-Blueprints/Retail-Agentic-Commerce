@@ -269,8 +269,8 @@ ok "All services launched"
 # =============================================================================
 # 6. Health checks
 # =============================================================================
-info "Waiting for services to start (10s)..."
-sleep 10
+info "Waiting for services to start (15s)..."
+sleep 15
 
 printf "\n${BOLD}%-25s %-6s %-8s %s${NC}\n" "SERVICE" "PORT" "STATUS" "PID"
 printf "%-25s %-6s %-8s %s\n"  "-------" "----" "------" "---"
@@ -295,14 +295,14 @@ for i in "${!HEALTH_ENDPOINTS_NAMES[@]}"; do
         fi
     done
 
-    # Check health with retries
+    # Check health with retries (up to ~25s per service for slow agent startups)
     status="${RED}FAIL${NC}"
-    for attempt in 1 2 3; do
-        if curl -sf "http://localhost:$port$path" -o /dev/null --max-time 3 2>/dev/null; then
+    for attempt in 1 2 3 4 5; do
+        if curl -sf "http://localhost:$port$path" -o /dev/null --max-time 5 2>/dev/null; then
             status="${GREEN}OK${NC}"
             break
         fi
-        sleep 2
+        sleep 5
     done
 
     if [[ "$status" == *"FAIL"* ]]; then
