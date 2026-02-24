@@ -228,10 +228,12 @@ async def acp_update_session(
             fulfillment_address=request.fulfillment_address,
             discounts=request.discounts,
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except httpx.ConnectError as e:
         emit_checkout_event(
             event_type="session_update",
-            endpoint=f"/checkout_sessions/{session_id[-12:]}",
+            endpoint="/checkout_sessions/<session>",
             method="POST",
             status="error",
             summary="Connection failed",

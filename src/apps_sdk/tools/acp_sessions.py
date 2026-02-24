@@ -7,6 +7,7 @@ on the Merchant API. Both MCP tool handlers and REST endpoints delegate here.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -18,6 +19,9 @@ from src.apps_sdk.events import (
 )
 
 logger = logging.getLogger("src.apps_sdk.main")
+
+#: Session IDs are UUIDs or short hex tokens — reject anything else.
+_SAFE_SESSION_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 class ACPSessionError(Exception):
@@ -152,7 +156,10 @@ async def update_acp_session(
     Raises:
         httpx.ConnectError: When the Merchant API is unreachable.
         ACPSessionError: For non-200 responses (carries the HTTP status code).
+        ValueError: If ``session_id`` contains unsafe characters.
     """
+    if not _SAFE_SESSION_ID.match(session_id):
+        raise ValueError(f"Invalid session_id: {session_id!r}")
     settings = get_apps_sdk_settings()
     merchant_api_url = settings.merchant_api_url
     merchant_api_key = settings.merchant_api_key
