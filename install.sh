@@ -4,7 +4,8 @@ set -euo pipefail
 # =============================================================================
 # install.sh — Local development setup for Retail Agentic Commerce
 #
-# Installs dependencies, starts all 8 services in background, verifies health.
+# Starts Docker infrastructure (Milvus, Phoenix, MinIO), installs dependencies,
+# seeds the vector database, starts all 8 services in background, verifies health.
 # Usage: ./install.sh
 # Stop:  ./stop.sh
 # =============================================================================
@@ -69,6 +70,7 @@ check_cmd "python3" "Install Python 3.12+: https://www.python.org/downloads/"
 check_cmd "uv"      "Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
 check_cmd "node"    "Install Node.js 18+: https://nodejs.org/"
 check_cmd "pnpm"    "Install pnpm: npm install -g pnpm"
+check_cmd "docker"  "Install Docker Desktop: https://www.docker.com/products/docker-desktop/"
 
 # Check Python version (need 3.12+)
 if command -v python3 &>/dev/null; then
@@ -137,7 +139,50 @@ if [ "${NIM_LLM_BASE_URL:-}" != "https://integrate.api.nvidia.com/v1" ] || \
 fi
 
 # =============================================================================
-# 4. Install dependencies
+# 4. Start Docker infrastructure (Milvus, Phoenix, MinIO)
+# =============================================================================
+info "Starting Docker infrastructure..."
+
+# Ensure Docker daemon is running
+if ! docker info &>/dev/null; then
+    err "Docker daemon is not running. Start Docker Desktop and re-run."
+    exit 1
+fi
+ok "Docker daemon is running"
+
+# Create the shared Docker network if it doesn't exist
+if ! docker network inspect acp-infra-network &>/dev/null; then
+    docker network create acp-infra-network >/dev/null
+    ok "Created Docker network: acp-infra-network"
+else
+    ok "Docker network acp-infra-network already exists"
+fi
+
+# Start infrastructure services
+docker compose -f "$ROOT_DIR/docker-compose.infra.yml" up -d
+ok "Docker infrastructure containers started"
+
+# Wait for Milvus to be healthy
+info "Waiting for Milvus to be healthy..."
+MILVUS_READY=false
+for attempt in $(seq 1 30); do
+    if curl -sf "http://localhost:9091/healthz" -o /dev/null --max-time 5 2>/dev/null; then
+        MILVUS_READY=true
+        break
+    fi
+    printf "  Attempt %d/30: Milvus not ready yet...\r" "$attempt"
+    sleep 5
+done
+printf "\n"
+
+if $MILVUS_READY; then
+    ok "Milvus is healthy (localhost:19530)"
+else
+    warn "Milvus did not become healthy within timeout — agents may fail to connect"
+fi
+
+# =============================================================================
+# 5. Install dependencies
 # =============================================================================
 info "Installing dependencies..."
 
@@ -177,10 +222,48 @@ fi
 cd "$ROOT_DIR"
 
 # =============================================================================
-# 5. Start services
+# 6. Build environment prefix for agents and seeder
+# =============================================================================
+# Env vars are already exported from the source above (set -a / set +a block)
+NAT_ENV_VARS=(
+    NVIDIA_API_KEY
+    NIM_LLM_BASE_URL
+    NIM_LLM_MODEL_NAME
+    NIM_EMBED_BASE_URL
+    NIM_EMBED_MODEL_NAME
+    MILVUS_URI
+    PHOENIX_ENDPOINT
+)
+
+AGENT_ENV=""
+for var in "${NAT_ENV_VARS[@]}"; do
+    val="${!var:-}"
+    if [ -n "$val" ]; then
+        AGENT_ENV="$AGENT_ENV $var=$val"
+    fi
+done
+
+mkdir -p "$LOG_DIR"
+
+# =============================================================================
+# 7. Seed Milvus vector database with product embeddings
+# =============================================================================
+if $MILVUS_READY; then
+    info "Seeding Milvus with product catalog embeddings..."
+    if env $AGENT_ENV "$AGENTS_VENV/bin/python" "$AGENTS_DIR/scripts/seed_milvus.py" > "$LOG_DIR/milvus-seeder.log" 2>&1; then
+        ok "Milvus seeded with product embeddings (see logs/milvus-seeder.log)"
+    else
+        warn "Milvus seeding failed — check logs/milvus-seeder.log for details"
+        warn "Search and recommendation agents may not return results"
+    fi
+else
+    warn "Skipping Milvus seeding (Milvus not healthy)"
+fi
+
+# =============================================================================
+# 8. Start services
 # =============================================================================
 info "Starting services..."
-mkdir -p "$LOG_DIR"
 
 # Parallel arrays for Bash 3.2 compatibility (no declare -A)
 SVC_NAMES=()
@@ -212,25 +295,6 @@ start_service "apps-sdk" 2091 \
     "$ROOT_VENV/bin/uvicorn" src.apps_sdk.main:app --host 0.0.0.0 --port 2091
 
 # --- NAT Agents (using agents venv, need env vars) ---
-# Env vars are already exported from the source above (set -a / set +a block)
-NAT_ENV_VARS=(
-    NVIDIA_API_KEY
-    NIM_LLM_BASE_URL
-    NIM_LLM_MODEL_NAME
-    NIM_EMBED_BASE_URL
-    NIM_EMBED_MODEL_NAME
-    MILVUS_URI
-    PHOENIX_ENDPOINT
-)
-
-# Build env prefix for agent commands
-AGENT_ENV=""
-for var in "${NAT_ENV_VARS[@]}"; do
-    val="${!var:-}"
-    if [ -n "$val" ]; then
-        AGENT_ENV="$AGENT_ENV $var=$val"
-    fi
-done
 
 start_agent() {
     local name="$1"
@@ -267,7 +331,7 @@ cd "$ROOT_DIR"
 ok "All services launched"
 
 # =============================================================================
-# 6. Health checks
+# 9. Health checks
 # =============================================================================
 info "Waiting for services to start (15s)..."
 sleep 15
@@ -313,7 +377,7 @@ for i in "${!HEALTH_ENDPOINTS_NAMES[@]}"; do
 done
 
 # =============================================================================
-# 7. Summary
+# 10. Summary
 # =============================================================================
 printf "\n"
 if $ALL_HEALTHY; then
@@ -327,7 +391,7 @@ echo "  Demo UI:         http://localhost:3000"
 echo "  Merchant API:    http://localhost:8000/docs"
 echo "  PSP:             http://localhost:8001/docs"
 echo "  Apps SDK MCP:    http://localhost:2091/docs"
-echo "  Phoenix Traces:  http://localhost:6006  (requires Docker infra)"
-echo "  MinIO Console:   http://localhost:9001  (requires Docker infra)"
+echo "  Phoenix Traces:  http://localhost:6006"
+echo "  MinIO Console:   http://localhost:9001"
 printf "\n${BOLD}Logs:${NC}            $LOG_DIR/<service>.log\n"
 printf "${BOLD}Stop services:${NC}   ./stop.sh\n\n"

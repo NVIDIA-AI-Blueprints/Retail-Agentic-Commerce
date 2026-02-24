@@ -2,10 +2,11 @@
 set -euo pipefail
 
 # =============================================================================
-# stop.sh — Stop all local development services
+# stop.sh — Stop all local development services and Docker infrastructure
 #
 # Reads .local-dev.pids, sends SIGTERM, waits for graceful shutdown,
 # then SIGKILL any remaining processes. Removes PID file when done.
+# Also tears down Docker infrastructure (Milvus, Phoenix, MinIO).
 # =============================================================================
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -63,4 +64,12 @@ while IFS=: read -r pid name; do
 done < "$PID_FILE"
 
 rm -f "$PID_FILE"
-ok "All services stopped. PID file removed."
+ok "All local services stopped. PID file removed."
+
+# Stop Docker infrastructure
+info "Stopping Docker infrastructure..."
+if docker compose -f "$ROOT_DIR/docker-compose.infra.yml" down 2>/dev/null; then
+    ok "Docker infrastructure stopped"
+else
+    warn "Docker infrastructure was not running or docker compose failed"
+fi
