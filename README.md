@@ -164,6 +164,16 @@ NIM_EMBED_BASE_URL=https://integrate.api.nvidia.com/v1
 docker network create acp-infra-network || true
 ```
 
+### Quick Start (Codex/Cursor/Claude)
+
+```bash
+git clone https://github.com/NVIDIA-AI-Blueprints/Retail-Agentic-Commerce.git
+cd Retail-Agentic-Commerce
+codex
+```
+
+Then run `setup`. In Cursor or Claude Code, open the repo and run `setup` in the agent chat.
+
 ### 3. Start Infrastructure + App Stack
 
 ```bash
