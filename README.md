@@ -127,7 +127,7 @@ flowchart TB
     SEARCH --> MILVUS
 ```
 
-## Quick Start (Docker, Public Endpoints)
+## Quick Start
 
 This is the recommended path. It does not require local NIM containers.
 
@@ -151,36 +151,23 @@ Update `.env`:
 NVIDIA_API_KEY=nvapi-xxx
 ```
 
-The defaults already use public NVIDIA endpoints:
+On Cursor, Codex or Claude Code simply run: `setup`
 
-```env
-NIM_LLM_BASE_URL=https://integrate.api.nvidia.com/v1
-NIM_EMBED_BASE_URL=https://integrate.api.nvidia.com/v1
-```
+## Manual Docker Deployment
 
-### 2. Create Shared Docker Network (one-time)
+### 1. Create Shared Docker Network (one-time)
 
 ```bash
 docker network create acp-infra-network || true
 ```
 
-### Quick Start (Codex/Cursor/Claude)
-
-```bash
-git clone https://github.com/NVIDIA-AI-Blueprints/Retail-Agentic-Commerce.git
-cd Retail-Agentic-Commerce
-codex
-```
-
-Then run `setup`. In Cursor or Claude Code, open the repo and run `setup` in the agent chat.
-
-### 3. Start Infrastructure + App Stack
+### 2. Start Infrastructure + App Stack
 
 ```bash
 docker compose -f docker-compose.infra.yml -f docker-compose.yml up --build -d
 ```
 
-### 4. Verify Health
+### 3. Verify Health
 
 ```bash
 curl http://localhost/api/health
@@ -190,7 +177,7 @@ curl http://localhost/apps-sdk/health
 
 Agent services also expose `/health`, but in full Docker deployment they are internal-only (not published on `localhost`).
 
-### 5. Open the Application
+### 4. Open the Application
 
 - Demo UI: http://localhost
 - Phoenix traces: http://localhost:6006
