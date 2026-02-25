@@ -93,8 +93,11 @@ function buildPromotionSignals(data: PromotionActivitySSEEvent): {
       stockCount: data.stockCount,
       basePrice: data.basePrice,
       competitorPrice: null,
-      inventoryPressure: signals?.inventory_pressure as "high" | "low" ?? (data.stockCount > 50 ? "high" : "low"),
-      competitionPosition: (signals?.competition_position as PromotionInputSignals["competitionPosition"]) ?? inferCompetitionPosition(data.reasonCodes),
+      inventoryPressure:
+        (signals?.inventory_pressure as "high" | "low") ?? (data.stockCount > 50 ? "high" : "low"),
+      competitionPosition:
+        (signals?.competition_position as PromotionInputSignals["competitionPosition"]) ??
+        inferCompetitionPosition(data.reasonCodes),
       seasonalUrgency: signals?.seasonal_urgency ?? "off_season",
       productLifecycle: signals?.product_lifecycle ?? "mature",
       demandVelocity: signals?.demand_velocity ?? "flat",
@@ -298,4 +301,3 @@ function inferCompetitionPosition(
   if (reasonCodes.includes("AT_MARKET")) return "at_market";
   return "unknown";
 }
-

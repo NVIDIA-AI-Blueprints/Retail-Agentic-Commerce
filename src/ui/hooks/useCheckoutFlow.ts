@@ -175,8 +175,12 @@ function logPromotionAgentActivity(
       stockCount: product.stockCount,
       basePrice: lineItem.base_amount,
       competitorPrice: null,
-      inventoryPressure: signals?.inventory_pressure as "high" | "low" ?? (product.stockCount > 50 ? "high" : "low"),
-      competitionPosition: (signals?.competition_position as PromotionInputSignals["competitionPosition"]) ?? "unknown",
+      inventoryPressure:
+        (signals?.inventory_pressure as "high" | "low") ??
+        (product.stockCount > 50 ? "high" : "low"),
+      competitionPosition:
+        (signals?.competition_position as PromotionInputSignals["competitionPosition"]) ??
+        "unknown",
       seasonalUrgency: signals?.seasonal_urgency ?? "off_season",
       productLifecycle: signals?.product_lifecycle ?? "mature",
       demandVelocity: signals?.demand_velocity ?? "flat",

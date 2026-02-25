@@ -46,9 +46,7 @@ function getLifecycleBadge(lifecycle: string) {
     clearance: { color: "#ef4444", label: "Clearance" },
   };
   const s = styles[lifecycle] ?? { color: "rgba(255, 255, 255, 0.4)", label: lifecycle };
-  return (
-    <span style={{ color: s.color, fontSize: "11px", fontWeight: 600 }}>{s.label}</span>
-  );
+  return <span style={{ color: s.color, fontSize: "11px", fontWeight: 600 }}>{s.label}</span>;
 }
 
 /**
@@ -58,8 +56,23 @@ function VelocityIndicator({ velocity }: { velocity: string }) {
   switch (velocity) {
     case "accelerating":
       return (
-        <span style={{ color: "#76b900", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span
+          style={{
+            color: "#76b900",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "11px",
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
             <polyline points="17 6 23 6 23 12" />
           </svg>
@@ -68,8 +81,23 @@ function VelocityIndicator({ velocity }: { velocity: string }) {
       );
     case "decelerating":
       return (
-        <span style={{ color: "#ef4444", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span
+          style={{
+            color: "#ef4444",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "11px",
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />
             <polyline points="17 18 23 18 23 12" />
           </svg>
@@ -78,8 +106,23 @@ function VelocityIndicator({ velocity }: { velocity: string }) {
       );
     default:
       return (
-        <span style={{ color: "rgba(255, 255, 255, 0.5)", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span
+          style={{
+            color: "rgba(255, 255, 255, 0.5)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "11px",
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           Flat
@@ -205,7 +248,9 @@ export function ProductHealthPanel({ data, isLoading }: ProductHealthPanelProps)
                 <PricePositionIndicator position={product.pricePosition} />
               </td>
               <td>{getLifecycleBadge(product.lifecycle)}</td>
-              <td><VelocityIndicator velocity={product.demandVelocity} /></td>
+              <td>
+                <VelocityIndicator velocity={product.demandVelocity} />
+              </td>
               <td>
                 {product.needsAttention ? (
                   <span className="attention-flag">
