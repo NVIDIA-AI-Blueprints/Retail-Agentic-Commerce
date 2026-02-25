@@ -153,7 +153,7 @@ Update `.env`:
 NVIDIA_API_KEY=nvapi-xxx
 ```
 
-On Cursor, Codex or Claude Code simply run: `setup`
+On Cursor, Codex or Claude Code simply run: `/setup`
 
 ## Manual Deployment Options
 
