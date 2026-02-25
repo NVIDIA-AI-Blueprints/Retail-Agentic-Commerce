@@ -18,7 +18,7 @@ WORKDIR /app
 COPY src/agents/pyproject.toml src/agents/README.md src/agents/register.py ./
 
 # Install dependencies with prerelease support for nvidia-nat
-RUN uv pip install -e ".[dev]" --prerelease=allow --system
+RUN uv pip install -e ".[dev]" --system
 
 # Copy agent configurations
 COPY src/agents/configs ./configs

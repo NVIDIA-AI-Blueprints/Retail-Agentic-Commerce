@@ -458,7 +458,7 @@ docker compose down -v
    source .venv/bin/activate
    
    # Install dependencies (includes pymilvus)
-   uv pip install -e ".[dev]" --prerelease=allow
+   uv pip install -e ".[dev]"
    
    # Seed the product catalog
    python scripts/seed_milvus.py

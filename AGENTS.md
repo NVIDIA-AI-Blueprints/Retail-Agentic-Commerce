@@ -167,7 +167,7 @@ pnpm dev  # port 3001
 ### NAT agents
 ```bash
 cd src/agents
-uv pip install -e ".[dev]" --prerelease=allow
+uv pip install -e ".[dev]"
 
 # Promotion agent (port 8002)
 nat serve --config_file configs/promotion.yml --port 8002
