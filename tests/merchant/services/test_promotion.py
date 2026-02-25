@@ -259,7 +259,9 @@ class TestComputePromotionContext:
         assert result["lowest_competitor_price_cents"] == 2500
         assert result["signals"]["inventory_pressure"] == "high"
         assert result["signals"]["competition_position"] == "above_market"
-        assert result["signals"]["seasonal_urgency"] in [s.value for s in SeasonalUrgency]
+        assert result["signals"]["seasonal_urgency"] in [
+            s.value for s in SeasonalUrgency
+        ]
         assert result["signals"]["product_lifecycle"] == "mature"
         assert result["signals"]["demand_velocity"] == "flat"
         assert len(result["allowed_actions"]) > 0
