@@ -152,6 +152,8 @@ function mapProductHealth(products: MetricsAPIProductHealth[]) {
       stockStatus: product.stock_status,
       basePrice: product.base_price,
       pricePosition: product.price_position,
+      lifecycle: product.lifecycle,
+      demandVelocity: product.demand_velocity,
       needsAttention: product.needs_attention,
     };
     return {

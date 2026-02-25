@@ -28,6 +28,8 @@ class ProductData(TypedDict):
     subcategory: str
     description: str
     attributes: list[str]
+    lifecycle: str
+    demand_velocity: str
 
 
 PRODUCTS: list[ProductData] = [
@@ -54,6 +56,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "cotton", "crew-neck", "basic", "everyday",
             "unisex", "regular-fit", "machine-washable", "ring-spun",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     {
         "id": "prod_2",
@@ -77,6 +81,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "slim-fit", "v-neck", "layering", "modern",
             "cotton-blend", "lightweight", "tapered", "all-season",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "decelerating",
     },
     {
         "id": "prod_3",
@@ -99,6 +105,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "streetwear", "graphic", "artistic", "statement",
             "screen-print", "combed-cotton", "unisex",
         ],
+        "lifecycle": "growth",
+        "demand_velocity": "accelerating",
     },
     {
         "id": "prod_4",
@@ -123,6 +131,8 @@ PRODUCTS: list[ProductData] = [
             "premium", "pima-cotton", "luxury", "refined", "comfort",
             "crew-neck", "business-casual", "long-staple",
         ],
+        "lifecycle": "new_arrival",
+        "demand_velocity": "accelerating",
     },
     # --- Bottoms ---
     {
@@ -149,6 +159,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "denim", "straight-leg", "indigo", "versatile",
             "mid-rise", "slim-fit", "rigid-denim", "five-pocket",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     {
         "id": "prod_6",
@@ -173,6 +185,8 @@ PRODUCTS: list[ProductData] = [
             "smart-casual", "chino", "tapered", "khaki", "versatile",
             "stretch", "flat-front", "office-wear", "twill",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     {
         "id": "prod_7",
@@ -196,6 +210,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "summer", "cargo", "relaxed", "outdoor",
             "ripstop", "hiking", "multi-pocket", "durable",
         ],
+        "lifecycle": "clearance",
+        "demand_velocity": "decelerating",
     },
     {
         "id": "prod_8",
@@ -221,6 +237,8 @@ PRODUCTS: list[ProductData] = [
             "athletic", "joggers", "athleisure", "comfortable", "tapered",
             "moisture-wicking", "stretch", "gym", "yoga", "running",
         ],
+        "lifecycle": "growth",
+        "demand_velocity": "accelerating",
     },
     # --- Outerwear ---
     {
@@ -246,6 +264,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "denim", "layering", "classic", "trucker",
             "spring", "fall", "stonewash", "cotton",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     {
         "id": "prod_10",
@@ -270,6 +290,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "fleece", "layering", "cozy", "lightweight",
             "zip-up", "hoodie", "spring", "fall", "cotton-blend",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     {
         "id": "prod_11",
@@ -294,6 +316,8 @@ PRODUCTS: list[ProductData] = [
             "modern", "bomber", "sleek", "elevated", "casual",
             "water-resistant", "nylon", "quilted", "wind-proof",
         ],
+        "lifecycle": "new_arrival",
+        "demand_velocity": "accelerating",
     },
     # --- Accessories ---
     {
@@ -318,6 +342,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "canvas", "essential", "accessory", "everyday",
             "woven", "cotton", "adjustable", "men",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     {
         "id": "prod_13",
@@ -342,6 +368,8 @@ PRODUCTS: list[ProductData] = [
             "accessory", "wayfarer", "UV-protection", "classic", "summer",
             "polarized", "acetate", "scratch-resistant", "unisex",
         ],
+        "lifecycle": "growth",
+        "demand_velocity": "accelerating",
     },
     {
         "id": "prod_14",
@@ -366,6 +394,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "baseball-cap", "adjustable", "everyday", "sporty",
             "breathable", "cotton-twill", "snap-back", "unisex",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     # --- Footwear ---
     {
@@ -391,6 +421,8 @@ PRODUCTS: list[ProductData] = [
             "casual", "canvas", "sneakers", "white", "versatile",
             "low-top", "rubber-sole", "lightweight", "walking",
         ],
+        "lifecycle": "mature",
+        "demand_velocity": "flat",
     },
     {
         "id": "prod_16",
@@ -416,6 +448,8 @@ PRODUCTS: list[ProductData] = [
             "smart-casual", "leather", "loafers", "premium", "refined",
             "dress-shoes", "formal", "slip-on", "handcrafted",
         ],
+        "lifecycle": "clearance",
+        "demand_velocity": "decelerating",
     },
     {
         "id": "prod_17",
@@ -441,5 +475,7 @@ PRODUCTS: list[ProductData] = [
             "athletic", "running", "cushioned", "breathable", "performance",
             "EVA-midsole", "mesh", "gym", "jogging", "trail",
         ],
+        "lifecycle": "growth",
+        "demand_velocity": "accelerating",
     },
 ]

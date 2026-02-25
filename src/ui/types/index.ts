@@ -33,6 +33,7 @@ export interface PromotionMetadata {
   action: string; // e.g., "DISCOUNT_10_PCT", "NO_PROMO"
   reason_codes: string[]; // e.g., ["HIGH_INVENTORY", "ABOVE_MARKET"]
   reasoning: string; // LLM explanation of the decision
+  signals?: Record<string, string>; // Pre-computed business signals from backend
 }
 
 /**
@@ -762,6 +763,9 @@ export interface PromotionInputSignals {
   competitorPrice: number | null; // in cents, null if not available
   inventoryPressure: "high" | "low";
   competitionPosition: "above_market" | "at_market" | "below_market" | "unknown";
+  seasonalUrgency: string;
+  productLifecycle: string;
+  demandVelocity: string;
 }
 
 /**
@@ -1103,6 +1107,8 @@ export interface ProductHealthData {
   basePrice: number;
   competitorPrice?: number;
   pricePosition: "above" | "at" | "below" | "unknown";
+  lifecycle: string;
+  demandVelocity: string;
   needsAttention: boolean;
   attentionReason?: string;
 }
@@ -1167,6 +1173,8 @@ export interface MetricsAPIProductHealth {
   base_price: number;
   competitor_price?: number;
   price_position: "above" | "at" | "below" | "unknown";
+  lifecycle: string;
+  demand_velocity: string;
   needs_attention: boolean;
   attention_reason?: string;
 }

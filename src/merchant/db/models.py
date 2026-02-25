@@ -119,6 +119,8 @@ class Product(SQLModel, table=True):
     stock_count: int
     min_margin: float
     image_url: str
+    lifecycle: str = Field(default="mature")
+    demand_velocity: str = Field(default="flat")
 
     competitor_prices: list["CompetitorPrice"] = Relationship(
         back_populates="product",

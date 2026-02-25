@@ -121,6 +121,8 @@ const mockDashboardResponse: MetricsDashboardAPIResponse = {
       base_price: 2500,
       competitor_price: 2300,
       price_position: "above",
+      lifecycle: "mature",
+      demand_velocity: "flat",
       needs_attention: true,
       attention_reason: "Critical stock",
     },

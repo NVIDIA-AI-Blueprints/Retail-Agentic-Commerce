@@ -16,6 +16,9 @@ describe("useAgentActivityLog", () => {
     competitorPrice: 2800,
     inventoryPressure: "high",
     competitionPosition: "above_market",
+    seasonalUrgency: "off_season",
+    productLifecycle: "mature",
+    demandVelocity: "flat",
   };
 
   const mockDecision: PromotionDecision = {

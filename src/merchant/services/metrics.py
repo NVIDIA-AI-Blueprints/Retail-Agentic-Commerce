@@ -515,6 +515,8 @@ def _build_product_health(
                 "base_price": product.base_price,
                 "competitor_price": competitor_price,
                 "price_position": price_position,
+                "lifecycle": product.lifecycle,
+                "demand_velocity": product.demand_velocity,
                 "needs_attention": reason is not None,
                 "attention_reason": reason,
             }

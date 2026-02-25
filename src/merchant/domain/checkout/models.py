@@ -272,6 +272,9 @@ class PromotionMetadata(BaseModel):
     stock_count: int | None = Field(
         default=None, description="Product stock count at time of decision"
     )
+    signals: dict[str, str] | None = Field(
+        default=None, description="Pre-computed business signals sent to the agent"
+    )
 
 
 class LineItem(BaseModel):

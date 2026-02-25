@@ -17,6 +17,9 @@ describe("AgentActivityItem", () => {
       competitorPrice: 2800,
       inventoryPressure: "high",
       competitionPosition: "below_market",
+      seasonalUrgency: "off_season",
+      productLifecycle: "mature",
+      demandVelocity: "flat",
     },
     decision: {
       action: "DISCOUNT_10_PCT",

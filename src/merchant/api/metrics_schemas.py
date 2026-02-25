@@ -203,6 +203,8 @@ class DashboardProductHealth(BaseModel):
     base_price: int
     competitor_price: int | None = None
     price_position: str
+    lifecycle: str
+    demand_velocity: str
     needs_attention: bool
     attention_reason: str | None = None
 

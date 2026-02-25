@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import date
 from enum import StrEnum
 from typing import Any, TypedDict
 
@@ -84,11 +85,61 @@ class CompetitionPosition(StrEnum):
     BELOW_MARKET = "below_market"  # base_price < lowest_competitor
 
 
+class SeasonalUrgency(StrEnum):
+    """Seasonal urgency signal based on retail calendar."""
+
+    PEAK = "peak"  # During major retail event (Black Friday, etc.)
+    PRE_SEASON = "pre_season"  # 1-2 weeks before a major event
+    POST_SEASON = "post_season"  # 1-2 weeks after a major event
+    OFF_SEASON = "off_season"  # No nearby retail events
+
+
+class ProductLifecycle(StrEnum):
+    """Product lifecycle stage signal."""
+
+    NEW_ARRIVAL = "new_arrival"  # Recently launched product
+    GROWTH = "growth"  # Gaining traction
+    MATURE = "mature"  # Stable sales
+    CLEARANCE = "clearance"  # End of life, marked for clearance
+
+
+class DemandVelocity(StrEnum):
+    """Demand velocity signal based on sales trend."""
+
+    ACCELERATING = "accelerating"  # Sales trending up
+    FLAT = "flat"  # Stable sales rate
+    DECELERATING = "decelerating"  # Sales trending down
+
+
 # =============================================================================
 # Thresholds - Used by ACP endpoint for signal computation
 # =============================================================================
 
 STOCK_THRESHOLD = 50  # Units above this = high inventory pressure
+
+# Retail events calendar: (month, day) → event name
+# Each event has a peak window and a pre/post buffer of ~14 days
+RETAIL_EVENTS: list[tuple[str, int, int]] = [
+    # (event_name, month, day)
+    ("valentines_day", 2, 14),
+    ("easter", 4, 20),  # Approximate — shifts yearly
+    ("mothers_day", 5, 11),  # Second Sunday in May (approximate)
+    ("memorial_day", 5, 26),  # Last Monday in May (approximate)
+    ("fathers_day", 6, 15),  # Third Sunday in June (approximate)
+    ("independence_day", 7, 4),
+    ("labor_day", 9, 1),  # First Monday in September (approximate)
+    ("back_to_school", 8, 15),  # Mid-August
+    ("halloween", 10, 31),
+    ("black_friday", 11, 28),  # Fourth Friday in November (approximate)
+    ("cyber_monday", 12, 1),  # Monday after Black Friday (approximate)
+    ("christmas", 12, 25),
+    ("new_years", 1, 1),
+]
+
+# Window sizes in days
+_PEAK_WINDOW = 3  # +/- days around event date considered "peak"
+_PRE_SEASON_WINDOW = 14  # Days before peak window considered "pre_season"
+_POST_SEASON_WINDOW = 14  # Days after peak window considered "post_season"
 
 
 # =============================================================================
@@ -106,6 +157,14 @@ class ReasonCode(StrEnum):
     BELOW_MARKET = "BELOW_MARKET"
     MARGIN_PROTECTED = "MARGIN_PROTECTED"
     NO_URGENCY = "NO_URGENCY"
+    PEAK_SEASON = "PEAK_SEASON"
+    PRE_SEASON = "PRE_SEASON"
+    POST_SEASON = "POST_SEASON"
+    OFF_SEASON = "OFF_SEASON"
+    NEW_ARRIVAL = "NEW_ARRIVAL"
+    CLEARANCE = "CLEARANCE"
+    DEMAND_ACCELERATING = "DEMAND_ACCELERATING"
+    DEMAND_DECELERATING = "DEMAND_DECELERATING"
 
 
 # =============================================================================
@@ -118,6 +177,9 @@ class SignalsData(TypedDict):
 
     inventory_pressure: str  # InventoryPressure value
     competition_position: str  # CompetitionPosition value
+    seasonal_urgency: str  # SeasonalUrgency value
+    product_lifecycle: str  # ProductLifecycle value
+    demand_velocity: str  # DemandVelocity value
 
 
 class PromotionContextInput(TypedDict):
@@ -305,6 +367,50 @@ def compute_competition_position(
         return CompetitionPosition.BELOW_MARKET
 
 
+def compute_seasonal_urgency(today: date | None = None) -> SeasonalUrgency:
+    """Compute seasonal urgency signal from the retail events calendar.
+
+    Checks today's date against known retail events and returns the
+    urgency level based on proximity:
+    - PEAK: Within ±3 days of an event
+    - PRE_SEASON: 4-14 days before an event
+    - POST_SEASON: 4-14 days after an event
+    - OFF_SEASON: No nearby events
+
+    Args:
+        today: Date to evaluate (defaults to date.today()).
+
+    Returns:
+        SeasonalUrgency signal value.
+    """
+    if today is None:
+        today = date.today()
+
+    current_year = today.year
+
+    for _event_name, month, day in RETAIL_EVENTS:
+        try:
+            event_date = date(current_year, month, day)
+        except ValueError:
+            continue
+
+        delta_days = (today - event_date).days
+
+        # Check peak window: within ±_PEAK_WINDOW days
+        if abs(delta_days) <= _PEAK_WINDOW:
+            return SeasonalUrgency.PEAK
+
+        # Check pre-season: 4 to 14 days before event
+        if -(_PEAK_WINDOW + _PRE_SEASON_WINDOW) <= delta_days < -_PEAK_WINDOW:
+            return SeasonalUrgency.PRE_SEASON
+
+        # Check post-season: 4 to 14 days after event
+        if _PEAK_WINDOW < delta_days <= _PEAK_WINDOW + _POST_SEASON_WINDOW:
+            return SeasonalUrgency.POST_SEASON
+
+    return SeasonalUrgency.OFF_SEASON
+
+
 def filter_allowed_actions_by_margin(min_margin: float) -> list[str]:
     """Filter promotion actions that respect minimum margin constraint.
 
@@ -373,6 +479,9 @@ def compute_promotion_context(db: Session, product: Product) -> PromotionContext
     competition_position = compute_competition_position(
         product.base_price, lowest_competitor_price
     )
+    seasonal_urgency = compute_seasonal_urgency()
+    product_lifecycle = ProductLifecycle(product.lifecycle)
+    demand_velocity = DemandVelocity(product.demand_velocity)
 
     # Filter allowed actions by margin
     allowed_actions = filter_allowed_actions_by_margin(product.min_margin)
@@ -381,6 +490,9 @@ def compute_promotion_context(db: Session, product: Product) -> PromotionContext
     signals = SignalsData(
         inventory_pressure=inventory_pressure.value,
         competition_position=competition_position.value,
+        seasonal_urgency=seasonal_urgency.value,
+        product_lifecycle=product_lifecycle.value,
+        demand_velocity=demand_velocity.value,
     )
 
     return PromotionContextInput(
@@ -550,6 +662,7 @@ async def get_promotion_for_product(
             "action": action,
             "reason_codes": reason_codes,
             "reasoning": reasoning,
+            "signals": context["signals"],
         }
     except Exception:
         status = "error_internal"

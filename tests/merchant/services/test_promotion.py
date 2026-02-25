@@ -6,6 +6,7 @@ Tests cover the 3-layer hybrid architecture:
 - Layer 3: Deterministic execution (discount application)
 """
 
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,16 +17,20 @@ from src.merchant.services.promotion import (
     ACTION_DISCOUNT_MAP,
     STOCK_THRESHOLD,
     CompetitionPosition,
+    DemandVelocity,
     InventoryPressure,
+    ProductLifecycle,
     PromotionAction,
     PromotionAgentClient,
     PromotionContextInput,
     PromotionDecisionOutput,
+    SeasonalUrgency,
     apply_promotion_action,
     call_promotion_agent,
     compute_competition_position,
     compute_inventory_pressure,
     compute_promotion_context,
+    compute_seasonal_urgency,
     filter_allowed_actions_by_margin,
     get_lowest_competitor_price,
     get_promotion_for_product,
@@ -89,6 +94,46 @@ class TestComputeCompetitionPosition:
         """No competitor data assumes BELOW_MARKET (competitive)."""
         result = compute_competition_position(2500, None)
         assert result == CompetitionPosition.BELOW_MARKET
+
+
+class TestComputeSeasonalUrgency:
+    """Tests for seasonal urgency signal computation."""
+
+    def test_peak_on_black_friday(self) -> None:
+        """Returns PEAK during Black Friday window."""
+        result = compute_seasonal_urgency(date(2025, 11, 28))
+        assert result == SeasonalUrgency.PEAK
+
+    def test_peak_within_window(self) -> None:
+        """Returns PEAK within ±3 days of Christmas."""
+        result = compute_seasonal_urgency(date(2025, 12, 23))
+        assert result == SeasonalUrgency.PEAK
+
+    def test_pre_season_before_valentines(self) -> None:
+        """Returns PRE_SEASON 7 days before Valentine's Day."""
+        result = compute_seasonal_urgency(date(2025, 2, 7))
+        assert result == SeasonalUrgency.PRE_SEASON
+
+    def test_post_season_after_independence_day(self) -> None:
+        """Returns POST_SEASON 7 days after Independence Day."""
+        result = compute_seasonal_urgency(date(2025, 7, 11))
+        # Jul 11 is 7 days after Jul 4; > 3 (peak window) and <= 17 (peak+post)
+        assert result == SeasonalUrgency.POST_SEASON
+
+    def test_off_season_mid_march(self) -> None:
+        """Returns OFF_SEASON in mid-March (no nearby events)."""
+        result = compute_seasonal_urgency(date(2025, 3, 15))
+        assert result == SeasonalUrgency.OFF_SEASON
+
+    def test_peak_on_valentines_day(self) -> None:
+        """Returns PEAK on Valentine's Day."""
+        result = compute_seasonal_urgency(date(2025, 2, 14))
+        assert result == SeasonalUrgency.PEAK
+
+    def test_defaults_to_today(self) -> None:
+        """Calling without argument uses today's date without error."""
+        result = compute_seasonal_urgency()
+        assert result in list(SeasonalUrgency)
 
 
 class TestFilterAllowedActionsByMargin:
@@ -198,6 +243,8 @@ class TestComputePromotionContext:
             stock_count=100,
             min_margin=0.15,
             image_url="https://example.com/image.png",
+            lifecycle="mature",
+            demand_velocity="flat",
         )
         competitor = CompetitorPrice(
             id=1, product_id="prod_1", retailer_name="CompA", price=2500
@@ -214,6 +261,9 @@ class TestComputePromotionContext:
         assert result["lowest_competitor_price_cents"] == 2500
         assert result["signals"]["inventory_pressure"] == "high"
         assert result["signals"]["competition_position"] == "above_market"
+        assert result["signals"]["seasonal_urgency"] in [s.value for s in SeasonalUrgency]
+        assert result["signals"]["product_lifecycle"] == "mature"
+        assert result["signals"]["demand_velocity"] == "flat"
         assert len(result["allowed_actions"]) > 0
 
     def test_computes_context_with_no_competitor_data(self) -> None:
@@ -227,6 +277,8 @@ class TestComputePromotionContext:
             stock_count=30,
             min_margin=0.10,
             image_url="https://example.com/image2.png",
+            lifecycle="mature",
+            demand_velocity="flat",
         )
         mock_session.exec.return_value.all.return_value = []
 
@@ -235,6 +287,8 @@ class TestComputePromotionContext:
         assert result["lowest_competitor_price_cents"] == 2500  # Uses base price
         assert result["signals"]["competition_position"] == "below_market"
         assert result["signals"]["inventory_pressure"] == "low"
+        assert result["signals"]["product_lifecycle"] == "mature"
+        assert result["signals"]["demand_velocity"] == "flat"
 
 
 # =============================================================================
@@ -258,6 +312,9 @@ class TestCallPromotionAgent:
             "signals": {
                 "inventory_pressure": "high",
                 "competition_position": "above_market",
+                "seasonal_urgency": "off_season",
+                "product_lifecycle": "mature",
+                "demand_velocity": "flat",
             },
             "allowed_actions": ["NO_PROMO", "DISCOUNT_5_PCT", "DISCOUNT_10_PCT"],
         }
@@ -291,6 +348,9 @@ class TestCallPromotionAgent:
             "signals": {
                 "inventory_pressure": "high",
                 "competition_position": "above_market",
+                "seasonal_urgency": "off_season",
+                "product_lifecycle": "mature",
+                "demand_velocity": "flat",
             },
             "allowed_actions": ["NO_PROMO", "DISCOUNT_5_PCT"],
         }
@@ -395,6 +455,8 @@ class TestGetPromotionForProduct:
             stock_count=100,
             min_margin=0.15,
             image_url="https://example.com/image.png",
+            lifecycle="mature",
+            demand_velocity="flat",
         )
         mock_session.exec.return_value.all.return_value = []
 
@@ -425,6 +487,8 @@ class TestGetPromotionForProduct:
             stock_count=100,
             min_margin=0.15,
             image_url="https://example.com/image.png",
+            lifecycle="mature",
+            demand_velocity="flat",
         )
         mock_session.exec.return_value.all.return_value = []
 
@@ -448,6 +512,8 @@ class TestGetPromotionForProduct:
             stock_count=100,
             min_margin=0.90,  # Very high margin
             image_url="https://example.com/image.png",
+            lifecycle="mature",
+            demand_velocity="flat",
         )
         mock_session.exec.return_value.all.return_value = []
 
@@ -486,6 +552,8 @@ class TestGetPromotionsForProducts:
                 stock_count=100,
                 min_margin=0.15,
                 image_url="https://example.com/1.png",
+                lifecycle="mature",
+                demand_velocity="flat",
             ),
             Product(
                 id="prod_2",
@@ -495,6 +563,8 @@ class TestGetPromotionsForProducts:
                 stock_count=30,
                 min_margin=0.12,
                 image_url="https://example.com/2.png",
+                lifecycle="mature",
+                demand_velocity="flat",
             ),
         ]
         mock_session.exec.return_value.all.return_value = []
@@ -520,6 +590,8 @@ class TestGetPromotionsForProducts:
                 stock_count=100,
                 min_margin=0.15,
                 image_url="https://example.com/1.png",
+                lifecycle="mature",
+                demand_velocity="flat",
             ),
         ]
         mock_session.exec.return_value.all.return_value = []

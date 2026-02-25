@@ -880,6 +880,18 @@ export function AgentActivityItem({ event, isLast }: AgentActivityItemProps) {
                       ? "At market"
                       : "Unknown"}
               </div>
+              <div className="k">Seasonal urgency</div>
+              <div className="v" style={{ textTransform: "capitalize" }}>
+                {event.inputSignals.seasonalUrgency?.replace(/_/g, " ") ?? "Unknown"}
+              </div>
+              <div className="k">Product lifecycle</div>
+              <div className="v" style={{ textTransform: "capitalize" }}>
+                {event.inputSignals.productLifecycle?.replace(/_/g, " ") ?? "Unknown"}
+              </div>
+              <div className="k">Demand velocity</div>
+              <div className="v" style={{ textTransform: "capitalize" }}>
+                {event.inputSignals.demandVelocity ?? "Unknown"}
+              </div>
               {event.duration !== undefined && (
                 <>
                   <div className="k">Time to decide</div>

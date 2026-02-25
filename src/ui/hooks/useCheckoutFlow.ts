@@ -168,14 +168,18 @@ function logPromotionAgentActivity(
 
   for (const lineItem of lineItems) {
     // Build input signals from product data
+    const signals = lineItem.promotion?.signals;
     const inputSignals: PromotionInputSignals = {
       productId: product.id,
       productName: lineItem.name ?? product.name,
       stockCount: product.stockCount,
       basePrice: lineItem.base_amount,
-      competitorPrice: null, // Not available from frontend
-      inventoryPressure: product.stockCount > 50 ? "high" : "low",
-      competitionPosition: "unknown",
+      competitorPrice: null,
+      inventoryPressure: signals?.inventory_pressure as "high" | "low" ?? (product.stockCount > 50 ? "high" : "low"),
+      competitionPosition: (signals?.competition_position as PromotionInputSignals["competitionPosition"]) ?? "unknown",
+      seasonalUrgency: signals?.seasonal_urgency ?? "off_season",
+      productLifecycle: signals?.product_lifecycle ?? "mature",
+      demandVelocity: signals?.demand_velocity ?? "flat",
     };
 
     // Check if we have promotion metadata
@@ -186,15 +190,6 @@ function logPromotionAgentActivity(
         reasonCodes: lineItem.promotion.reason_codes,
         reasoning: lineItem.promotion.reasoning,
       };
-
-      // Infer competition position from reason codes
-      if (lineItem.promotion.reason_codes.includes("ABOVE_MARKET")) {
-        inputSignals.competitionPosition = "above_market";
-      } else if (lineItem.promotion.reason_codes.includes("BELOW_MARKET")) {
-        inputSignals.competitionPosition = "below_market";
-      } else if (lineItem.promotion.reason_codes.includes("AT_MARKET")) {
-        inputSignals.competitionPosition = "at_market";
-      }
 
       agentLogger.addAgentEvent("promotion", inputSignals, decision, "success");
     } else if (lineItem.discount > 0) {

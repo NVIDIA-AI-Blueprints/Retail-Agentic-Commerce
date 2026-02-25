@@ -42,6 +42,7 @@ interface PromotionActivitySSEEvent {
   reasoning: string;
   stockCount: number;
   basePrice: number;
+  signals?: Record<string, string>;
   timestamp: string;
 }
 
@@ -84,6 +85,7 @@ function buildPromotionSignals(data: PromotionActivitySSEEvent): {
   inputSignals: PromotionInputSignals;
   decision: PromotionDecision;
 } {
+  const signals = data.signals;
   return {
     inputSignals: {
       productId: data.productId,
@@ -91,8 +93,11 @@ function buildPromotionSignals(data: PromotionActivitySSEEvent): {
       stockCount: data.stockCount,
       basePrice: data.basePrice,
       competitorPrice: null,
-      inventoryPressure: data.stockCount > 50 ? "high" : "low",
-      competitionPosition: inferCompetitionPosition(data.reasonCodes),
+      inventoryPressure: signals?.inventory_pressure as "high" | "low" ?? (data.stockCount > 50 ? "high" : "low"),
+      competitionPosition: (signals?.competition_position as PromotionInputSignals["competitionPosition"]) ?? inferCompetitionPosition(data.reasonCodes),
+      seasonalUrgency: signals?.seasonal_urgency ?? "off_season",
+      productLifecycle: signals?.product_lifecycle ?? "mature",
+      demandVelocity: signals?.demand_velocity ?? "flat",
     },
     decision: {
       action: data.action,
@@ -293,3 +298,4 @@ function inferCompetitionPosition(
   if (reasonCodes.includes("AT_MARKET")) return "at_market";
   return "unknown";
 }
+

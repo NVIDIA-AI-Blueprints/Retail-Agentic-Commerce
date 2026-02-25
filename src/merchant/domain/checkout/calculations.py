@@ -428,6 +428,7 @@ def calculate_line_item(
             "reason_codes": promotion_info.get("reason_codes", []),
             "reasoning": promotion_info.get("reasoning", ""),
             "stock_count": product.stock_count,
+            "signals": promotion_info.get("signals"),
         }
 
     return line_item
@@ -515,6 +516,7 @@ def dict_to_line_item(data: dict[str, Any]) -> LineItem:
             reason_codes=data["promotion"].get("reason_codes", []),
             reasoning=data["promotion"].get("reasoning", ""),
             stock_count=data["promotion"].get("stock_count"),
+            signals=data["promotion"].get("signals"),
         )
 
     return LineItem(

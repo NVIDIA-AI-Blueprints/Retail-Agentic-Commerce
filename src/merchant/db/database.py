@@ -66,6 +66,8 @@ def seed_data(session: Session) -> None:
                 stock_count=p["stock_count"],
                 min_margin=p["min_margin"],
                 image_url=p["image_url"],
+                lifecycle=p["lifecycle"],
+                demand_velocity=p["demand_velocity"],
             )
         )
 
