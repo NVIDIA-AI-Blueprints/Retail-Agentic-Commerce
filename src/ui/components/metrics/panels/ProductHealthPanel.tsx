@@ -52,7 +52,7 @@ function getLifecycleBadge(lifecycle: string) {
 /**
  * Get velocity indicator
  */
-function VelocityIndicator({ velocity }: { velocity: string }) {
+function VelocityIndicator({ velocity }: Readonly<{ velocity: string }>) {
   switch (velocity) {
     case "accelerating":
       return (
