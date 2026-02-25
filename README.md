@@ -135,7 +135,7 @@ This is the recommended path. It does not require local NIM containers.
 
 - Python 3.12+
 - [uv](https://astral.sh/uv) package manager
-- Node.js 18+ and [pnpm](https://pnpm.io/)
+- [Node.js 18+](https://nodejs.org/en/download) and [pnpm](https://pnpm.io/)
 - Docker 24+ and Docker Compose v2
 - NVIDIA API key ([create one](https://build.nvidia.com/settings/api-keys))
 
