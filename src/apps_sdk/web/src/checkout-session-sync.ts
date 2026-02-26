@@ -116,7 +116,7 @@ export async function syncCheckoutSessionWithDefaultShipping({
         fulfillmentAddress: DEFAULT_FULFILLMENT_ADDRESS,
       }
     );
-    const sessionId = createdSession.id || currentSessionId;
+    const sessionId = createdSession.id ?? currentSessionId;
     const selectedSession = await ensureFulfillmentSelection(
       callTool,
       createdSession,
@@ -124,7 +124,7 @@ export async function syncCheckoutSessionWithDefaultShipping({
     );
 
     return {
-      sessionId: selectedSession.id || sessionId || null,
+      sessionId: selectedSession.id ?? sessionId ?? null,
       sessionData: selectedSession,
     };
   } catch (error) {
