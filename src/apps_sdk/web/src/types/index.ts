@@ -186,6 +186,16 @@ export interface ACPTotal {
   amount: number;
 }
 
+export interface ACPFulfillmentOption {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+}
+
 /**
  * ACP Session response from the Merchant API
  */
@@ -194,6 +204,8 @@ export interface ACPSessionResponse {
   status: string;
   currency: string;
   line_items: ACPLineItem[];
+  fulfillment_options?: ACPFulfillmentOption[];
+  fulfillment_option_id?: string | null;
   totals: ACPTotal[];
   discounts?: ACPDiscounts;
   messages?: Array<{

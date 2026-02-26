@@ -1,41 +1,42 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
- import { render, screen } from "@testing-library/react";
- import { App } from "./App";
- import type { Product } from "./types";
- 
- const mockProducts: Product[] = [
-   {
-     id: "prod_1",
-     sku: "TS-001",
-     name: "Classic Tee",
-     basePrice: 2500,
-     stockCount: 100,
-     variant: "Black",
-     size: "Large",
-     imageUrl: "/prod_1.jpeg",
-   },
-   {
-     id: "prod_2",
-     sku: "TS-002",
-     name: "V-Neck Tee",
-     basePrice: 2800,
-     stockCount: 50,
-     variant: "Natural",
-     size: "Large",
-     imageUrl: "/prod_2.jpeg",
-   },
-   {
-     id: "prod_3",
-     sku: "TS-003",
-     name: "Graphic Tee",
-     basePrice: 3200,
-     stockCount: 200,
-     variant: "Grey",
-     size: "Large",
-     imageUrl: "/prod_3.jpeg",
-   },
- ];
- 
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { App } from "./App";
+import type { Product } from "./types";
+
+const mockProducts: Product[] = [
+  {
+    id: "prod_1",
+    sku: "TS-001",
+    name: "Classic Tee",
+    basePrice: 2500,
+    stockCount: 100,
+    variant: "Black",
+    size: "Large",
+    imageUrl: "/prod_1.jpeg",
+  },
+  {
+    id: "prod_2",
+    sku: "TS-002",
+    name: "V-Neck Tee",
+    basePrice: 2800,
+    stockCount: 50,
+    variant: "Natural",
+    size: "Large",
+    imageUrl: "/prod_2.jpeg",
+  },
+  {
+    id: "prod_3",
+    sku: "TS-003",
+    name: "Graphic Tee",
+    basePrice: 3200,
+    stockCount: 200,
+    variant: "Grey",
+    size: "Large",
+    imageUrl: "/prod_3.jpeg",
+  },
+];
+
 const toolOutput = {
   products: mockProducts,
   user: {
@@ -50,21 +51,22 @@ const toolOutput = {
 
 vi.mock("@/hooks", () => ({
   useToolOutput: () => toolOutput,
+  useWidgetState: <T,>(initialState: T) => [initialState, vi.fn()],
 }));
- 
- describe("App", () => {
+
+describe("App", () => {
   beforeEach(() => {
     toolOutput.products = mockProducts;
     toolOutput.error = undefined;
   });
 
-   it("renders products from toolOutput.products", () => {
-     render(<App />);
- 
-     expect(screen.getByText("Classic Tee")).toBeInTheDocument();
-     expect(screen.getByText("V-Neck Tee")).toBeInTheDocument();
-     expect(screen.getByText("Graphic Tee")).toBeInTheDocument();
-   });
+  it("renders products from toolOutput.products", () => {
+    render(<App />);
+
+    expect(screen.getByText("Classic Tee")).toBeInTheDocument();
+    expect(screen.getByText("V-Neck Tee")).toBeInTheDocument();
+    expect(screen.getByText("Graphic Tee")).toBeInTheDocument();
+  });
 
   it("shows an empty state when no products are found", () => {
     toolOutput.products = [];
@@ -73,6 +75,6 @@ vi.mock("@/hooks", () => ({
     render(<App />);
 
     expect(screen.getByText("No products found")).toBeInTheDocument();
-    expect(screen.getByText("No products found for 'dresses'.")).toBeInTheDocument();
+    expect(screen.getAllByText("No products found for 'dresses'.")).toHaveLength(2);
   });
- });
+});
