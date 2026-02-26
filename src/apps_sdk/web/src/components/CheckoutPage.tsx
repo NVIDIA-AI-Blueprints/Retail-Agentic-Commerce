@@ -271,6 +271,11 @@ export function CheckoutPage({
   const totalDiscount = cartState.discount;
   const total = cartState.total;
   const isCalculatingDiscounts = isCalculating || isApplyingCoupon;
+  const calcOpacity = isCalculating ? "opacity-50" : "";
+  const deliveryPrice = shipping > 0 ? formatPrice(shipping) : formatPrice(currentDelivery.displayPrice);
+  const chevronClass = isDeliveryOpen ? "rotate-180" : "";
+  const summaryShipping = shipping === 0 ? "Free" : formatPrice(shipping);
+  const totalDisplay = isCalculatingDiscounts ? "..." : formatPrice(total);
   const appliedDiscounts = sessionData?.discounts?.applied ?? [];
   const rejectedDiscounts = sessionData?.discounts?.rejected ?? [];
   const warningMessages = (sessionData?.messages ?? []).filter(
@@ -499,11 +504,11 @@ export function CheckoutPage({
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-accent" />
                         ) : (
                           <span className="text-sm font-semibold text-success">
-                            {shipping > 0 ? formatPrice(shipping) : formatPrice(currentDelivery.displayPrice)}
+                            {deliveryPrice}
                           </span>
                         )}
                         <ChevronDown
-                          className={`h-4 w-4 text-text-tertiary transition-transform ${isDeliveryOpen ? "rotate-180" : ""}`}
+                          className={`h-4 w-4 text-text-tertiary transition-transform ${chevronClass}`}
                           strokeWidth={2}
                         />
                       </div>
@@ -619,7 +624,7 @@ export function CheckoutPage({
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Subtotal</span>
-                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
+                    <span className={`text-text ${calcOpacity}`}>
                       {formatPrice(subtotal)}
                     </span>
                   </div>
@@ -628,26 +633,26 @@ export function CheckoutPage({
                       <span className="text-emerald-600 dark:text-emerald-400">
                         Discount
                       </span>
-                      <span className={`font-medium text-emerald-600 dark:text-emerald-400 ${isCalculating ? "opacity-50" : ""}`}>
+                      <span className={`font-medium text-emerald-600 dark:text-emerald-400 ${calcOpacity}`}>
                         −{formatPrice(totalDiscount)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Shipping</span>
-                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
-                      {shipping === 0 ? "Free" : formatPrice(shipping)}
+                    <span className={`text-text ${calcOpacity}`}>
+                      {summaryShipping}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Tax</span>
-                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
+                    <span className={`text-text ${calcOpacity}`}>
                       {formatPrice(tax)}
                     </span>
                   </div>
                   <div className="flex justify-between pt-2 text-base font-semibold">
                     <span className="text-text">Total</span>
-                    <span className={`text-text ${isCalculating ? "opacity-50" : ""}`}>
+                    <span className={`text-text ${calcOpacity}`}>
                       {formatPrice(total)}
                     </span>
                   </div>
@@ -665,7 +670,7 @@ export function CheckoutPage({
                 <Lock className="h-4 w-4" strokeWidth={2} />
                 <span className="flex-1 text-center">Complete Purchase</span>
                 <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-medium">
-                  {isCalculatingDiscounts ? "..." : formatPrice(total)}
+                  {totalDisplay}
                 </span>
               </button>
             </div>
