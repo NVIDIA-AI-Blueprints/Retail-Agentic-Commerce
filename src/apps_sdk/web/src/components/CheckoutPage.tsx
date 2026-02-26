@@ -272,7 +272,7 @@ export function CheckoutPage({
   const total = cartState.total;
   const isCalculatingDiscounts = isCalculating || isApplyingCoupon;
   const calcOpacity = isCalculating ? "opacity-50" : "";
-  const deliveryPrice = shipping > 0 ? formatPrice(shipping) : formatPrice(currentDelivery.displayPrice);
+  const deliveryPrice = formatPrice(shipping);
   const chevronClass = isDeliveryOpen ? "rotate-180" : "";
   const totalDisplay = isCalculatingDiscounts ? "..." : formatPrice(total);
   const appliedDiscounts = sessionData?.discounts?.applied ?? [];

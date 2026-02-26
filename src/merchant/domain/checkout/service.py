@@ -181,14 +181,17 @@ async def create_checkout_session(
             address_input_to_dict(request.fulfillment_address)
         )
 
-    # Generate fulfillment options
+    # Generate fulfillment options and auto-select default
     fulfillment_options: list[dict[str, Any]] = generate_fulfillment_options(
         has_address
     )
+    selected_fulfillment_option_id: str | None = (
+        fulfillment_options[0]["id"] if fulfillment_options else None
+    )
 
-    # Calculate totals
+    # Calculate totals (includes fulfillment cost when a default is selected)
     totals: list[dict[str, Any]] = calculate_totals(
-        line_items, fulfillment_options, None
+        line_items, fulfillment_options, selected_fulfillment_option_id
     )
 
     # Generate default links
@@ -216,6 +219,7 @@ async def create_checkout_session(
         buyer_json=buyer_json,
         fulfillment_address_json=fulfillment_address_json,
         fulfillment_options_json=json.dumps(fulfillment_options),
+        selected_fulfillment_option_id=selected_fulfillment_option_id,
         totals_json=json.dumps(totals),
         messages_json=json.dumps(messages),
         links_json=json.dumps(links),
@@ -388,6 +392,9 @@ async def update_checkout_session(
             has_address=True
         )
         session.fulfillment_options_json = json.dumps(new_options)
+        # Auto-select default fulfillment if none currently selected
+        if not session.selected_fulfillment_option_id and new_options:
+            session.selected_fulfillment_option_id = new_options[0]["id"]
 
     # Update fulfillment option selection if provided
     if request.fulfillment_option_id is not None:
