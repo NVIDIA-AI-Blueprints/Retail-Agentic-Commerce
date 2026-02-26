@@ -274,7 +274,6 @@ export function CheckoutPage({
   const calcOpacity = isCalculating ? "opacity-50" : "";
   const deliveryPrice = shipping > 0 ? formatPrice(shipping) : formatPrice(currentDelivery.displayPrice);
   const chevronClass = isDeliveryOpen ? "rotate-180" : "";
-  const summaryShipping = shipping === 0 ? "Free" : formatPrice(shipping);
   const totalDisplay = isCalculatingDiscounts ? "..." : formatPrice(total);
   const appliedDiscounts = sessionData?.discounts?.applied ?? [];
   const rejectedDiscounts = sessionData?.discounts?.rejected ?? [];
@@ -641,7 +640,7 @@ export function CheckoutPage({
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Shipping</span>
                     <span className={`text-text ${calcOpacity}`}>
-                      {summaryShipping}
+                      {deliveryPrice}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
