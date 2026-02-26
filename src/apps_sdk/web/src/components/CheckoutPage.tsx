@@ -499,7 +499,7 @@ export function CheckoutPage({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {isUpdatingShipping ? (
+                        {isCalculating ? (
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-accent" />
                         ) : (
                           <span className="text-sm font-semibold text-success">

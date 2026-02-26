@@ -392,9 +392,6 @@ async def update_checkout_session(
             has_address=True
         )
         session.fulfillment_options_json = json.dumps(new_options)
-        # Auto-select default fulfillment if none currently selected
-        if not session.selected_fulfillment_option_id and new_options:
-            session.selected_fulfillment_option_id = new_options[0]["id"]
 
     # Update fulfillment option selection if provided
     if request.fulfillment_option_id is not None:
