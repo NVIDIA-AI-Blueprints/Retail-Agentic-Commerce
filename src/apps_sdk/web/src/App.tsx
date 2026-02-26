@@ -15,6 +15,10 @@ import type {
   ACPSessionResponse,
 } from "@/types";
 import { cartStateFromSession, EMPTY_CART_STATE } from "@/types";
+import {
+  DEFAULT_FULFILLMENT_ADDRESS,
+  syncCheckoutSessionWithDefaultShipping,
+} from "@/checkout-session-sync";
 
 /**
  * Widget page state for navigation
@@ -263,56 +267,26 @@ export function App() {
       items: CartItem[],
       currentSessionId: string | null
     ): Promise<{ sessionId: string | null; sessionData: ACPSessionResponse | null }> => {
-      if (items.length === 0) {
-        return { sessionId: null, sessionData: null };
+      const result = await syncCheckoutSessionWithDefaultShipping({
+        items,
+        currentSessionId,
+        callTool,
+      });
+
+      if (currentSessionId && result.sessionId === currentSessionId) {
+        console.log("[Widget] ACP session updated:", currentSessionId);
+      } else if (result.sessionId) {
+        console.log("[Widget] ACP session created:", result.sessionId);
       }
 
-      const acpItems = items.map((item) => ({
-        id: item.id,
-        quantity: item.quantity,
-      }));
-
-      try {
-        if (currentSessionId) {
-          console.log("[Widget] Updating ACP session:", currentSessionId);
-          try {
-            const data = await callTool<ACPSessionResponse>("update-checkout-session", {
-              sessionId: currentSessionId,
-              items: acpItems,
-            });
-            console.log("[Widget] ACP session updated with promotion data:", data.line_items?.map((li) => li.promotion));
-            return { sessionId: data.id || currentSessionId, sessionData: data };
-          } catch {
-            console.warn("[Widget] Session update failed, creating new session");
-          }
-        }
-
-        // Create new session
-        console.log("[Widget] Creating new ACP session");
-        const data = await callTool<ACPSessionResponse>("create-checkout-session", {
-          items: acpItems,
-          buyer: {
-            first_name: "John",
-            last_name: "Doe",
-            email: "john@example.com",
-          },
-          fulfillmentAddress: {
-            name: "John Doe",
-            line_one: "123 AI Boulevard",
-            city: "San Francisco",
-            state: "CA",
-            postal_code: "94102",
-            country: "US",
-          },
-        });
-        console.log("[Widget] ACP session created:", data.id);
-        console.log("[Widget] Promotion data:", data.line_items?.map((li) => li.promotion));
-        return { sessionId: data.id, sessionData: data };
-      } catch (error) {
-        console.warn("[Widget] Failed to sync ACP session:", error);
+      if (result.sessionData) {
+        console.log(
+          "[Widget] Promotion data:",
+          result.sessionData.line_items?.map((lineItem) => lineItem.promotion)
+        );
       }
 
-      return { sessionId: currentSessionId, sessionData: null };
+      return result;
     },
     []
   );
@@ -348,6 +322,7 @@ export function App() {
         const data = await callTool<ACPSessionResponse>("update-checkout-session", {
           sessionId,
           fulfillmentOptionId,
+          fulfillmentAddress: DEFAULT_FULFILLMENT_ADDRESS,
         });
         console.log("[Widget] Shipping updated, new totals:", data.totals);
         setAcpSession(data);
