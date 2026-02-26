@@ -499,7 +499,7 @@ export function CheckoutPage({
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-accent" />
                         ) : (
                           <span className="text-sm font-semibold text-success">
-                            {shipping === 0 ? "Free" : formatPrice(shipping)}
+                            {shipping > 0 ? formatPrice(shipping) : formatPrice(currentDelivery.displayPrice)}
                           </span>
                         )}
                         <ChevronDown
@@ -509,7 +509,7 @@ export function CheckoutPage({
                       </div>
                     </button>
 
-                    {/* Dropdown options - shows displayPrice as preview, actual price comes from backend after selection */}
+                    {/* Dropdown options - each option shows its own displayPrice consistently */}
                     {isDeliveryOpen && (
                       <div
                         className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-default bg-surface shadow-lg dark:shadow-none"
@@ -518,8 +518,6 @@ export function CheckoutPage({
                         {DELIVERY_OPTIONS.map((option) => {
                           const Icon = option.icon;
                           const isSelected = option.id === selectedDelivery;
-                          // For selected option, show actual backend price; for others, show expected price
-                          const priceToShow = isSelected ? shipping : option.displayPrice;
                           return (
                             <button
                               key={option.id}
@@ -546,7 +544,7 @@ export function CheckoutPage({
                                 </div>
                               </div>
                               <span className={`text-sm font-semibold ${isSelected ? "text-accent" : "text-success"}`}>
-                                {priceToShow === 0 ? "Free" : formatPrice(priceToShow)}
+                                {formatPrice(option.displayPrice)}
                               </span>
                             </button>
                           );
