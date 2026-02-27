@@ -22,7 +22,7 @@ export NVIDIA_API_KEY=<YOUR_KEY>
 
 ```bash
 export NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano-30b-a3b
-export NIM_LLM_BASE_URL=https://HOST:POST/v1
+export NIM_LLM_BASE_URL=http://HOST:POST/v1
 export NIM_EMBED_BASE_URL=http://HOST:PORT/v1
 ```
 
