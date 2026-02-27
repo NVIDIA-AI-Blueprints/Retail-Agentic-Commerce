@@ -8,19 +8,37 @@ Full-stack deployment using Docker Compose. This is the recommended approach.
 - Docker Compose v2
 - NVIDIA API key ([create one](https://build.nvidia.com/settings/api-keys))
 
-## 1. Create Shared Docker Network (one-time)
+## 1. Set Environment Variables
+
+By default the stack calls NVIDIA public NIMs hosted on `build.nvidia.com`.
+
+**Required:**
+
+```bash
+export NVIDIA_API_KEY=<YOUR_KEY>
+```
+
+**Optional** — override the model or point to self-hosted NIMs:
+
+```bash
+export NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano-30b-a3b
+export NIM_LLM_BASE_URL=https://HOST:POST/v1
+export NIM_EMBED_BASE_URL=http://HOST:PORT/v1
+```
+
+## 2. Create Shared Docker Network (one-time)
 
 ```bash
 docker network create acp-infra-network || true
 ```
 
-## 2. Start Infrastructure + App Stack
+## 3. Start Infrastructure + App Stack
 
 ```bash
 docker compose -f docker-compose.infra.yml -f docker-compose.yml up --build -d
 ```
 
-## 3. Verify Health
+## 4. Verify Health
 
 ```bash
 curl http://localhost/api/health
@@ -30,7 +48,7 @@ curl http://localhost/apps-sdk/health
 
 Agent services also expose `/health`, but in full Docker deployment they are internal-only (not published on `localhost`).
 
-## 4. Open the Application
+## 5. Open the Application
 
 - Demo UI: http://localhost
 - Phoenix traces: http://localhost:6006
