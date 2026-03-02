@@ -550,11 +550,12 @@ export async function getCheckoutSessionByProtocol(
   sessionRef: ProtocolSessionRef
 ): Promise<CheckoutSessionResponse> {
   if (!sessionRef.sessionId) {
-    throw {
+    const error: APIError = {
       type: "invalid_request",
       code: "session_not_found",
       message: "Missing checkout session ID",
-    } satisfies APIError;
+    };
+    throw Object.assign(new Error(error.message), error);
   }
 
   if (protocol === "acp") {
@@ -562,11 +563,12 @@ export async function getCheckoutSessionByProtocol(
   }
 
   if (!sessionRef.contextId) {
-    throw {
+    const error: APIError = {
       type: "invalid_request",
       code: "session_not_found",
       message: "Missing UCP context ID for checkout fetch",
-    } satisfies APIError;
+    };
+    throw Object.assign(new Error(error.message), error);
   }
 
   return postA2AAction("get_checkout", {}, sessionRef.contextId);

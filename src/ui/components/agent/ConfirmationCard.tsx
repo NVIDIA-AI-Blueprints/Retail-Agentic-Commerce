@@ -18,7 +18,7 @@ function getProductImage(productId: string | undefined): string {
   return "/prod_1.jpeg";
 }
 
-interface ConfirmationCardProps {
+type ConfirmationCardProps = Readonly<{
   product: Product;
   quantity: number;
   subtotal: number;
@@ -29,7 +29,7 @@ interface ConfirmationCardProps {
   orderId: string;
   estimatedDelivery: string;
   onStartOver: () => void;
-}
+}>;
 
 /**
  * Order confirmation display with animated success checkmark
