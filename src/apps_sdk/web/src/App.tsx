@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { SearchX } from "lucide-react";
 import { LoyaltyHeader } from "@/components/LoyaltyHeader";
 import { RecommendationCarousel } from "@/components/RecommendationCarousel";
@@ -217,6 +217,26 @@ export function App() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null);
   const [acpSession, setAcpSession] = useState<ACPSessionResponse | null>(null);
+  const hasSeenInitialToolOutputRef = useRef(false);
+
+  // Reset checkout/product-detail transient state when host pushes a new search payload.
+  useEffect(() => {
+    if (!toolOutput) return;
+
+    if (!hasSeenInitialToolOutputRef.current) {
+      hasSeenInitialToolOutputRef.current = true;
+      return;
+    }
+
+    setCheckoutResult(null);
+    setSelectedProduct(null);
+    setProductRecommendations([]);
+    setCheckoutRecommendations([]);
+    setIsLoadingRecommendations(false);
+    setIsLoadingCheckoutRecommendations(false);
+    setIsCheckingOut(false);
+    updateCurrentPage("browse", null);
+  }, [toolOutput, updateCurrentPage]);
 
   // ── Re-sync ACP session on mount if persisted cart is non-empty ─────────
   useEffect(() => {
