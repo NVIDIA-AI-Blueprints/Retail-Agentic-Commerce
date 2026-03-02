@@ -5,10 +5,14 @@ import type { Product } from "@/types";
 
 // Mock Next.js Image component
 vi.mock("next/image", () => ({
-  default: ({ alt, ...props }: { alt: string }) => (
+  default: (props: { alt: string; fill?: boolean }) => {
+    const { alt } = props;
+    const imageProps: Record<string, unknown> = { ...props };
+    delete imageProps.alt;
+    delete imageProps.fill;
     // eslint-disable-next-line @next/next/no-img-element
-    <img alt={alt} {...props} />
-  ),
+    return <img alt={alt} {...imageProps} />;
+  },
 }));
 
 describe("ConfirmationCard", () => {
@@ -28,7 +32,11 @@ describe("ConfirmationCard", () => {
   const defaultProps = {
     product: mockProduct,
     quantity: 2,
+    subtotal: 5200,
+    discount: 0,
+    tax: 0,
     shippingPrice: 500,
+    total: 5700,
     orderId: "ORD-ABC12345",
     estimatedDelivery: "5-7 business days",
     onStartOver: vi.fn(),
@@ -59,10 +67,9 @@ describe("ConfirmationCard", () => {
     expect(screen.getByText("Qty: 2")).toBeInTheDocument();
   });
 
-  it("calculates and displays correct subtotal", () => {
+  it("displays provided subtotal", () => {
     render(<ConfirmationCard {...defaultProps} />);
 
-    // Subtotal = 2600 * 2 = 5200 cents = $52.00
     const subtotals = screen.getAllByText("$52.00");
     expect(subtotals.length).toBeGreaterThanOrEqual(1);
   });
@@ -73,10 +80,9 @@ describe("ConfirmationCard", () => {
     expect(screen.getByText("$5.00")).toBeInTheDocument();
   });
 
-  it("calculates and displays correct total", () => {
+  it("displays provided total", () => {
     render(<ConfirmationCard {...defaultProps} />);
 
-    // Total = (2600 * 2) + 500 = 5700 cents = $57.00
     expect(screen.getByText("$57.00")).toBeInTheDocument();
   });
 
@@ -112,21 +118,20 @@ describe("ConfirmationCard", () => {
       <ConfirmationCard
         {...defaultProps}
         shippingPrice={1200}
+        total={6400}
         estimatedDelivery="2-3 business days"
       />
     );
 
     expect(screen.getByText("$12.00")).toBeInTheDocument();
     expect(screen.getByText("2-3 business days")).toBeInTheDocument();
-    // Total = (2600 * 2) + 1200 = 6400 cents = $64.00
     expect(screen.getByText("$64.00")).toBeInTheDocument();
   });
 
   it("renders with quantity of 1", () => {
-    render(<ConfirmationCard {...defaultProps} quantity={1} />);
+    render(<ConfirmationCard {...defaultProps} quantity={1} subtotal={2600} total={3100} />);
 
     expect(screen.getByText("Qty: 1")).toBeInTheDocument();
-    // Subtotal = 2600 * 1 = 2600 cents = $26.00
     const subtotals = screen.getAllByText("$26.00");
     expect(subtotals.length).toBeGreaterThanOrEqual(1);
   });
@@ -141,5 +146,17 @@ describe("ConfirmationCard", () => {
     render(<ConfirmationCard {...defaultProps} />);
 
     expect(screen.getByText("Amount Paid")).toBeInTheDocument();
+  });
+
+  it("renders discount and tax lines when provided", () => {
+    render(
+      <ConfirmationCard {...defaultProps} discount={475} tax={202} total={2826} subtotal={2025} />
+    );
+
+    expect(screen.getByText("Discount")).toBeInTheDocument();
+    expect(screen.getByText("-$4.75")).toBeInTheDocument();
+    expect(screen.getByText("Tax")).toBeInTheDocument();
+    expect(screen.getByText("$2.02")).toBeInTheDocument();
+    expect(screen.getByText("$28.26")).toBeInTheDocument();
   });
 });

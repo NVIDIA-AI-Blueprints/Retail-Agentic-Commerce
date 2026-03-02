@@ -13,6 +13,7 @@ import * as apiClient from "@/lib/api-client";
 // Mock the API client module
 vi.mock("@/lib/api-client", () => ({
   createCheckoutSession: vi.fn(),
+  getCheckoutSession: vi.fn(),
   updateCheckoutSession: vi.fn(),
   completeCheckout: vi.fn(),
   createCheckoutSessionByProtocol: vi.fn(
@@ -51,6 +52,17 @@ vi.mock("@/lib/api-client", () => ({
         throw new Error("Missing session ID");
       }
       return vi.mocked(apiClient.completeCheckout)(sessionRef.sessionId, request);
+    }
+  ),
+  getCheckoutSessionByProtocol: vi.fn(
+    (protocol: "acp" | "ucp", sessionRef: { sessionId: string | null }) => {
+      if (protocol !== "acp" && protocol !== "ucp") {
+        throw new Error("Invalid protocol");
+      }
+      if (!sessionRef.sessionId) {
+        throw new Error("Missing session ID");
+      }
+      return vi.mocked(apiClient.getCheckoutSession)(sessionRef.sessionId);
     }
   ),
   delegatePayment: vi.fn(),
@@ -150,6 +162,7 @@ describe("useCheckoutFlow", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(apiClient.getCheckoutSession).mockResolvedValue(mockReadySession);
   });
 
   afterEach(() => {
@@ -569,6 +582,61 @@ describe("useCheckoutFlow", () => {
       await waitFor(() => {
         expect(result.current.context.vaultToken).toBe("vt_test123");
       });
+    });
+
+    it("delegates the latest merchant total after coupon updates", async () => {
+      const couponSyncedSession: CheckoutSessionResponse = {
+        ...mockReadySession,
+        discounts: {
+          codes: ["SAVE10"],
+          applied: [],
+          rejected: [],
+        },
+        totals: [
+          { type: "subtotal", display_text: "Subtotal", amount: 2025 },
+          { type: "fulfillment", display_text: "Shipping", amount: 599 },
+          { type: "tax", display_text: "Tax", amount: 202 },
+          { type: "total", display_text: "Total", amount: 2826 },
+        ],
+      };
+
+      vi.mocked(apiClient.createCheckoutSession).mockResolvedValueOnce(mockSession);
+      vi.mocked(apiClient.updateCheckoutSession).mockResolvedValue(mockReadySession);
+      vi.mocked(apiClient.getCheckoutSession).mockResolvedValueOnce(couponSyncedSession);
+      vi.mocked(apiClient.delegatePayment).mockResolvedValueOnce(mockVaultToken);
+      vi.mocked(apiClient.completeCheckout).mockResolvedValueOnce(mockCompletedSession);
+
+      const { result } = renderHook(() => useCheckoutFlow());
+
+      await act(async () => {
+        await result.current.selectProduct(mockProduct);
+      });
+
+      await waitFor(() => {
+        expect(result.current.context.state).toBe("checkout");
+      });
+
+      act(() => {
+        result.current.setPaymentInfo(mockPaymentInfo);
+        result.current.setBillingAddress(mockBillingAddress);
+      });
+
+      await act(async () => {
+        await result.current.submitPayment();
+      });
+
+      expect(apiClient.getCheckoutSessionByProtocol).toHaveBeenCalledWith(
+        "acp",
+        expect.objectContaining({ sessionId: "cs_test123" })
+      );
+      expect(apiClient.delegatePayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          allowance: expect.objectContaining({
+            checkout_session_id: "cs_test123",
+            max_amount: 2826,
+          }),
+        })
+      );
     });
   });
 

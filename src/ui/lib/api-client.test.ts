@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   createCheckoutSessionByProtocol,
   completeCheckoutByProtocol,
+  getCheckoutSessionByProtocol,
   type ProtocolSessionRef,
 } from "./api-client";
 
@@ -40,6 +41,36 @@ describe("api-client protocol routing", () => {
 
     const [url] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     expect(url).toBe("/api/proxy/merchant/checkout_sessions");
+  });
+
+  it("fetches ACP checkout state using GET when protocol is acp", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "cs_1",
+          status: "ready_for_payment",
+          currency: "usd",
+          payment_provider: {
+            provider: "stripe",
+            supported_payment_methods: [
+              { type: "card", supported_card_networks: ["visa", "mastercard"] },
+            ],
+          },
+          line_items: [],
+          fulfillment_options: [],
+          totals: [{ type: "total", display_text: "Total", amount: 2826 }],
+          messages: [],
+          links: [],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    await getCheckoutSessionByProtocol("acp", { sessionId: "cs_1" });
+
+    const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    expect(url).toBe("/api/proxy/merchant/checkout_sessions/cs_1");
+    expect(init?.method).toBe("GET");
   });
 
   it("uses A2A endpoint and normalizes UCP response", async () => {
@@ -152,6 +183,55 @@ describe("api-client protocol routing", () => {
     expect(actionPart?.line_items).toEqual([{ item: { id: "prod_1" }, quantity: 1 }]);
     expect(actionPart).not.toHaveProperty("items");
     expect(actionPart).not.toHaveProperty("coupons");
+  });
+
+  it("uses A2A get_checkout action when fetching UCP checkout state", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: "req_get",
+          result: {
+            contextId: "ctx_123",
+            parts: [
+              {
+                data: {
+                  "a2a.ucp.checkout": {
+                    id: "cs_ucp_1",
+                    status: "ready_for_complete",
+                    currency: "USD",
+                    line_items: [],
+                    totals: [{ type: "total", label: "Total", amount: 2826 }],
+                    messages: [],
+                    ucp: {
+                      payment_handlers: {
+                        "com.example.processor_tokenizer": [{ id: "processor_tokenizer" }],
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const session = await getCheckoutSessionByProtocol("ucp", {
+      sessionId: "cs_ucp_1",
+      contextId: "ctx_123",
+    });
+
+    expect(session.id).toBe("cs_ucp_1");
+    expect(session.status).toBe("ready_for_payment");
+
+    const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    const body = JSON.parse(String(init.body)) as {
+      params: { message: { parts: Array<{ data?: Record<string, unknown> }> } };
+    };
+    const actionPart = body.params.message.parts[0]?.data;
+    expect(actionPart?.action).toBe("get_checkout");
   });
 
   it("infers line-item discount from UCP subtotal", async () => {

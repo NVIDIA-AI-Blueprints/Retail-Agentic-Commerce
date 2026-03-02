@@ -21,7 +21,11 @@ function getProductImage(productId: string | undefined): string {
 interface ConfirmationCardProps {
   product: Product;
   quantity: number;
+  subtotal: number;
+  discount?: number;
+  tax?: number;
   shippingPrice: number;
+  total: number;
   orderId: string;
   estimatedDelivery: string;
   onStartOver: () => void;
@@ -33,14 +37,15 @@ interface ConfirmationCardProps {
 export function ConfirmationCard({
   product,
   quantity,
+  subtotal,
+  discount = 0,
+  tax = 0,
   shippingPrice,
+  total,
   orderId,
   estimatedDelivery,
   onStartOver,
 }: ConfirmationCardProps) {
-  const subtotal = product.basePrice * quantity;
-  const total = subtotal + shippingPrice;
-
   return (
     <Card className="w-full max-w-md fade-in">
       <Stack gap="5">
@@ -92,7 +97,7 @@ export function ConfirmationCard({
               </Text>
             </Stack>
             <Text kind="label/semibold/md" className="text-primary">
-              {formatCurrency(subtotal)}
+              {formatCurrency(product.basePrice * quantity)}
             </Text>
           </Flex>
         </Stack>
@@ -109,6 +114,16 @@ export function ConfirmationCard({
               {formatCurrency(subtotal)}
             </Text>
           </Flex>
+          {discount > 0 && (
+            <Flex justify="between">
+              <Text kind="body/regular/sm" className="text-secondary">
+                Discount
+              </Text>
+              <Text kind="body/regular/sm" className="text-secondary">
+                -{formatCurrency(discount)}
+              </Text>
+            </Flex>
+          )}
           <Flex justify="between">
             <Text kind="body/regular/sm" className="text-secondary">
               Shipping
@@ -117,6 +132,16 @@ export function ConfirmationCard({
               {formatCurrency(shippingPrice)}
             </Text>
           </Flex>
+          {tax > 0 && (
+            <Flex justify="between">
+              <Text kind="body/regular/sm" className="text-secondary">
+                Tax
+              </Text>
+              <Text kind="body/regular/sm" className="text-secondary">
+                {formatCurrency(tax)}
+              </Text>
+            </Flex>
+          )}
           <Flex justify="between">
             <Text kind="label/bold/md" className="text-primary">
               Amount Paid

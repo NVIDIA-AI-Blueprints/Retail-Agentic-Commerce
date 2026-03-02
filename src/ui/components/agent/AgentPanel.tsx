@@ -352,7 +352,16 @@ function getSessionSubtotal(totals: { type: string; amount: number }[]): number 
  * Get shipping from session totals array
  */
 function getSessionShipping(totals: { type: string; amount: number }[]): number {
-  return totals.find((t) => t.type === "fulfillment")?.amount ?? 0;
+  const directShipping = totals.find((t) => t.type === "fulfillment")?.amount;
+  if (directShipping != null) {
+    return directShipping;
+  }
+
+  const subtotal = getSessionSubtotal(totals);
+  const tax = totals.find((t) => t.type === "tax")?.amount ?? 0;
+  const total = getSessionTotal(totals);
+  const inferredShipping = total - subtotal - tax;
+  return inferredShipping > 0 ? inferredShipping : 0;
 }
 
 /**
@@ -735,7 +744,11 @@ export function AgentPanel({ protocol }: AgentPanelProps) {
               <ConfirmationCard
                 product={context.selectedProduct}
                 quantity={context.quantity}
+                subtotal={subtotal}
+                discount={sessionTotals.find((t) => t.type === "items_discount")?.amount ?? 0}
+                tax={sessionTotals.find((t) => t.type === "tax")?.amount ?? 0}
                 shippingPrice={shipping}
+                total={total}
                 orderId={context.session.order.id}
                 estimatedDelivery={selectedShippingOption?.estimatedDelivery ?? "5-7 business days"}
                 onStartOver={handleStartOver}

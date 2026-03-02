@@ -536,9 +536,40 @@ export async function getCheckoutSession(sessionId: string): Promise<CheckoutSes
   const response = await fetch(`${API_URL}/checkout_sessions/${sessionId}`, {
     method: "GET",
     headers: getMerchantHeaders(),
+    cache: "no-store",
   });
 
   return handleResponse<CheckoutSessionResponse>(response);
+}
+
+/**
+ * Get checkout session using protocol-specific transport.
+ */
+export async function getCheckoutSessionByProtocol(
+  protocol: CheckoutProtocol,
+  sessionRef: ProtocolSessionRef
+): Promise<CheckoutSessionResponse> {
+  if (!sessionRef.sessionId) {
+    throw {
+      type: "invalid_request",
+      code: "session_not_found",
+      message: "Missing checkout session ID",
+    } satisfies APIError;
+  }
+
+  if (protocol === "acp") {
+    return getCheckoutSession(sessionRef.sessionId);
+  }
+
+  if (!sessionRef.contextId) {
+    throw {
+      type: "invalid_request",
+      code: "session_not_found",
+      message: "Missing UCP context ID for checkout fetch",
+    } satisfies APIError;
+  }
+
+  return postA2AAction("get_checkout", {}, sessionRef.contextId);
 }
 
 /**
@@ -896,6 +927,7 @@ export const apiClient = {
   createCheckoutSession,
   createCheckoutSessionByProtocol,
   getCheckoutSession,
+  getCheckoutSessionByProtocol,
   updateCheckoutSession,
   updateCheckoutSessionByProtocol,
   completeCheckout,

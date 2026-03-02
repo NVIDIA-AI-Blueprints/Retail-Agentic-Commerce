@@ -14,6 +14,7 @@ import type {
 } from "@/types";
 import {
   createCheckoutSessionByProtocol,
+  getCheckoutSessionByProtocol,
   updateCheckoutSessionByProtocol,
   completeCheckoutByProtocol,
   delegatePayment,
@@ -770,9 +771,6 @@ export function useCheckoutFlow(
       }
 
       dispatch({ type: "SUBMIT_PAYMENT" });
-
-      // Step 1: Get vault token from PSP
-      const totalAmount = getTotalFromSession(context.session);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
       // Parse payment info from form
@@ -794,15 +792,34 @@ export function useCheckoutFlow(
         country: "US",
         postal_code: addressParts[2]?.split(" ")[1] || "94102",
       };
-
-      const delegateEventId = loggerRef.current?.logEvent(
-        "delegate_payment",
-        "POST",
-        "/agentic_commerce/delegate_payment",
-        `Delegate $${(totalAmount / 100).toFixed(2)}`
-      );
+      let delegateEventId: string | undefined;
 
       try {
+        // Always refresh from merchant before payment to keep client and backend totals in sync.
+        const latestSession = await getCheckoutSessionByProtocol(
+          protocol,
+          buildProtocolSessionRef(
+            context.sessionId,
+            context.ucpContextId,
+            context.session?.ucpPaymentHandlerId
+          )
+        );
+        dispatch({ type: "SESSION_UPDATED", session: latestSession });
+
+        const totalAmount = getTotalFromSession(latestSession);
+        const completionSessionRef = buildProtocolSessionRef(
+          latestSession.id,
+          latestSession.ucpContextId ?? context.ucpContextId,
+          latestSession.ucpPaymentHandlerId ?? context.session?.ucpPaymentHandlerId
+        );
+
+        delegateEventId = loggerRef.current?.logEvent(
+          "delegate_payment",
+          "POST",
+          "/agentic_commerce/delegate_payment",
+          `Delegate $${(totalAmount / 100).toFixed(2)}`
+        );
+
         const delegateResponse = await delegatePayment({
           payment_method: {
             type: "card",
@@ -817,8 +834,8 @@ export function useCheckoutFlow(
           allowance: {
             reason: "one_time",
             max_amount: totalAmount,
-            currency: context.session.currency,
-            checkout_session_id: context.sessionId,
+            currency: latestSession.currency,
+            checkout_session_id: latestSession.id,
             merchant_id: "merchant_nvshop",
             expires_at: expiresAt,
           },
@@ -852,22 +869,14 @@ export function useCheckoutFlow(
           protocol === "ucp" ? "message/send:complete_checkout" : "Process payment"
         );
 
-        const completedSession = await completeCheckoutByProtocol(
-          protocol,
-          buildProtocolSessionRef(
-            context.sessionId,
-            context.ucpContextId,
-            context.session?.ucpPaymentHandlerId
-          ),
-          {
-            payment_data: {
-              token: delegateResponse.id,
-              provider: "stripe",
-              billing_address: billingAddressData,
-            },
-            preferred_language: billingAddress.preferredLanguage,
-          }
-        );
+        const completedSession = await completeCheckoutByProtocol(protocol, completionSessionRef, {
+          payment_data: {
+            token: delegateResponse.id,
+            provider: "stripe",
+            billing_address: billingAddressData,
+          },
+          preferred_language: billingAddress.preferredLanguage,
+        });
 
         // Check if 3DS is required
         if (completedSession.status === "authentication_required") {
@@ -896,11 +905,7 @@ export function useCheckoutFlow(
             try {
               const finalSession = await completeCheckoutByProtocol(
                 protocol,
-                buildProtocolSessionRef(
-                  context.sessionId!,
-                  context.ucpContextId,
-                  context.session?.ucpPaymentHandlerId
-                ),
+                completionSessionRef,
                 {
                   payment_data: {
                     token: delegateResponse.id,
