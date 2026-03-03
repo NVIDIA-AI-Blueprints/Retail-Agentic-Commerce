@@ -89,6 +89,20 @@ When debugging:
 3. If not, is documentation outdated or code wrong?
 4. Only then investigate environment/configuration issues.
 
+## Security & Privacy Guardrails (Mandatory)
+
+When creating or editing docs (including `AGENTS.md` files):
+- Never include absolute local filesystem paths (for example: `/Users/<name>/...`, `/home/<name>/...`, `C:\Users\<name>\...`).
+- Never include usernames, home directories, machine-specific temp paths, or other host-identifying data.
+- Prefer repo-relative paths only (for example: `src/merchant/main.py`).
+- Treat any detected local path exposure as a blocking issue and fix before finishing.
+
+Before finalizing documentation changes, run this check and ensure it returns no matches:
+
+```bash
+rg -n -e '/Users/[A-Za-z0-9._-]+/' -e '/home/[A-Za-z0-9._-]+/' -e '\\\\Users\\\\[A-Za-z0-9._-]+\\\\' AGENTS.md src docs
+```
+
 ## Cursor Skills (Mandatory)
 
 Before changing code, read:
@@ -109,6 +123,13 @@ Agentic Commerce Protocol (ACP) reference implementation:
 Core docs:
 - `docs/features.md` for feature status and acceptance criteria
 - `docs/architecture.md` for system design
+
+## Scoped AGENTS (Subfolders)
+
+When working in these components, read the local scoped guide after this root file:
+- `src/merchant/AGENTS.md`
+- `src/apps_sdk/AGENTS.md`
+- `src/agents/AGENTS.md`
 
 ## Quick Map (Where to Look First)
 
