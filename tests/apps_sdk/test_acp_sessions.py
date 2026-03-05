@@ -64,7 +64,8 @@ async def test_create_acp_session_emits_promotion_signals() -> None:
 
     class _MockAsyncClient:
         def __init__(self, *_args: Any, **_kwargs: Any) -> None:
-            pass
+            self._args = _args
+            self._kwargs = _kwargs
 
         async def __aenter__(self) -> _MockAsyncClient:
             return self

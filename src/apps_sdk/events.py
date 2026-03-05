@@ -64,7 +64,7 @@ def emit_agent_activity_event(
     signals: dict[str, str] | None = None,
 ) -> None:
     """Emit a promotion agent activity event to all SSE subscribers."""
-    event = {
+    event: dict[str, Any] = {
         "id": f"agent_{datetime.now().timestamp()}",
         "agentType": agent_type,
         "productId": product_id,
