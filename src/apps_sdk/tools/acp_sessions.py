@@ -116,6 +116,7 @@ async def create_acp_session(
                         reasoning=promotion.get("reasoning", ""),
                         stock_count=stock_count,
                         base_price=line_item.get("base_amount", 0),
+                        signals=promotion.get("signals"),
                     )
 
             return data
