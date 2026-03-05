@@ -61,9 +61,10 @@ def emit_agent_activity_event(
     reasoning: str,
     stock_count: int = 0,
     base_price: int = 0,
+    signals: dict[str, str] | None = None,
 ) -> None:
     """Emit a promotion agent activity event to all SSE subscribers."""
-    event = {
+    event: dict[str, Any] = {
         "id": f"agent_{datetime.now().timestamp()}",
         "agentType": agent_type,
         "productId": product_id,
@@ -76,6 +77,8 @@ def emit_agent_activity_event(
         "basePrice": base_price,
         "timestamp": datetime.now().isoformat(),
     }
+    if signals is not None:
+        event["signals"] = signals
     checkout_events.append(event)
 
     for queue in event_subscribers:
