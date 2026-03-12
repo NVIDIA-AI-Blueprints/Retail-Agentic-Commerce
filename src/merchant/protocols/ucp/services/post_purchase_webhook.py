@@ -20,8 +20,6 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from ucp_sdk.models.schemas.shopping.order import Order as SDKOrder
-
 from src.merchant.config import get_settings
 from src.merchant.domain.checkout.models import (
     CheckoutSessionResponse,
@@ -29,6 +27,7 @@ from src.merchant.domain.checkout.models import (
     TotalTypeEnum,
 )
 from src.merchant.protocols.ucp.api.schemas.checkout import UCPCapabilityVersion
+from src.merchant.protocols.ucp.sdk_models import Order as SDKOrder
 from src.merchant.protocols.ucp.services.webhook_delivery import (
     UCPOrderWebhookEvent,
     send_ucp_order_webhook,

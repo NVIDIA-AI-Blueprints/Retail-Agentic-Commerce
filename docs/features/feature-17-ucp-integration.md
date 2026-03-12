@@ -187,7 +187,7 @@ src/merchant/
 The UCP schema layer now uses a **hybrid strategy**:
 
 - `src/merchant/protocols/ucp/api/schemas/checkout.py` is the compatibility bridge for current
-  wire contracts while importing and using `ucp_sdk` as canonical schema
+  wire contracts while importing and using UCP SDK-compatible models as canonical schema
   dependency.
 - Existing API wire payloads remain unchanged for discovery and A2A checkout
   responses to avoid UI/integration regressions.

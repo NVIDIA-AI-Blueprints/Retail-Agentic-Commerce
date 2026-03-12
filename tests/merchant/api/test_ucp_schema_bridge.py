@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the UCP schema bridge adapters backed by ucp_sdk."""
+"""Tests for the UCP schema bridge adapters backed by UCP SDK-compatible models."""
 
 from __future__ import annotations
 

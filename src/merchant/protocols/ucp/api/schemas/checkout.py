@@ -16,7 +16,7 @@
 """UCP schema bridge using local wire models plus SDK validation adapters.
 
 This module preserves the current project wire contracts while adopting
-`ucp_sdk` as the canonical schema dependency for contract validation.
+UCP SDK-compatible models as the canonical schema dependency for contract validation.
 """
 
 from __future__ import annotations
@@ -25,34 +25,35 @@ from enum import StrEnum
 from typing import Annotated, Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
-from ucp_sdk.models._internal import (
-    Discovery as SDKDiscoveryCapability,
-)
-from ucp_sdk.models._internal import (
-    DiscoveryProfile as SDKDiscoveryProfile,
-)
-from ucp_sdk.models._internal import (
-    Response as SDKResponseCapability,
-)
-from ucp_sdk.models._internal import (
-    ResponseCheckout as SDKResponseCheckout,
-)
-from ucp_sdk.models._internal import (
-    UcpService as SDKService,
-)
-from ucp_sdk.models.discovery.profile_schema import (
-    Payment as SDKDiscoveryPayment,
-)
-from ucp_sdk.models.discovery.profile_schema import (
-    UcpDiscoveryProfile as SDKUcpDiscoveryProfile,
-)
-from ucp_sdk.models.schemas.shopping.checkout_resp import (
+
+from src.merchant.protocols.ucp.sdk_models import (
     CheckoutResponse as SDKCheckoutResponse,
 )
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as SDKPayment
-from ucp_sdk.models.schemas.shopping.types.payment_handler_resp import (
+from src.merchant.protocols.ucp.sdk_models import (
+    Discovery as SDKDiscoveryCapability,
+)
+from src.merchant.protocols.ucp.sdk_models import (
+    DiscoveryProfile as SDKDiscoveryProfile,
+)
+from src.merchant.protocols.ucp.sdk_models import (
+    Payment as SDKDiscoveryPayment,
+)
+from src.merchant.protocols.ucp.sdk_models import (
     PaymentHandlerResponse as SDKPaymentHandler,
 )
+from src.merchant.protocols.ucp.sdk_models import (
+    PaymentResponse as SDKPayment,
+)
+from src.merchant.protocols.ucp.sdk_models import (
+    Response as SDKResponseCapability,
+)
+from src.merchant.protocols.ucp.sdk_models import (
+    ResponseCheckout as SDKResponseCheckout,
+)
+from src.merchant.protocols.ucp.sdk_models import (
+    UcpDiscoveryProfile as SDKUcpDiscoveryProfile,
+)
+from src.merchant.protocols.ucp.sdk_models import UcpService as SDKService
 
 DEFAULT_UCP_SPEC_URL = "https://ucp.dev/specification/overview"
 DEFAULT_PAYMENT_HANDLER_SPEC_URL = "https://ucp.dev/specification/checkout"

@@ -2207,9 +2207,6 @@ The Apache License, Version 2.0 is a permissive license that also provides an ex
    typescript 5.9.3
    Copyright (c) Microsoft Corp.
 
-   ucp-sdk 0.1.0
-   Copyright (c) Florin Iucha
-
    xml-name-validator 5.0.0
    Copyright (c) Domenic Denicola
 
