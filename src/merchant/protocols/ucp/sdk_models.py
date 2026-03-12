@@ -277,18 +277,13 @@ class PaymentCredential(
     )
 
 
-class PaymentInstrumentBase(BaseModel):
+class CardPaymentInstrument(BaseModel):
     model_config = ConfigDict(extra="allow")
     id: str
     handler_id: str
-    type: str
+    type: Literal["card"]
     billing_address: PostalAddress | None = None
     credential: PaymentCredential | None = None
-
-
-class CardPaymentInstrument(PaymentInstrumentBase):
-    model_config = ConfigDict(extra="allow")
-    type: Literal["card"]
     brand: str
     last_digits: str
     expiry_month: int | None = None
