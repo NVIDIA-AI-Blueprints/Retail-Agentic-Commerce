@@ -53,7 +53,7 @@ uv pip install -e ".[dev]"
 
 nat serve --config_file configs/promotion.yml --port 8002
 nat serve --config_file configs/post-purchase.yml --port 8003
-nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
+nat serve --config_file configs/recommendation.yml --port 8004
 nat serve --config_file configs/search.yml --port 8005
 ```
 

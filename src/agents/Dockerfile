@@ -48,5 +48,5 @@ COPY src/data ./src/data
 # Examples:
 # - nat serve --config_file configs/promotion.yml --port 8002
 # - nat serve --config_file configs/post-purchase.yml --port 8003
-# - nat serve --config_file configs/recommendation-ultrafast.yml --port 8004
+# - nat serve --config_file configs/recommendation.yml --port 8004
 # - python scripts/seed_milvus.py (for Milvus seeder)
