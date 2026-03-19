@@ -6,7 +6,7 @@
 
 <div align="center">
 
-![NVIDIA Logo](https://avatars.githubusercontent.com/u/178940881?s=200&v=4)
+![Banner](docs/banner.jpg)
 
 </div>
 
@@ -14,7 +14,7 @@ A reference implementation of the Agentic Commerce Protocol (ACP) and Universal 
 
 ## Architecture
 
-![Shopping Assistant Diagram](docs/agentic-commerce-diagram.jpeg)
+![Agentic Commerce Diagram](docs/agentic-commerce-diagram.jpeg)
 
 ## What You Get
 
