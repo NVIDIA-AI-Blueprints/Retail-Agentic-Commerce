@@ -23,8 +23,8 @@ This document breaks down the project requirements into discrete, implementable 
 | 13 | [Integration of UI and ACP Server](./feature-13-ui-acp-integration.md) | P1 | Features 3, 5, 9, 12 | ✅ Complete |
 | 14 | [Enhanced Checkout (Payment & Shipping)](./feature-14-enhanced-checkout.md) | P1 | Feature 13 | ✅ Complete |
 | 15 | [Multi-Language Post-Purchase Messages](./feature-15-multi-language.md) | P2 | Feature 8 | ✅ Complete |
-| 16 | [Apps SDK Integration (Merchant Iframe)](./feature-16-apps-sdk.md) | P1 | Features 7, 9, 13 | 🔲 Planned |
-| 17 | [UCP Protocol Integration](./feature-17-ucp-integration.md) | P1 | Features 3, 4, 5, 6, 7, 8 | 🟡 In Progress |
+| 16 | [Apps SDK Integration (Merchant Iframe)](./feature-16-apps-sdk.md) | P1 | Features 7, 9, 13 |  ✅ Complete |
+| 17 | [UCP Protocol Integration](./feature-17-ucp-integration.md) | P1 | Features 3, 4, 5, 6, 7, 8 |  ✅ Complete |
 
 ---
 
