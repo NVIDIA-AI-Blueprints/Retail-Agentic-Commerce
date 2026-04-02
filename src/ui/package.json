@@ -52,7 +52,10 @@
     "overrides": {
       "ajv": "8.18.0",
       "eslint>ajv": "6.12.6",
-      "@eslint/eslintrc>ajv": "6.12.6"
+      "@eslint/eslintrc>ajv": "6.12.6",
+      "sharp": "0.34.5",
+      "flatted": "3.4.2",
+      "picomatch": "4.0.4"
     }
   },
   "devDependencies": {
