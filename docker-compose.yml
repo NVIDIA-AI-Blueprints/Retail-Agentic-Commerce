@@ -149,6 +149,12 @@ services:
       #                    NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
     networks:
       - acp-network
       - acp-infra-network
@@ -167,6 +173,12 @@ services:
       # NIM Configuration
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
     depends_on:
       promotion-agent:
         condition: service_started
@@ -191,6 +203,12 @@ services:
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
       - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
     depends_on:
       promotion-agent:
         condition: service_started
@@ -215,6 +233,12 @@ services:
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
       - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
     depends_on:
       promotion-agent:
         condition: service_started
