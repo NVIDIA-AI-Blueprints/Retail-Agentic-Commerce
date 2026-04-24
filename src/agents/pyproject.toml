@@ -14,6 +14,10 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     # NAT with ingestion (Milvus retriever), langchain, profiling extras
     "nvidia-nat[ingestion,langchain,phoenix,profiling]==1.4.1",
+    "nvidia-nat-langchain==1.4.1",
+    "nvidia-nat-phoenix==1.4.1",
+    "nvidia-nat-profiling==1.4.1",
+    "nvidia-nat-ingestion==1.4.1",
     "httpx>=0.27.0",
 ]
 
