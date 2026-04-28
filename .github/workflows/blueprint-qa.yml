@@ -4,15 +4,12 @@
 # Required repository secrets:
 #   NGC_API_KEY            NVIDIA API key used to pull images and populate
 #                          NVIDIA_API_KEY in .env.
-#   TEST_DOCKER_PULL_KEY   NVIDIA API key with pull access to
+#   BLUEPRINT_GITHUB_TEST  NVIDIA API key with pull access to
 #                          nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image.
 #                          If unset, the test step is skipped.
 #
 # Optional SMTP secrets (mail step skipped if any are missing):
 #   SMTP_USERNAME, SMTP_PASSWORD, SMTP_MAIL_TO, SMTP_MAIL_FROM
-#
-# To test locally without real pull access:
-#   ./scripts/build-local-qa-image.sh
 
 name: Blueprint QA
 
@@ -128,16 +125,16 @@ jobs:
       - name: Run UI automation tests
         if: always()
         env:
-          TEST_DOCKER_PULL_KEY: ${{ secrets.TEST_DOCKER_PULL_KEY }}
+          BLUEPRINT_GITHUB_TEST: ${{ secrets.BLUEPRINT_GITHUB_TEST }}
         run: |
           set -euo pipefail
 
-          if [ -z "${TEST_DOCKER_PULL_KEY:-}" ]; then
-            echo "Skipping tests: repository secret TEST_DOCKER_PULL_KEY is not set."
+          if [ -z "${BLUEPRINT_GITHUB_TEST:-}" ]; then
+            echo "Skipping tests: repository secret BLUEPRINT_GITHUB_TEST is not set."
             exit 0
           fi
 
-          echo "${TEST_DOCKER_PULL_KEY}" | docker login nvcr.io --username '$oauthtoken' --password-stdin
+          echo "${BLUEPRINT_GITHUB_TEST}" | docker login nvcr.io --username '$oauthtoken' --password-stdin
 
           echo "Waiting for services to stabilize (2 minutes)..."
           sleep 120
