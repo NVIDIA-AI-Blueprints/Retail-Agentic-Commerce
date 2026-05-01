@@ -24,8 +24,8 @@
 #                           └──→ UUA Agent ─┘
 #
 # Parallel execution is retained for UUA and NLI (paper-aligned), while
-# deterministic Python logic is limited to retrieval adaptation, concurrency
-# orchestration, and output contract validation.
+# deterministic Python logic is limited to retrieval adaptation, typed chat
+# adaptation, and output contract validation.
 general:
   use_uvloop: true
   telemetry:
@@ -99,7 +99,7 @@ functions:
     top_k: 10
 
   # -- Step 2a: NLI Agent (LLM) ------------------------------------------------
-  nli_agent:
+  nli_agent_chat:
     _type: chat_completion
     llm_name: nim_llm_nli
     system_prompt: |
@@ -142,8 +142,13 @@ functions:
         ]
       }
 
+  nli_agent:
+    _type: text_function_adapter
+    function_name: nli_agent_chat
+    description: "Run NLI alignment and return text output"
+
   # -- Step 2b: User Understanding Agent (LLM, parallel with NLI) -------------
-  user_understanding_agent:
+  user_understanding_agent_chat:
     _type: chat_completion
     llm_name: nim_llm
     system_prompt: |
@@ -167,19 +172,29 @@ functions:
         "complementary_categories": ["<category1>", "<category2>"]
       }
 
+  user_understanding_agent:
+    _type: text_function_adapter
+    function_name: user_understanding_agent_chat
+    description: "Infer shopper intent and return text output"
+
   # -- Step 3: Context Summary Agent (LLM) ------------------------------------
-  context_summary_agent:
+  context_summary_agent_chat:
     _type: chat_completion
     llm_name: nim_llm
     system_prompt: |
       You are the context synthesis stage in an ARAG recommendation pipeline.
 
       INPUT:
-      JSON from parallel_analysis with keys:
-      - "nli_agent" (often a JSON string)
-      - "user_understanding_agent" (often a JSON string)
+      Text from NAT's built-in parallel_executor. It contains labeled blocks:
+      - "user_understanding_agent:" followed by that agent's JSON output
+      - "nli_agent:" followed by that agent's JSON output
 
-      First parse both values as JSON objects.
+      First split the text by those exact labels, then parse each block body
+      as JSON. If a block starts with "ERROR:" or is not parseable JSON, treat
+      that branch as missing and continue with the available branch data.
+      If user_understanding_agent is missing, set user_intent to
+      "Shopper intent unavailable." If nli_agent is missing, return zero
+      candidates with an empty filtered_candidates list.
 
       TASK:
       1) Copy user_intent from user_understanding_agent.user_intent.
@@ -209,8 +224,13 @@ functions:
         ]
       }
 
+  context_summary_agent:
+    _type: text_function_adapter
+    function_name: context_summary_agent_chat
+    description: "Synthesize parallel analysis output into text JSON"
+
   # -- Step 4: Item Ranker Agent (LLM) ----------------------------------------
-  item_ranker_agent:
+  item_ranker_agent_chat:
     _type: chat_completion
     llm_name: nim_llm
     system_prompt: |
@@ -266,6 +286,11 @@ functions:
         "message": "No suitable cross-sell recommendations for current cart"
       }
 
+  item_ranker_agent:
+    _type: text_function_adapter
+    function_name: item_ranker_agent_chat
+    description: "Rank filtered candidates and return text JSON"
+
   # -- Step 5: Deterministic output contract guard (non-semantic) -------------
   output_contract_guard:
     _type: output_contract_guard
@@ -276,6 +301,8 @@ functions:
   parallel_analysis:
     _type: parallel_executor
     tool_list: [user_understanding_agent, nli_agent]
+    detailed_logs: true
+    return_error_on_exception: true
     description: "Run user understanding and NLI analysis in parallel"
 
 # -- Main workflow: Sequential(RAG → Parallel → CSA → IRA → Guard) ------------

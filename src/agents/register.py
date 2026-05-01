@@ -17,21 +17,20 @@
 
 Only three components require custom Python code:
 
-1. **parallel_executor** — control-flow fan-out/fan-in using ``asyncio.gather``.
-2. **rag_retriever** — retrieval adapter that builds query context and normalizes
+1. **rag_retriever** — retrieval adapter that builds query context and normalizes
    retriever documents to ARAG candidate items.
+2. **text_function_adapter** — typed adapter that lets NAT ``chat_completion``
+   steps participate in string-based control-flow chains.
 3. **output_contract_guard** — deterministic schema guard for final output.
 
 All recommendation semantics (NLI scoring, context synthesis, ranking) are
 performed by LLM agents declared in ``configs/recommendation.yml``.
 """
 
-import asyncio
 import json
 import logging
 from typing import Any
 
-from langchain_core.tools.base import BaseTool
 from nat.builder.builder import Builder
 from nat.builder.framework_enum import LLMFrameworkEnum
 from nat.builder.function_info import FunctionInfo
@@ -92,70 +91,6 @@ def _clean_str_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item.strip() for item in value if isinstance(item, str) and item.strip()]
-
-
-# =============================================================================
-# Parallel Executor — control-flow component for fan-out / fan-in
-# =============================================================================
-
-
-class ParallelExecutorConfig(FunctionBaseConfig, name="parallel_executor"):
-    """Configuration for parallel execution of a list of functions."""
-
-    description: str = Field(
-        default="Parallel Executor Workflow",
-        description="Description of this function's use.",
-    )
-    tool_list: list[FunctionRef] = Field(
-        default_factory=list,
-        description="A list of functions to execute in parallel.",
-    )
-
-
-@register_function(
-    config_type=ParallelExecutorConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN]
-)
-async def parallel_execution(config: ParallelExecutorConfig, builder: Builder):
-    """Create parallel executor for fan-out/fan-in of tool calls."""
-
-    tools: list[BaseTool] = await builder.get_tools(
-        tool_names=config.tool_list,
-        wrapper_type=LLMFrameworkEnum.LANGCHAIN,
-    )
-    tools_dict: dict[str, BaseTool] = {str(tool.name): tool for tool in tools}
-
-    async def _parallel_function_execution(input_message: str) -> str:
-        """Execute configured tools in parallel and merge JSON-serializable outputs."""
-        logger.debug(
-            "Parallel executor: launching %d tools in parallel", len(config.tool_list)
-        )
-
-        tasks = []
-        tool_names: list[str] = []
-        for tool_name_ref in config.tool_list:
-            tool_name = str(tool_name_ref)
-            tool = tools_dict.get(tool_name)
-            if tool is None:
-                raise ValueError(f"Parallel executor: unknown tool '{tool_name}'")
-            tasks.append(tool.ainvoke(input_message))
-            tool_names.append(tool_name)
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        merged: dict[str, str] = {}
-        for name, result in zip(tool_names, results):
-            if isinstance(result, BaseException):
-                logger.error("Parallel executor: tool %s failed: %s", name, result)
-                merged[name] = f"ERROR: {result}"
-            else:
-                merged[name] = str(result)
-
-        logger.debug("Parallel executor: all tools completed")
-        return json.dumps(merged)
-
-    yield FunctionInfo.from_fn(
-        _parallel_function_execution, description=config.description
-    )
 
 
 # =============================================================================
@@ -300,6 +235,45 @@ async def rag_retriever_function(config: RAGRetrieverConfig, builder: Builder):
     yield FunctionInfo.from_fn(
         retrieve_candidates, description="Retrieve candidate items using RAG"
     )
+
+
+# =============================================================================
+# Text Function Adapter — typed wrapper for string-based control flow
+# =============================================================================
+
+
+class TextFunctionAdapterConfig(FunctionBaseConfig, name="text_function_adapter"):
+    """Configuration for adapting a configured NAT function to text I/O."""
+
+    function_name: FunctionRef = Field(
+        description="Configured function to invoke with input_message text.",
+    )
+    description: str = Field(
+        default="Invoke a configured function with text input and return text output.",
+        description="Description of this function's use.",
+    )
+
+
+@register_function(
+    config_type=TextFunctionAdapterConfig,
+    framework_wrappers=[LLMFrameworkEnum.LANGCHAIN],
+)
+async def text_function_adapter(config: TextFunctionAdapterConfig, builder: Builder):
+    """Expose a configured function as a string-in/string-out NAT function."""
+
+    target_function = await builder.get_function(config.function_name)
+
+    async def invoke_text(input_message: str) -> str:
+        """Invoke the target function using NAT's input_message convention."""
+        result = await target_function.acall_invoke(input_message=input_message)
+        if isinstance(result, str):
+            return result
+        if hasattr(result, "model_dump"):
+            dumped = result.model_dump()
+            return json.dumps(dumped, default=str)
+        return str(result)
+
+    yield FunctionInfo.from_fn(invoke_text, description=config.description)
 
 
 # =============================================================================

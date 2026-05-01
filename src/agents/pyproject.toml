@@ -12,8 +12,8 @@ description = "NAT Agents for Agentic Commerce Protocol - Promotion and Post-Pur
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    # NAT with ingestion (Milvus retriever), langchain, profiling extras
-    "nvidia-nat[ingestion,langchain,phoenix,profiling]==1.4.1",
+    # NAT with RAG (Milvus retriever), LangChain, Phoenix, profiler, and Ragas extras
+    "nvidia-nat[langchain,phoenix,profiler,rag,ragas]==1.6.0",
     "httpx>=0.27.0",
 ]
 

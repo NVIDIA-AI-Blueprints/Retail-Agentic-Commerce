@@ -35,7 +35,7 @@ If changes impact merchant integration, also read:
    - Layer 3 deterministic enforcement in merchant backend
 2. Agent outputs are advisory/content-only. Final pricing, margin checks, and order authority remain deterministic in `src/merchant/`.
 3. Promotion decisions must select from `allowed_actions`.
-4. Recommendation custom components are limited to orchestration/contract guards in `src/agents/register.py`.
+4. Recommendation custom components are limited to retrieval adapters, typed text adapters, and contract guards in `src/agents/register.py`; use NAT built-ins for control flow.
 
 ## Quick Map
 

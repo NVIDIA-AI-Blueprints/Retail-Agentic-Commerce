@@ -314,7 +314,7 @@ Traditional RAG retrieves documents based on embedding similarity alone. ARAG in
 
 ### Multi-Agent Pipeline
 
-All ARAG agents are orchestrated within a **single NAT workflow** (`configs/recommendation.yml`) using NAT's multi-agent pattern. Specialized agents are defined as `functions` and executed by a `sequential_executor` with parallel fan-out for UUA and NLI via a custom `parallel_executor` component.
+All ARAG agents are orchestrated within a **single NAT workflow** (`configs/recommendation.yml`) using NAT's multi-agent pattern. Specialized agents are defined as `functions` and executed by a `sequential_executor` with parallel fan-out for UUA and NLI via NAT's built-in `parallel_executor`. LLM functions use a thin `text_function_adapter` wrapper so NAT 1.6 receives `input_message` text consistently across sequential and parallel control-flow tools.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -342,7 +342,7 @@ All ARAG agents are orchestrated within a **single NAT workflow** (`configs/reco
 │  │      Sequential Executor (sequential_executor workflow)   │ │
 │  │  - Receives cart items + session context                   │ │
 │  │  - Orchestrates specialized agents in sequence             │ │
-│  │  - Parallel fan-out for UUA + NLI via parallel_executor    │ │
+│  │  - Parallel fan-out for UUA + NLI via NAT parallel_executor│ │
 │  └──────────────────────────┬─────────────────────────────────┘ │
 │                             │                                    │
 │            ┌────────────────┼────────────────┐                   │
@@ -404,11 +404,11 @@ All ARAG agents are orchestrated within a **single NAT workflow** (`configs/reco
 | Step | Component | Type | Purpose |
 |------|-----------|------|---------|
 | 1 | `rag_retriever` | Custom (`register.py`) | Adapts input into retriever query, normalizes candidates |
-| 2a | `user_understanding_agent` | chat_completion | Infers buyer preferences from cart/context |
-| 2b | `nli_agent` | chat_completion | Scores semantic alignment with user intent |
-| — | `parallel_analysis` | Custom (`register.py`) | Runs UUA + NLI in parallel via `asyncio.gather` |
-| 3 | `context_summary_agent` | chat_completion | Synthesizes UUA + NLI signals into focused context |
-| 4 | `item_ranker_agent` | chat_completion | Produces final ranked recommendations |
+| 2a | `user_understanding_agent` | text_function_adapter → chat_completion | Infers buyer preferences from cart/context |
+| 2b | `nli_agent` | text_function_adapter → chat_completion | Scores semantic alignment with user intent |
+| — | `parallel_analysis` | NAT built-in | Runs UUA + NLI in parallel via `parallel_executor` |
+| 3 | `context_summary_agent` | text_function_adapter → chat_completion | Synthesizes UUA + NLI signals into focused context |
+| 4 | `item_ranker_agent` | text_function_adapter → chat_completion | Produces final ranked recommendations |
 | 5 | `output_contract_guard` | Custom (`register.py`) | Validates and normalizes output schema |
 
 Underlying retrieval:

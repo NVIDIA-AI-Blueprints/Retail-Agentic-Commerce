@@ -107,9 +107,9 @@ uv sync
 | `weave` | Weights & Biases Weave |
 | `opentelemetry` | OpenTelemetry support |
 | `redis` | Redis memory backend |
-| `profiling` | Performance profiling tools |
-| `telemetry` | All telemetry packages |
-| `all` | All optional dependencies |
+| `rag` | Retrieval and RAG components |
+| `profiler` | Performance profiling tools |
+| `most` | Most optional integrations |
 
 ### Verify Installation
 
@@ -792,7 +792,7 @@ Evaluation is the process of running workflows on test data and measuring qualit
 ### Installation
 
 ```bash
-pip install "nvidia-nat[profiling]"
+pip install "nvidia-nat[profiler]"
 ```
 
 ### Running Evaluations

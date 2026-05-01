@@ -17,7 +17,7 @@ The Recommendation Agent implements a 4-agent collaborative framework that signi
 │      └─ Query: cart items + session context                                 │
 │      └─ Retrieve top-k candidates from product catalog                      │
 │                                                                             │
-│   2. PARALLEL AGENT EXECUTION (asyncio.gather)                              │
+│   2. PARALLEL AGENT EXECUTION (NAT parallel_executor)                       │
 │      ┌─────────────────────┐    ┌─────────────────────┐                    │
 │      │ User Understanding  │    │     NLI Agent       │                    │
 │      │      Agent (UUA)    │    │ (Intent Alignment)  │                    │
@@ -70,7 +70,7 @@ All 4 ARAG agents are defined in a **single NAT configuration file** (`configs/r
 
 **Output**: Alignment scores and support/contradiction judgments for each candidate.
 
-**Defined as NAT function**: `nli_alignment_agent`
+**Defined as NAT function**: `nli_agent`
 
 ### 7.3 Context Summary Agent (CSA)
 
@@ -121,36 +121,60 @@ functions:
     _type: nat_retriever
     retriever: product_retriever
 
-  # Specialized ARAG agents (each defined as react_agent function)
-  user_understanding_agent:
-    _type: react_agent
-    llm_name: nemotron_fast
+  rag_retriever:
+    _type: rag_retriever
+    retrieval_tool_name: product_search
+
+  # Specialized ARAG agents (chat_completion wrapped for text control flow)
+  user_understanding_agent_chat:
+    _type: chat_completion
+    llm_name: nim_llm
     # ... system prompt for UUA
 
-  nli_alignment_agent:
-    _type: react_agent
-    llm_name: nemotron_fast
+  user_understanding_agent:
+    _type: text_function_adapter
+    function_name: user_understanding_agent_chat
+
+  nli_agent_chat:
+    _type: chat_completion
+    llm_name: nim_llm_nli
     # ... system prompt for NLI
 
-  context_summary_agent:
-    _type: react_agent
-    llm_name: nemotron_fast
+  nli_agent:
+    _type: text_function_adapter
+    function_name: nli_agent_chat
+
+  context_summary_agent_chat:
+    _type: chat_completion
+    llm_name: nim_llm
     # ... system prompt for CSA
 
-  item_ranker_agent:
-    _type: react_agent
-    llm_name: nemotron_reasoning
+  context_summary_agent:
+    _type: text_function_adapter
+    function_name: context_summary_agent_chat
+
+  item_ranker_agent_chat:
+    _type: chat_completion
+    llm_name: nim_llm
     # ... system prompt for IRA
 
+  item_ranker_agent:
+    _type: text_function_adapter
+    function_name: item_ranker_agent_chat
+
+  parallel_analysis:
+    _type: parallel_executor
+    tool_list: [user_understanding_agent, nli_agent]
+    return_error_on_exception: true
+
 workflow:
-  _type: react_agent
-  name: arag_recommendation_coordinator
-  tool_names:
-    - product_search
-    - user_understanding_agent
-    - nli_alignment_agent
+  _type: sequential_executor
+  tool_list:
+    - rag_retriever
+    - parallel_analysis
     - context_summary_agent
     - item_ranker_agent
+    - output_contract_guard
 ```
 
 See `src/agents/README.md` for the complete configuration with all system prompts.
@@ -173,7 +197,7 @@ Following the established ACP agent pattern, each agent call is wrapped in deter
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 2: ARAG Multi-Agent Pipeline (NAT)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│  - UUA + NLI execute in parallel (asyncio.gather)               │
+│  - UUA + NLI execute in parallel using NAT parallel_executor    │
 │  - CSA synthesizes results                                      │
 │  - IRA produces final ranking                                   │
 │  - All agents use classification/generation (no DB access)      │
@@ -296,12 +320,12 @@ async def get_recommendations(
   - [x] Define `retrievers` section with Milvus configuration
   - [x] Define `functions` section with:
     - [x] `product_search` (nat_retriever tool)
-    - [x] `user_understanding_agent` (chat_completion with UUA prompt)
-    - [x] `nli_alignment_agent` (chat_completion with NLI prompt)
-    - [x] `context_summary_agent` (chat_completion with CSA prompt)
-    - [x] `item_ranker_agent` (chat_completion with IRA prompt)
+    - [x] `user_understanding_agent` (text adapter around chat_completion with UUA prompt)
+    - [x] `nli_agent` (text adapter around chat_completion with NLI prompt)
+    - [x] `context_summary_agent` (text adapter around chat_completion with CSA prompt)
+    - [x] `item_ranker_agent` (text adapter around chat_completion with IRA prompt)
   - [x] Define `llms` section (using nvidia/nemotron-3-nano-30b-a3b)
-  - [x] Define main `workflow` (react_agent coordinator)
+  - [x] Define main `workflow` (`sequential_executor` with built-in `parallel_executor`)
 - [x] Test full pipeline coordination via `nat serve` + curl
 
 **Phase 3: Service Integration** (deferred to post-MVP)
