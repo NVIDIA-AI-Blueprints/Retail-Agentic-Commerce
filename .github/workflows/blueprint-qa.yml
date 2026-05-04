@@ -1,0 +1,112 @@
+# Deploys the Retail Agentic Commerce stack via Docker Compose, waits for it
+# to become healthy, then runs the UI E2E test suite from the shared QA image.
+#
+# Required repository secrets:
+#   NGC_API_KEY            NVIDIA API key used to pull images and populate
+#                          NVIDIA_API_KEY in .env.
+#   BLUEPRINT_GITHUB_TEST  NVIDIA API key with pull access to
+#                          nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image.
+#                          If unset, the test step is skipped.
+#
+# Optional SMTP secrets (mail step skipped if any are missing):
+#   SMTP_USERNAME, SMTP_PASSWORD, SMTP_MAIL_TO, SMTP_MAIL_FROM
+
+name: Blueprint QA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  retail-agentic-commerce-ui:
+    name: Retail Agentic Commerce UI E2E
+    runs-on: arc-runner-set-oke-org-poc-2-gpu
+    timeout-minutes: 480
+    env:
+      NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+      QA_TEST_IMAGE: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
+      UI_URL: http://localhost
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy stack
+        run: |
+          set -euo pipefail
+          : "${NGC_API_KEY:?NGC_API_KEY secret missing}"
+          cp env.example .env
+          sed -i "s|^NVIDIA_API_KEY=.*|NVIDIA_API_KEY=${NGC_API_KEY}|" .env
+          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+          docker network create acp-infra-network 2>/dev/null || true
+          docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d --build
+
+          echo "Waiting for stack to become healthy (up to 10 min)..."
+          timeout 600 bash -c 'until curl -fsS "${UI_URL}/api/health" > /dev/null 2>&1; do sleep 10; done' \
+            || { docker compose -f docker-compose.infra.yml -f docker-compose.yml ps; exit 1; }
+          echo "Stack is ready."
+
+      - name: Run UI automation tests
+        env:
+          BLUEPRINT_GITHUB_TEST: ${{ secrets.BLUEPRINT_GITHUB_TEST }}
+        run: |
+          set -euo pipefail
+          [ -n "${BLUEPRINT_GITHUB_TEST:-}" ] || exit 0
+          echo "${BLUEPRINT_GITHUB_TEST}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+          docker pull "${QA_TEST_IMAGE}"
+          docker run --rm --net=host -v "$(pwd):/workspace" "${QA_TEST_IMAGE}" \
+            pytest -m retail_agentic_commerce \
+              --retail-agentic-commerce-url="${UI_URL}" \
+              --disable-warnings -v --timeout=240 \
+              --html=/workspace/retail-agentic-commerce-ui-test.html --self-contained-html
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retail-agentic-commerce-ui-test
+          path: retail-agentic-commerce-ui-test.html
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v --rmi all 2>/dev/null || true
+          docker rmi "${QA_TEST_IMAGE}" 2>/dev/null || true
+          docker network rm acp-infra-network 2>/dev/null || true
+          docker image prune -f
+
+      - name: Detect SMTP
+        id: smtp
+        if: always()
+        env:
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_MAIL_TO: ${{ secrets.SMTP_MAIL_TO }}
+          SMTP_MAIL_FROM: ${{ secrets.SMTP_MAIL_FROM }}
+        run: |
+          [ -n "${SMTP_USERNAME:-}${SMTP_PASSWORD:-}${SMTP_MAIL_TO:-}${SMTP_MAIL_FROM:-}" ] \
+            && [ -n "${SMTP_USERNAME:-}" ] && [ -n "${SMTP_PASSWORD:-}" ] \
+            && [ -n "${SMTP_MAIL_TO:-}" ] && [ -n "${SMTP_MAIL_FROM:-}" ] \
+            && echo "enabled=true" >> "$GITHUB_OUTPUT" \
+            || echo "enabled=false" >> "$GITHUB_OUTPUT"
+
+      - name: Send mail
+        if: always() && steps.smtp.outputs.enabled == 'true'
+        uses: dawidd6/action-send-mail@6e71c855c9a091d80a519621b9fd3e8d252ca40c
+        continue-on-error: true
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "QA Test Workflow Result for ${{ github.repository }}"
+          to: ${{ secrets.SMTP_MAIL_TO }}
+          from: ${{ secrets.SMTP_MAIL_FROM }}
+          html_body: |
+            <p>Workflow for <strong>${{ github.repository }}</strong> finished: <strong>${{ job.status }}</strong></p>
+            <p><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View run</a></p>
