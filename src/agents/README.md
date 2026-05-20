@@ -47,7 +47,8 @@ All ACP agents follow a **3-layer hybrid architecture** that combines determinis
 | Promotion Agent | `configs/promotion.yml` | 8002 | Strategy arbiter for dynamic pricing |
 | Post-Purchase Agent | `configs/post-purchase.yml` | 8003 | Multilingual shipping message generator |
 | Recommendation Agent (ARAG) | `configs/recommendation.yml` | 8004 | Multi-agent personalized recommendations |
-| Search Agent (RAG) | `configs/search.yml` | 8005 | Lightweight semantic product search |
+| Search Agent (RAG) | `configs/search.yml` | 8005 | Lightweight semantic product search with Milvus |
+| Search Agent (AlloyDB) | `configs/search-alloydb.yml` | 8005 | Optional semantic product search with AlloyDB AI |
 
 ## Installation
 
@@ -74,6 +75,9 @@ pip install -e ".[dev]"
 | `NVIDIA_API_KEY` | API key for NVIDIA NIM | Yes | — |
 | `MILVUS_URI` | Milvus vector database URI | For Recommendation + Search | `http://localhost:19530` |
 | `PHOENIX_ENDPOINT` | Phoenix observability endpoint | No | `http://localhost:6006` |
+| `ALLOYDB_HOST` | AlloyDB public/private host | For `search-alloydb.yml` password auth | `localhost` |
+| `ALLOYDB_INSTANCE_URI` | AlloyDB Connector instance URI | For `search-alloydb.yml` IAM auth | — |
+| `ALLOYDB_USE_IAM_AUTH` | Use AlloyDB IAM auth via connector | For Cloud Run AlloyDB search | `false` |
 
 ```bash
 export NVIDIA_API_KEY=<your_nvidia_api_key>
@@ -548,6 +552,18 @@ nat run --config_file configs/search.yml --input '{
   "query": "lightweight summer tee",
   "limit": 3
 }'
+```
+
+### AlloyDB AI Search
+
+AlloyDB AI support is available as an explicit alternate config. The default `configs/search.yml` remains Milvus-backed.
+
+```bash
+# Seed AlloyDB after creating the catalog_vectors.products table and ScaNN index prerequisites
+python scripts/seed_alloydb.py
+
+# Run the AlloyDB-backed search agent
+nat serve --config_file configs/search-alloydb.yml --port 8005
 ```
 
 ---
