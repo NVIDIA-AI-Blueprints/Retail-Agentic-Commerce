@@ -25,7 +25,7 @@ concurrency:
 jobs:
   retail-agentic-commerce-ui:
     name: Retail Agentic Commerce UI E2E
-    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
+    runs-on: arc-runner-set-oke-org-poc-2-gpu
     timeout-minutes: 480
     env:
       NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
