@@ -19,9 +19,9 @@ The platform implements **both protocols** to demonstrate production-grade comme
 
 Both protocols share the same intelligent agent layer (NAT-powered Promotion, Recommendation, and Post-Purchase agents) and backend services, showcasing how merchants can support multiple protocols simultaneously without duplicating business logic.
 
-**Protocol Toggle:** The Merchant Activity Panel provides a **tab switcher (ACP | UCP)** to toggle between protocols. The client agent flow remains unchanged - only the backend endpoints and protocol format change based on the toggle.
+**Protocol Toggle:** The Merchant Activity Panel provides a **tab switcher (ACP | UCP)** to toggle between protocols. The client agent flow remains unchanged - only the backend transport and protocol format change based on the toggle.
 
-**UCP scope in this project:** UCP support includes **Discovery + Checkout (REST + A2A)**. The A2A transport uses JSON-RPC 2.0 for agent-to-agent communication. Cart/Order/Identity Linking capabilities and MCP/Embedded transports are out of scope for this reference implementation.
+**UCP scope in this project:** UCP support includes **Discovery + Checkout over A2A only**. The A2A transport uses JSON-RPC 2.0 for agent-to-agent communication through `POST /a2a`. REST, Cart/Order/Identity Linking capabilities, MCP, and Embedded transports are out of scope for this reference implementation.
 
 ### The Technical Vision
 
@@ -41,7 +41,7 @@ For this project we will also build a **client agent simulator** that behaves li
 
 * **Implementation**: Static simulator with 4 pre-populated products
 * **Search Flow**: User enters prompt (e.g., "find some t-shirts") → displays 4 product cards with images
-* **Checkout Flow**: User clicks a product → initiates ACP checkout via `POST /checkout_sessions`
+* **Checkout Flow**: User clicks a product → initiates checkout through the selected protocol (ACP REST via `POST /checkout_sessions` or UCP A2A via `POST /a2a`)
 
 ## 1. Goals & Background Context
 
@@ -350,9 +350,9 @@ A "Glass Box" dashboard built with Next.js to visualize the underlying protocol 
 
 ## 5. UCP Integration Requirements
 
-### 5.1 UCP Core Endpoints (Per Official Specification)
+### 5.1 UCP Discovery and A2A Transport
 
-Implement UCP-compliant endpoints alongside existing ACP endpoints (API Version: `2026-01-11`):
+Implement UCP discovery and A2A checkout transport alongside existing ACP endpoints (API Version: `2026-01-11`):
 
 #### FR-UCP-01: UCP Discovery Endpoint
 * **Endpoint**: `GET /.well-known/ucp`
@@ -367,9 +367,8 @@ Implement UCP-compliant endpoints alongside existing ACP endpoints (API Version:
         {
           "version": "2026-01-11",
           "spec": "https://ucp.dev/specification/overview",
-          "transport": "rest",
-          "endpoint": "https://merchant.example.com/ucp/v1",
-          "schema": "https://ucp.dev/services/shopping/rest.openapi.json"
+          "transport": "a2a",
+          "endpoint": "https://merchant.example.com/.well-known/agent-card.json"
         }
       ]
     },
@@ -414,12 +413,15 @@ Implement UCP-compliant endpoints alongside existing ACP endpoints (API Version:
 }
 ```
 
-#### FR-UCP-02: Create Checkout Session (UCP)
-* **Endpoint**: `POST /checkout-sessions` (hyphenated per UCP spec)
+#### FR-UCP-02: Create Checkout Session (UCP over A2A)
+* **Endpoint**: `POST /a2a`
+* **A2A method/action**: JSON-RPC `message/send` with `action: "create_checkout"`
 * **Purpose**: Initialize UCP checkout session with capability negotiation
-* **Required Header**: `UCP-Agent: profile="https://platform.example/profile.json"` (RFC 8941 dictionary structured field)
-* **Idempotency**: Mutating operations include `Idempotency-Key` for retry safety
-* **Request Schema**:
+* **Required Headers**:
+  * `UCP-Agent: profile="https://platform.example/profile.json"` (RFC 8941 dictionary structured field)
+  * `X-A2A-Extensions: https://ucp.dev/specification/reference?v=2026-01-11`
+* **Idempotency**: Mutating operations rely on A2A `messageId` idempotency through the shared `IdempotencyStore`
+* **DataPart Payload**:
 ```json
 {
   "line_items": [
@@ -435,18 +437,20 @@ Implement UCP-compliant endpoints alongside existing ACP endpoints (API Version:
   }
 }
 ```
-* **Response**: Full checkout state with `ucp` metadata, `status`, `line_items`, `totals`
+* **Response**: JSON-RPC result containing a DataPart keyed by `a2a.ucp.checkout` with `ucp` metadata, `status`, `line_items`, and `totals`
 * **Status Transition**: `incomplete` (initial state)
 
-#### FR-UCP-03: Update Checkout Session (UCP)
-* **Endpoint**: `PUT /checkout-sessions/{id}` (PUT, not POST)
-* **Purpose**: Update checkout session with full replacement semantics
+#### FR-UCP-03: Update Checkout Session (UCP over A2A)
+* **Endpoint**: `POST /a2a`
+* **A2A method/action**: JSON-RPC `message/send` with `action: "update_checkout"`
+* **Purpose**: Update checkout session through the active A2A context/session mapping
 * **Status Transition**: `incomplete` → `ready_for_complete` when all required fields present
 
-#### FR-UCP-04: Complete Checkout (UCP)
-* **Endpoint**: `POST /checkout-sessions/{id}/complete`
+#### FR-UCP-04: Complete Checkout (UCP over A2A)
+* **Endpoint**: `POST /a2a`
+* **A2A method/action**: JSON-RPC `message/send` with `action: "complete_checkout"`
 * **Purpose**: Finalize transaction with payment instruments
-* **Request Schema**:
+* **Payment DataPart Payload**:
 ```json
 {
   "payment": {
@@ -473,21 +477,23 @@ Implement UCP-compliant endpoints alongside existing ACP endpoints (API Version:
 ```
 * **Status Transition**: `ready_for_complete` → `completed`
 
-#### FR-UCP-05: Cancel Checkout (UCP)
-* **Endpoint**: `POST /checkout-sessions/{id}/cancel`
+#### FR-UCP-05: Cancel Checkout (UCP over A2A)
+* **Endpoint**: `POST /a2a`
+* **A2A method/action**: JSON-RPC `message/send` with `action: "cancel_checkout"`
 * **Status Transition**: Any → `canceled`
 
-#### FR-UCP-06: Get Checkout Session (UCP)
-* **Endpoint**: `GET /checkout-sessions/{id}`
+#### FR-UCP-06: Get Checkout Session (UCP over A2A)
+* **Endpoint**: `POST /a2a`
+* **A2A method/action**: JSON-RPC `message/send` with `action: "get_checkout"`
 * **Purpose**: Retrieve current checkout state
 
-**UCP request headers (all endpoints):**
+**UCP request headers (A2A endpoint):**
 - `UCP-Agent: profile="..."` is required and uses RFC 8941 dictionary structured field syntax
-- `Idempotency-Key` is required for mutating operations (`POST`, `PUT`, `complete`, `cancel`)
+- `X-A2A-Extensions` is required and must include the UCP A2A extension URL
 - `Authorization` is optional and depends on the business's policy
 
-#### UCP Response Schema (All Endpoints)
-All successful responses return the full checkout state with UCP metadata:
+#### UCP Response Schema (A2A Responses)
+All successful A2A responses return a JSON-RPC result with a DataPart keyed by `a2a.ucp.checkout`. That checkout payload contains the full checkout state with UCP metadata:
 ```json
 {
   "ucp": {
