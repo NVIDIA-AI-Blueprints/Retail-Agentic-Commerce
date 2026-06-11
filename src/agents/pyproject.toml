@@ -3,7 +3,7 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools >= 64", "setuptools-scm>=8"]
 
 [tool.setuptools]
-py-modules = ["register"]
+py-modules = ["register", "alloydb_search"]
 
 [project]
 name = "acp-agents"
@@ -15,6 +15,10 @@ dependencies = [
     # NAT with RAG (Milvus retriever), LangChain, Phoenix, profiler, and Ragas extras
     "nvidia-nat[langchain,phoenix,profiler,rag,ragas]==1.6.0",
     "httpx>=0.27.0",
+    # AlloyDB AI vector search (custom alloydb_search NAT function)
+    "psycopg[binary]>=3.2.3",
+    "pgvector>=0.3.6",
+    "google-cloud-alloydb-connector[psycopg]>=1.4.0",
 ]
 
 [project.optional-dependencies]
