@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * Available checkout modes
@@ -50,30 +50,36 @@ const TABS: TabConfig[] = [
  * - Smooth transition animations
  */
 export function ModeTabSwitcher({ activeMode, onModeChange }: ModeTabSwitcherProps) {
-  const handleTabClick = useCallback(
+  const [selectedMode, setSelectedMode] = useState<CheckoutMode>(activeMode);
+
+  useEffect(() => {
+    setSelectedMode(activeMode);
+  }, [activeMode]);
+
+  const selectMode = useCallback(
     (mode: CheckoutMode) => {
-      if (mode !== activeMode) {
-        onModeChange(mode);
-      }
+      if (mode === selectedMode) return;
+      setSelectedMode(mode);
+      onModeChange(mode);
     },
-    [activeMode, onModeChange]
+    [selectedMode, onModeChange]
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, mode: CheckoutMode) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        handleTabClick(mode);
+        selectMode(mode);
       }
     },
-    [handleTabClick]
+    [selectMode]
   );
 
   return (
     <div className="mode-tab-switcher" role="tablist" aria-label="Checkout mode">
       <div className="mode-tab-container">
         {TABS.map((tab) => {
-          const isActive = activeMode === tab.mode;
+          const isActive = selectedMode === tab.mode;
           return (
             <button
               key={tab.mode}
@@ -82,7 +88,12 @@ export function ModeTabSwitcher({ activeMode, onModeChange }: ModeTabSwitcherPro
               aria-controls={`panel-${tab.mode}`}
               tabIndex={isActive ? 0 : -1}
               className={`mode-tab ${isActive ? "active" : ""}`}
-              onClick={() => handleTabClick(tab.mode)}
+              onMouseDown={(e) => {
+                if (e.button === 0) {
+                  selectMode(tab.mode);
+                }
+              }}
+              onClick={() => selectMode(tab.mode)}
               onKeyDown={(e) => handleKeyDown(e, tab.mode)}
               title={tab.description}
             >
