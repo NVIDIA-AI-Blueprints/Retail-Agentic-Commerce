@@ -57,7 +57,8 @@
       "sharp": "0.34.5",
       "flatted": "3.4.2",
       "form-data": "4.0.6",
-      "picomatch": "4.0.4"
+      "picomatch": "4.0.4",
+      "esbuild": "0.26.0"
     }
   },
   "devDependencies": {
