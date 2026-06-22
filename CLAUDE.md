@@ -4,4 +4,4 @@ Read `AGENTS.md` for the full agent guide: session workflow, documentation-first
 
 ## Setup
 
-Trigger: **"setup"** or **"install"** — follow `.cursor/skills/setup/SKILL.md` exactly.
+Trigger: **"setup"** or **"install"** - follow `skills/setup/SKILL.md` exactly.

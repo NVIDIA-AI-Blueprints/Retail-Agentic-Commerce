@@ -494,7 +494,7 @@ The A2A transport uses JSON-RPC 2.0 for structured agent communication. All UCP 
    - [x] Trigger post-purchase agent on UCP checkout completion via background task ✅ Phase 5B
    - [x] Dispatch UCP order webhook to negotiated URL or `UCP_ORDER_WEBHOOK_URL` fallback ✅ Phase 5B
 
-### Testing Tasks (Mandatory per `.cursor/skills/features/SKILL.md`)
+### Testing Tasks (Mandatory per `skills/features/SKILL.md`)
 
 1. **Unit Tests** (`tests/merchant/test_ucp_*.py`)
    - [x] `test_ucp_discovery.py` - Discovery endpoint tests ✅ Phase 1

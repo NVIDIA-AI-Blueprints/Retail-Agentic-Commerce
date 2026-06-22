@@ -16,7 +16,6 @@ src/apps_sdk/dist
 # Git and IDE
 .git
 .gitignore
-.cursor
 .vscode
 .idea
 

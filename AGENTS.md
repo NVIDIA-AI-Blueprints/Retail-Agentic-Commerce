@@ -14,7 +14,7 @@ Deep context and diagnostic examples live in `docs/agent-playbook.md`.
 Use this sequence for every task:
 1. Read this file once.
 2. Identify task type and read required specs/docs before coding.
-3. Read mandatory skill files in `.cursor/skills/`.
+3. Read mandatory skill files in `skills/` or `.agents/skills/`.
 4. Implement minimal, spec-aligned changes.
 5. Run required verification and report evidence.
 
@@ -103,16 +103,22 @@ Before finalizing documentation changes, run this check and ensure it returns no
 rg -n -e '/Users/[A-Za-z0-9._-]+/' -e '/home/[A-Za-z0-9._-]+/' -e '\\\\Users\\\\[A-Za-z0-9._-]+\\\\' AGENTS.md src docs
 ```
 
-## Cursor Skills (Mandatory)
+## Codex Skills (Mandatory)
 
-Before changing code, read:
-- `.cursor/skills/features/SKILL.md` for Python backend standards
-- `.cursor/skills/ui/SKILL.md` for frontend standards
-- `.cursor/skills/pre-commit-analysis/SKILL.md` for pre-commit validation
+Canonical repo skills live in `skills/`. Codex discovery shims live in `.agents/skills/`.
+
+Before changing code, read the relevant canonical skill:
+- `skills/features/SKILL.md` for Python backend standards
+- `skills/ui/SKILL.md` for frontend standards
+- `skills/pre-commit-analysis/SKILL.md` for pre-commit validation
 
 ### Setup Skill
 
-Trigger: **"setup"** or **"install"** — launches the full Docker deployment with public NIM endpoints. See `.cursor/skills/setup/SKILL.md`.
+Trigger: **"setup"** or **"install"** - launches the full Docker deployment with public NIM endpoints. See `skills/setup/SKILL.md`.
+
+### CVE Remediation Skill
+
+Trigger: dependency vulnerability, CVE, BDSA, GHSA, OSV, Dependabot, Black Duck, Snyk, npm, PyPI, or package advisory remediation. See `skills/cve-remediation/SKILL.md`.
 
 ## Project Overview
 

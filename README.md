@@ -127,7 +127,7 @@ flowchart TB
     SEARCH --> MILVUS
 ```
 
-## Quick Start (Cursor, Codex, Claude Code)
+## Quick Start (Codex, Claude Code)
 
 This is the recommended path. It does not require local NIM containers.
 
@@ -153,7 +153,7 @@ Update `.env`:
 NVIDIA_API_KEY=nvapi-xxx
 ```
 
-On Cursor, Codex or Claude Code simply run: `/setup`
+In Codex or Claude Code, simply run: `/setup`
 
 ## Manual Deployment Options
 
