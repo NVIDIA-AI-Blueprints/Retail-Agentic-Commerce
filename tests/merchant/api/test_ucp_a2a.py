@@ -17,22 +17,73 @@
 
 from __future__ import annotations
 
+import json
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from src.merchant.config import get_settings
-from src.merchant.db.database import reset_engine
+from src.merchant.db.database import get_engine, reset_engine
 from src.merchant.protocols.ucp.services.a2a_transport import (
     A2A_UCP_EXTENSION_URL,
     clear_context_sessions,
+    get_checkout_id_for_context,
 )
 from src.merchant.protocols.ucp.services.agent_executor import clear_idempotency_cache
 from src.merchant.protocols.ucp.services.negotiation import clear_profile_cache
 from src.merchant.services.idempotency import reset_idempotency_store
+from src.payment.db.models import PaymentIntent, PaymentIntentStatus, VaultToken
+
+
+def _settle_ucp_payment(context_id: str, token: str) -> None:
+    """Settle a payment bound to a UCP checkout session for the given token.
+
+    Looks up the checkout session behind the A2A context, reads its
+    server-computed total, and writes a vault token + completed payment intent
+    (what the PSP service would persist) so the completion gate passes.
+    """
+    session_id = get_checkout_id_for_context(context_id)
+    assert session_id is not None
+    with Session(get_engine()) as db:
+        from src.merchant.db.models import CheckoutSession
+
+        session = db.get(CheckoutSession, session_id)
+        assert session is not None
+        totals = json.loads(session.totals_json)
+        total = next(t["amount"] for t in totals if t["type"] == "total")
+        allowance = {
+            "reason": "one_time",
+            "max_amount": total,
+            "currency": session.currency.lower(),
+            "checkout_session_id": session_id,
+            "merchant_id": "merchant_001",
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+        }
+        db.add(
+            VaultToken(
+                id=token,
+                idempotency_key=uuid.uuid4().hex,
+                payment_method_json="{}",
+                allowance_json=json.dumps(allowance),
+            )
+        )
+        db.add(
+            PaymentIntent(
+                id=f"pi_{uuid.uuid4().hex[:12]}",
+                vault_token_id=token,
+                amount=total,
+                currency=session.currency.lower(),
+                status=PaymentIntentStatus.COMPLETED,
+                completed_at=datetime.now(UTC),
+            )
+        )
+        db.commit()
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -437,6 +488,7 @@ class TestCheckoutActions:
         )
         create_resp = auth_client.post("/a2a", json=create_req, headers=a2a_headers)
         ctx = create_resp.json()["result"]["contextId"]
+        _settle_ucp_payment(ctx, "vt_test_123")
 
         complete_req = _make_request(
             "complete_checkout",
@@ -521,6 +573,7 @@ class TestCheckoutActions:
         )
         create_resp = auth_client.post("/a2a", json=create_req, headers=a2a_headers)
         ctx = create_resp.json()["result"]["contextId"]
+        _settle_ucp_payment(ctx, "vt_test_456")
 
         complete_req = _make_request(
             "complete_checkout",
