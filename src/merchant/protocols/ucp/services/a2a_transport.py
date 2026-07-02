@@ -290,9 +290,19 @@ async def handle_update(
 
     if action == "add_to_checkout":
         product_id = data.get("product_id") or data.get("id")
-        quantity = data.get("quantity", 1)
         if not product_id:
             raise ValueError("product_id required for add_to_checkout")
+        try:
+            line_item = UCPLineItemInput.model_validate(
+                {
+                    "item": {"id": product_id},
+                    "quantity": data.get("quantity", 1),
+                }
+            )
+        except ValidationError as exc:
+            raise ValueError(f"Invalid add_to_checkout payload: {exc}") from exc
+        product_id = line_item.item.id
+        quantity = line_item.quantity
 
         existing_items = [
             {"id": li.item.id, "quantity": li.item.quantity}
@@ -301,11 +311,11 @@ async def handle_update(
         found = False
         for item in existing_items:
             if item["id"] == product_id:
-                item["quantity"] = int(item["quantity"]) + int(quantity)
+                item["quantity"] = int(item["quantity"]) + quantity
                 found = True
                 break
         if not found:
-            existing_items.append({"id": str(product_id), "quantity": int(quantity)})
+            existing_items.append({"id": product_id, "quantity": quantity})
         update_kwargs: dict[str, Any] = {"items": existing_items}
 
     elif action == "remove_from_checkout":

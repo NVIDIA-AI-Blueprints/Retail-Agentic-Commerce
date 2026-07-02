@@ -364,6 +364,33 @@ class TestCheckoutActions:
         checkout = body["result"]["parts"][0]["data"]["a2a.ucp.checkout"]
         assert len(checkout["line_items"]) == 2
 
+    @pytest.mark.parametrize("quantity", [None, [], {}])
+    @pytest.mark.usefixtures("mock_platform_profile")
+    def test_add_to_checkout_rejects_invalid_quantity(
+        self,
+        auth_client: TestClient,
+        a2a_headers: dict[str, str],
+        quantity: Any,
+    ) -> None:
+        create_req = _make_request(
+            "create_checkout",
+            {"line_items": [{"item": {"id": "prod_1"}, "quantity": 1}]},
+        )
+        create_resp = auth_client.post("/a2a", json=create_req, headers=a2a_headers)
+        ctx = create_resp.json()["result"]["contextId"]
+
+        add_req = _make_request(
+            "add_to_checkout",
+            {"product_id": "prod_1", "quantity": quantity},
+            context_id=ctx,
+        )
+        response = auth_client.post("/a2a", json=add_req, headers=a2a_headers)
+
+        assert response.status_code == 200
+        error = response.json()["error"]
+        assert error["code"] == -32602
+        assert "quantity" in error["message"]
+
     @pytest.mark.usefixtures("mock_platform_profile")
     def test_cancel_checkout(
         self, auth_client: TestClient, a2a_headers: dict[str, str]
