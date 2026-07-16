@@ -21,6 +21,7 @@ Tests cover the 3-layer hybrid architecture:
 - Layer 3: Deterministic execution (discount application)
 """
 
+import json
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -50,6 +51,8 @@ from src.merchant.services.promotion import (
     get_promotions_for_products,
     validate_discount_against_margin,
 )
+
+get_promotion_decision_unmocked = PromotionAgentClient.get_promotion_decision
 
 # =============================================================================
 # Layer 1: Deterministic Computation Tests
@@ -349,6 +352,53 @@ class TestCallPromotionAgent:
         assert result is not None
         assert result["action"] == "DISCOUNT_10_PCT"
         assert "HIGH_INVENTORY" in result["reason_codes"]
+
+    @pytest.mark.asyncio
+    async def test_client_sends_nat_input_message(self) -> None:
+        """NAT 1.7 requests wrap the JSON payload in input_message."""
+        context: PromotionContextInput = {
+            "product_id": "prod_1",
+            "product_name": "Test Product",
+            "base_price_cents": 2500,
+            "stock_count": 100,
+            "min_margin": 0.15,
+            "lowest_competitor_price_cents": 2200,
+            "signals": {
+                "inventory_pressure": "high",
+                "competition_position": "above_market",
+                "seasonal_urgency": "off_season",
+                "product_lifecycle": "mature",
+                "demand_velocity": "flat",
+            },
+            "allowed_actions": ["NO_PROMO", "DISCOUNT_5_PCT"],
+        }
+        response = MagicMock(status_code=200)
+        response.json.return_value = {
+            "value": json.dumps(
+                {
+                    "product_id": "prod_1",
+                    "action": "NO_PROMO",
+                    "reason_codes": [],
+                    "reasoning": "No promotion needed.",
+                }
+            )
+        }
+        http_client = AsyncMock()
+        http_client.__aenter__.return_value = http_client
+        http_client.post.return_value = response
+
+        with patch(
+            "src.merchant.services.promotion.httpx.AsyncClient",
+            return_value=http_client,
+        ):
+            result = await get_promotion_decision_unmocked(
+                PromotionAgentClient("http://agent"), context
+            )
+
+        assert result is not None
+        assert http_client.post.await_args.kwargs["json"] == {
+            "input_message": json.dumps(context)
+        }
 
     @pytest.mark.asyncio
     async def test_returns_none_on_agent_unavailable(self) -> None:

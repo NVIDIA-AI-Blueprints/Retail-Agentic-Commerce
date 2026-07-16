@@ -13,7 +13,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     # NAT with RAG (Milvus retriever), LangChain, Phoenix, profiler, and Ragas extras
-    "nvidia-nat[langchain,phoenix,profiler,rag,ragas]==1.6.0",
+    "nvidia-nat[langchain,phoenix,profiler,rag,ragas]==1.7.0",
     "httpx>=0.27.0",
 ]
 

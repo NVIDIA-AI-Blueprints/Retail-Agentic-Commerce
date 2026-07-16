@@ -68,7 +68,7 @@ check_cmd() {
 
 check_cmd "python3" "Install Python 3.12+: https://www.python.org/downloads/"
 check_cmd "uv"      "Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
-check_cmd "node"    "Install Node.js 18+: https://nodejs.org/"
+check_cmd "node"    "Install Node.js 20.9+: https://nodejs.org/"
 check_cmd "pnpm"    "Install pnpm: npm install -g pnpm"
 check_cmd "docker"  "Install Docker Desktop: https://www.docker.com/products/docker-desktop/"
 
@@ -85,12 +85,13 @@ if command -v python3 &>/dev/null; then
     fi
 fi
 
-# Check Node version (need 18+)
+# Check Node version (need 20.9+)
 if command -v node &>/dev/null; then
     NODE_VER=$(node -v | sed 's/^v//')
     NODE_MAJOR=$(echo "$NODE_VER" | cut -d. -f1)
-    if [ "$NODE_MAJOR" -lt 18 ]; then
-        err "Node.js 18+ required, found $NODE_VER"
+    NODE_MINOR=$(echo "$NODE_VER" | cut -d. -f2)
+    if [ "$NODE_MAJOR" -lt 20 ] || { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -lt 9 ]; }; then
+        err "Node.js 20.9+ required, found $NODE_VER"
         PREREQ_FAIL=1
     else
         ok "Node.js $NODE_VER"
@@ -197,7 +198,7 @@ ok "Root venv ready ($ROOT_VENV)"
 info "Setting up agents Python environment..."
 cd "$AGENTS_DIR"
 uv venv --quiet 2>/dev/null || uv venv
-"$AGENTS_VENV/bin/pip" install -q -e ".[dev]" 2>/dev/null || uv pip install -e ".[dev]" --python "$AGENTS_VENV/bin/python"
+uv sync --quiet --extra dev 2>/dev/null || uv sync --extra dev
 ok "Agents venv ready ($AGENTS_VENV)"
 
 # UI

@@ -17,7 +17,7 @@ The fastest way to get running locally:
 
 - Python 3.12+
 - [uv](https://astral.sh/uv) package manager
-- Node.js 18+ and pnpm
+- Node.js 20.9+ and pnpm
 - Docker (for infrastructure services)
 - NVIDIA API key configured in `.env`
 

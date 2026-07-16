@@ -172,10 +172,10 @@ class PostPurchaseAgentClient:
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # NAT /generate endpoint expects {"query": "<JSON string>"}
+                # NAT /generate endpoint expects {"input_message": "<JSON string>"}
                 response = await client.post(
                     f"{self.base_url}/generate",
-                    json={"query": json.dumps(request)},
+                    json={"input_message": json.dumps(request)},
                     headers={"Content-Type": "application/json"},
                 )
 

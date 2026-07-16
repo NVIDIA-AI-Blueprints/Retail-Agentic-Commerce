@@ -255,10 +255,10 @@ class PromotionAgentClient:
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # NAT /generate endpoint expects {"query": "<JSON string>"}
+                # NAT /generate endpoint expects {"input_message": "<JSON string>"}
                 response = await client.post(
                     f"{self.base_url}/generate",
-                    json={"query": json.dumps(context)},
+                    json={"input_message": json.dumps(context)},
                     headers={"Content-Type": "application/json"},
                 )
 

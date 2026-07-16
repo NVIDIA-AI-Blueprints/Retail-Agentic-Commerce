@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
+[![Node.js 20.9+](https://img.shields.io/badge/node-20.9+-green.svg)](https://nodejs.org/)
 
 <div align="center">
 
@@ -135,7 +135,7 @@ This is the recommended path. It does not require local NIM containers.
 
 - Python 3.12+
 - [uv](https://astral.sh/uv) package manager
-- [Node.js 18+](https://nodejs.org/en/download) and [pnpm](https://pnpm.io/)
+- [Node.js 20.9+](https://nodejs.org/en/download) and [pnpm](https://pnpm.io/)
 - Docker 24+ and Docker Compose v2
 - NVIDIA API key ([create one](https://build.nvidia.com/settings/api-keys))
 
