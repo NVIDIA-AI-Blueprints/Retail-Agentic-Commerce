@@ -44,9 +44,9 @@ jobs:
           docker network create acp-infra-network 2>/dev/null || true
           docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d --build
 
-          echo "Waiting for the UI to become healthy (up to 10 min)..."
-          if ! timeout 600 bash -c 'until curl -fsS "${UI_URL}/api/health" > /dev/null 2>&1; do sleep 10; done'; then
-            echo "::error::UI health check did not pass within 10 minutes."
+          echo "Waiting for the merchant API and the UI to answer (up to 10 min)..."
+          if ! timeout 600 bash -c 'until curl -fsS "${UI_URL}/api/health" > /dev/null 2>&1 && curl -fsS -o /dev/null "${UI_URL}/"; do sleep 10; done'; then
+            echo "::error::Merchant API or UI root page did not answer within 10 minutes."
             docker compose -f docker-compose.infra.yml -f docker-compose.yml ps --all
             exit 1
           fi
@@ -98,8 +98,9 @@ jobs:
             > ci-diagnostics/docker-compose-ps.txt 2>&1 || true
           docker compose -f docker-compose.infra.yml -f docker-compose.yml logs \
             --no-color --timestamps --tail 300 \
-            apps-sdk merchant ui nginx promotion-agent post-purchase-agent \
-            recommendation-agent search-agent milvus-seeder \
+            apps-sdk merchant psp ui nginx promotion-agent post-purchase-agent \
+            recommendation-agent search-agent milvus-seeder milvus-standalone \
+            milvus-etcd milvus-minio phoenix \
             > ci-diagnostics/service-logs.txt 2>&1 || true
 
       - name: Upload report
@@ -111,7 +112,7 @@ jobs:
             retail-agentic-commerce-ui-test.html
             ci-diagnostics/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 30
 
       - name: Cleanup
         if: always()
