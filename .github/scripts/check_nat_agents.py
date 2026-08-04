@@ -6,9 +6,15 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 from typing import Any, cast
+
+EMPTY_LLM_RESPONSE_PREFIX = (
+    "LLM returned an empty response (no content, no tool calls)."
+)
+EMPTY_LLM_RESPONSE_RETRY_DELAY_SECONDS = 2
 
 
 def require(condition: bool, message: str) -> None:
@@ -41,6 +47,28 @@ def require_object_list(
     return objects
 
 
+def is_retryable_empty_llm_response(status: int, detail: str) -> bool:
+    """Return whether NAT reported the known transient empty-LLM failure."""
+    if status != 422:
+        return False
+
+    try:
+        payload_value: Any = json.loads(detail)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(payload_value, dict):
+        return False
+
+    payload = cast(dict[str, Any], payload_value)
+    message = payload.get("message")
+    return (
+        payload.get("code") == "workflow_error"
+        and payload.get("details") == "RuntimeError"
+        and isinstance(message, str)
+        and message.startswith(EMPTY_LLM_RESPONSE_PREFIX)
+    )
+
+
 def call_agent(
     agent: str,
     port: int,
@@ -48,25 +76,38 @@ def call_agent(
     timeout: int,
 ) -> dict[str, Any]:
     """Execute a NAT workflow and unwrap its JSON response value."""
-    request = urllib.request.Request(
-        f"http://{agent}-agent:{port}/generate",
-        data=json.dumps({"input_message": json.dumps(input_message)}).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
+    for attempt in range(2):
+        request = urllib.request.Request(
+            f"http://{agent}-agent:{port}/generate",
+            data=json.dumps({"input_message": json.dumps(input_message)}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
 
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            status = response.status
-            raw_response = response.read().decode()
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode(errors="replace")
-        raise RuntimeError(
-            f"{agent} returned HTTP {error.code}: {detail[:1000]}"
-        ) from error
-    except (TimeoutError, urllib.error.URLError) as error:
-        reason = getattr(error, "reason", str(error))
-        raise RuntimeError(f"{agent} request failed: {reason}") from error
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                status = response.status
+                raw_response = response.read().decode()
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode(errors="replace")
+            if attempt == 0 and is_retryable_empty_llm_response(error.code, detail):
+                print(
+                    f"::warning::{agent} received a transient empty LLM response; "
+                    "retrying once in 2 seconds.",
+                    file=sys.stderr,
+                )
+                time.sleep(EMPTY_LLM_RESPONSE_RETRY_DELAY_SECONDS)
+                continue
+            raise RuntimeError(
+                f"{agent} returned HTTP {error.code}: {detail[:1000]}"
+            ) from error
+        except (TimeoutError, urllib.error.URLError) as error:
+            reason = getattr(error, "reason", str(error))
+            raise RuntimeError(f"{agent} request failed: {reason}") from error
+
+        break
+    else:
+        raise RuntimeError(f"{agent} exhausted its empty-response retry")
 
     require(status == 200, f"{agent} returned HTTP {status}")
 
