@@ -10,10 +10,10 @@ dependencies = [
     "uvicorn[standard]==0.40.0",
     "sqlmodel==0.0.31",
     "pydantic==2.12.5",
-    "pydantic-settings==2.12.0",
+    "pydantic-settings==2.14.2",
     "python-dotenv==1.2.2",
     "httpx==0.28.1",
-    "mcp==1.26.0",
+    "mcp==1.28.1",
     "pymilvus==2.6.7",
     "a2a-sdk[http-server]==0.3.22",
 ]
@@ -80,5 +80,6 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.uv]
 managed = true
 constraint-dependencies = [
-    "cryptography>=48.0.1",
+    "click>=8.3.3",
+    "cryptography>=50.0.0",
 ]
