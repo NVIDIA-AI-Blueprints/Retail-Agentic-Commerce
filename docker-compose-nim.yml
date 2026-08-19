@@ -38,7 +38,8 @@ services:
       - "8010:8000"
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
-      - NIM_PASSTHROUGH_ARGS=--reasoning-parser nemotron_v3
+      # Enables OpenAI-compatible automatic tool calls for NAT agents.
+      - NIM_PASSTHROUGH_ARGS=--reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_coder
       - NIM_MODEL_NAME=nvidia/nemotron-3.5-lightning
       - NIM_SERVED_MODEL_NAME=nvidia/nemotron-3.5-lightning
     volumes:
