@@ -21,7 +21,7 @@ export NVIDIA_API_KEY=<YOUR_KEY>
 **Optional** — override the model or point to self-hosted NIMs:
 
 ```bash
-export NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano-30b-a3b
+export NIM_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning-30b-a3b
 export NIM_LLM_BASE_URL=http://HOST:POST/v1
 export NIM_EMBED_BASE_URL=http://HOST:PORT/v1
 ```

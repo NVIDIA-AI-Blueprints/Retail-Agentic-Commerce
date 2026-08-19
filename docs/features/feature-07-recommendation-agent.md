@@ -107,7 +107,7 @@ All agents are orchestrated via NAT's multi-agent pattern in `configs/recommenda
 embedders:
   product_embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
 
 retrievers:
   product_retriever:
@@ -222,7 +222,7 @@ Following the established ACP agent pattern, each agent call is wrapped in deter
 embedders:
   product_embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
     truncate: "END"
 
 retrievers:
@@ -324,7 +324,7 @@ async def get_recommendations(
     - [x] `nli_agent` (text adapter around chat_completion with NLI prompt)
     - [x] `context_summary_agent` (text adapter around chat_completion with CSA prompt)
     - [x] `item_ranker_agent` (text adapter around chat_completion with IRA prompt)
-  - [x] Define `llms` section (using nvidia/nemotron-3-nano-30b-a3b)
+  - [x] Define `llms` section (using nvidia/nemotron-3.5-lightning-30b-a3b)
   - [x] Define main `workflow` (`sequential_executor` with built-in `parallel_executor`)
 - [x] Test full pipeline coordination via `nat serve` + curl
 

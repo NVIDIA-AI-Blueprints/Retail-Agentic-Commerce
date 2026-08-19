@@ -22,10 +22,10 @@
 #   NIM_LLM_BASE_URL=http://nemotron-nano:8000/v1
 #   NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
 #   NIM_EMBED_BASE_URL=http://embedqa:8000/v1
-#   NIM_EMBED_MODEL_NAME=nvidia/nv-embedqa-e5-v5
+#   NIM_EMBED_MODEL_NAME=nvidia/nemotron-3-embed-1b
 #
 # Note: The model name for local NIM is 'nvidia/nemotron-3-nano' (without the version suffix)
-#       while the public endpoint uses 'nvidia/nemotron-3-nano-30b-a3b'
+#       while the public endpoint uses 'nvidia/nemotron-3.5-lightning-30b-a3b'
 services:
 
   # =============================================================================
@@ -64,7 +64,7 @@ services:
   # NVIDIA NIM - Embedding Model
   # =============================================================================
   embedqa:
-    image: nvcr.io/nim/nvidia/nv-embedqa-e5-v5:1.6
+    image: nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.2
     container_name: embedqa
     ports:
       - "8011:8000"
