@@ -13,11 +13,11 @@
 | Category | Technology | Version | Purpose | Rationale |
 | --- | --- | --- | --- | --- |
 | **Commerce Protocols** | **ACP + UCP** | **ACP v2026-01-16, UCP v2026-01-11** | Dual protocol support | ACP for rapid prototyping; UCP for discovery + checkout (REST) alignment. |
-| **Primary LLM** | **NVIDIA Nemotron-3-Nano-30B** | **v3 (Dec 2025)** | Agent Core Logic | Sparse MoE design for high inference throughput. |
+| **Primary LLM** | **NVIDIA Nemotron-3.5-Lightning-30B-A3B** | current | Agent Core Logic | Sparse MoE design for high inference throughput. |
 | **Language** | Python | **3.12+** | Backend logic & NAT | Native NAT and NeMo runtime support. |
 | **Agentic Framework** | NeMo Agent Toolkit | 1.3.1+ | Multi-agent workflows | Built-in support for tool-calling, RAG, and reasoning trace. |
 | **Inference Engine** | **NVIDIA NIM / TensorRT-LLM** | 25.11+ | Optimized Execution | Configurable: local Docker or public NVIDIA API endpoint. |
-| **Embedding Model** | **NVIDIA NV-EmbedQA-E5-v5** | latest | RAG for Recommendations | Semantic product search for ARAG retrieval pipeline. |
+| **Embedding Model** | **NVIDIA Nemotron-3-Embed-1B** | current | RAG for Recommendations | Semantic product search for ARAG retrieval pipeline. |
 | **Vector Database** | **Milvus** | 2.3+ | Product Embeddings | Stores product catalog embeddings for RAG-based recommendation retrieval. |
 | **Client Agent Simulator** | Static Simulator | n/a | Client simulator | Simulates product search ("find t-shirts") → displays 4 products → user clicks to start checkout (ACP today; UCP planned). |
 | **Client UI Framework** | React | 19+ | Multi-panel Inspector UI | Component model for three-panel Protocol Inspector (Agent/Merchant/Activity views). |
@@ -109,7 +109,7 @@ The Recommendation Agent uses an **Agentic Retrieval Augmented Generation (ARAG)
 
 | Component | Technology | Purpose |
 | --- | --- | --- |
-| **Embedder** | NV-EmbedQA-E5-v5 | Generates product embeddings for semantic search |
+| **Embedder** | Nemotron-3-Embed-1B | Generates product embeddings for semantic search |
 | **Vector Store** | Milvus | Stores and retrieves product embeddings |
 | **User Understanding Agent** | Nemotron via NAT | Infers buyer preferences from session context |
 | **NLI Agent** | Nemotron via NAT | Scores semantic alignment between products and intent |
@@ -148,7 +148,7 @@ NVIDIA_API_KEY=local
 
 ## 2. Strategic LLM Implementation Details
 
-The **Nemotron-3-Nano** model provides three key capabilities that directly support our ACP requirements:
+The **Nemotron-3.5-Lightning** model provides three key capabilities that directly support our ACP requirements:
 
 * **Reasoning Trace (Thinking Mode):** The model natively generates a "reasoning trace" before concluding. We will pipe this trace directly to the **"Protocol Inspector" UI** to show exactly *how* the Promotion Agent decided to beat a competitor's price.
 * **Agentic Tool Use:** This model is fine-tuned for **multi-step tool use**. It will excel at our **SQLiteQueryTool**, translating natural language intents into the precise SQL joins we defined earlier.

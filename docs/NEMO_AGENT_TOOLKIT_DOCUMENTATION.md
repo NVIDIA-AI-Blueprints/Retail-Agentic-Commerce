@@ -436,7 +436,7 @@ retrievers:
 embedders:
   milvus_embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
     truncate: "END"
 ```
 
@@ -509,7 +509,7 @@ functions:
 embedders:
   milvus_embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
     truncate: "END"
 
 llms:
@@ -1176,7 +1176,7 @@ llms:
 embedders:
   embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
 
 # Retrievers for RAG
 retrievers:
@@ -1301,7 +1301,7 @@ functions:
 embedders:
   embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
 
 llms:
   nim_llm:
@@ -1967,7 +1967,7 @@ functions:
 llms:
   nim_llm:
     _type: nim
-    model_name: nvidia/nvidia-nemotron-nano-9b-v2
+    model_name: nvidia/nemotron-3.5-lightning-30b-a3b
     temperature: 0.1
     max_tokens: 2048
 
@@ -2015,14 +2015,14 @@ NVIDIA Nemotron models are optimized for agentic workloads. Here's how to config
 llms:
   nim_llm:
     _type: nim
-    model_name: nvidia/nvidia-nemotron-nano-9b-v2  # or other Nemotron models
+    model_name: nvidia/nemotron-3.5-lightning-30b-a3b
     temperature: 0.1  # Lower temperature for more deterministic tool calling
     max_tokens: 2048
     # Uses NVIDIA_API_KEY environment variable automatically
 ```
 
 **Available Nemotron Models on NVIDIA NIM:**
-- `nvidia/nvidia-nemotron-nano-9b-v2` - Compact, efficient model for tool calling
+- `nvidia/nemotron-3.5-lightning-30b-a3b` - General-purpose reasoning model for tool calling
 - `nvidia/nemotron-70b-instruct` - Larger model for complex reasoning
 - `meta/llama-3.1-70b-instruct` - Alternative option with strong performance
 - `meta/llama-3.3-70b-instruct` - Latest Llama model
@@ -2033,10 +2033,10 @@ llms:
 llms:
   local_llm:
     _type: nim
-    model_name: nvidia/nvidia-nemotron-nano-9b-v2
+    model_name: nvidia/nemotron-3.5-lightning
     temperature: 0.1
     max_tokens: 2048
-    base_url: http://nemotron:8000/v1  # Points to local NIM container
+    base_url: http://nemotron-lightning:8000/v1  # Points to local NIM container
 ```
 
 **Docker Compose for Local NIM:**
@@ -2044,12 +2044,15 @@ llms:
 ```yaml
 # docker-compose-nim.yml
 services:
-  nemotron:
-    image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:1.12
+  nemotron-lightning:
+    image: nvcr.io/nim/nvidia/nemotron-3.5-lightning-30b-a3b:2.0.9-variant
     ports:
       - "8000:8000"
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
+      - NIM_PASSTHROUGH_ARGS=--reasoning-parser nemotron_v3
+      - NIM_MODEL_NAME=nvidia/nemotron-3.5-lightning
+      - NIM_SERVED_MODEL_NAME=nvidia/nemotron-3.5-lightning
     user: "${UID:-1000}"
     deploy:
       resources:
@@ -2293,7 +2296,7 @@ llms:
 
   specialist_llm:
     _type: nim
-    model_name: nvidia/nvidia-nemotron-nano-9b-v2
+    model_name: nvidia/nemotron-3.5-lightning-30b-a3b
     temperature: 0.1
     max_tokens: 1024
 

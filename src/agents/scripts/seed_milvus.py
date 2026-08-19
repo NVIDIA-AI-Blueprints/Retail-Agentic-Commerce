@@ -18,7 +18,7 @@
 Seed Milvus Vector Database with Product Catalog Embeddings
 
 This script creates the product_catalog collection in Milvus and populates it
-with product embeddings generated using NVIDIA's NV-EmbedQA-E5-v5 model.
+with product embeddings generated using NVIDIA's Nemotron 3 Embed 1B model.
 
 Features:
 - Skip-if-exists: Won't re-seed if collection already has data
@@ -86,7 +86,7 @@ DEFAULT_EMBED_MODEL = "nvidia/nemotron-3-embed-1b"
 # Falls back to legacy EMBED_API_URL for backward compatibility
 NIM_EMBED_BASE_URL = os.environ.get("NIM_EMBED_BASE_URL", DEFAULT_EMBED_BASE_URL)
 EMBEDDING_MODEL = os.environ.get("NIM_EMBED_MODEL_NAME", DEFAULT_EMBED_MODEL)
-EMBEDDING_DIM = int(os.getenv("NIM_EMBED_DIM", "2048"))  # e5-v5=1024, nemotron-3-embed-1b=2048
+EMBEDDING_DIM = int(os.getenv("NIM_EMBED_DIM", "2048"))
 
 # Build the full embedding API URL
 # If legacy EMBED_API_URL is set, use it directly for backward compatibility

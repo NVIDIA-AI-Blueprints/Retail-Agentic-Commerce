@@ -84,8 +84,8 @@ flowchart TB
     end
 
     subgraph NIMs["NVIDIA NIMs"]
-        LLM["🧠 Nemotron Nano LLM<br/>(Port 8010)"]
-        EMBED["📐 NV-EmbedQA-E5<br/>(Port 8011)"]
+        LLM["🧠 Nemotron 3.5 Lightning LLM<br/>(Port 8010)"]
+        EMBED["📐 Nemotron 3 Embed 1B<br/>(Port 8011)"]
     end
 
     subgraph Data["Data Stores"]
@@ -221,6 +221,6 @@ docs/
 
 ## License
 
-GOVERNING TERMS: The Blueprint scripts are governed by Apache License, Version 2.0, and enables use of separate open source and proprietary software governed by their respective licenses: [Nemotron-Nano-V3](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/nemotron-3-nano?version=1.7.0), (ii) MIT license for [Nemotron-3-Embed-1B](https://build.nvidia.com/nvidia/nemotron-3-embed-1b). The sample data is governed by the [NVIDIA Data License for Retail Agentic Commerce](/LICENSE-assets.txt).
+GOVERNING TERMS: The Blueprint scripts are governed by Apache License, Version 2.0, and enables use of separate open source and proprietary software governed by their respective licenses: [Nemotron-3.5-Lightning-30B-A3B](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/nemotron-3.5-lightning-30b-a3b), (ii) MIT license for [Nemotron-3-Embed-1B](https://build.nvidia.com/nvidia/nemotron-3-embed-1b). The sample data is governed by the [NVIDIA Data License for Retail Agentic Commerce](/LICENSE-assets.txt).
 
 This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use, found in [License-3rd-party.txt](/LICENSE-3rd-party.txt).

@@ -29,7 +29,7 @@ The core of this blueprint is a Python **3.12+** (FastAPI) middleware that trans
 
 ### Strategic Intelligence Layers
 
-The system orchestrates three specialized agents using the NVIDIA Nemotron-3-Nano-30B (v3) LLM:
+The system orchestrates three specialized agents using the NVIDIA Nemotron-3.5-Lightning-30B-A3B LLM:
 
 1. Promotion Agent (Margin Protection): Reasons over Competitor Prices and Inventory Overstock (via SQL queries) to calculate dynamic discounts.
 2. Recommendation Agent (Basket Optimization): Suggests in-stock accessories using SQL-based deterministic joins/rules over catalog + inventory, enforcing constraints (in-stock, margin rules).
