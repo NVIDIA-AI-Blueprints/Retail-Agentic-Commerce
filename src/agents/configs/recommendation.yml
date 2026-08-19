@@ -48,6 +48,12 @@ llms:
     max_tokens: 512
     chat_template_kwargs:
       enable_thinking: false
+    # Every stage in this ARAG pipeline hands JSON text to the next and the
+    # output_contract_guard parses it strictly; a single malformed stage
+    # collapses `recommendations` to empty (Apps SDK widget renders 0 products).
+    # json_object forces the NIM to emit valid JSON so the pipeline holds.
+    response_format:
+      type: json_object
   nim_llm_nli:
     _type: nim
     base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
@@ -56,6 +62,8 @@ llms:
     max_tokens: 640
     chat_template_kwargs:
       enable_thinking: false
+    response_format:
+      type: json_object
 
   # -- Evaluation LLMs (judge model, not the main workflow) --------------------
   # Uses a larger model than the agent for unbiased evaluation scoring
