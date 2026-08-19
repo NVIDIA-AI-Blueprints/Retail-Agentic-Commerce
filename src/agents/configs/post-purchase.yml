@@ -34,6 +34,13 @@ llms:
     max_tokens: 512
     chat_template_kwargs:
       enable_thinking: false
+    # Force server-side guided JSON. The `message` field is a multi-line email
+    # body; without this the model can emit literal newlines inside the JSON
+    # string, which is invalid JSON and fails the NAT functional check
+    # (post-purchase is the only agent whose output naturally contains newlines).
+    # json_object mode makes the NIM emit escaped \n, guaranteeing valid JSON.
+    response_format:
+      type: json_object
 
 # =============================================================================
 # EVALUATION LLMs - Judge model for eval evaluators, not the main workflow
