@@ -20,7 +20,9 @@ NO_AGENT_RESPONSE_PREFIX = "No response received from agent"
 # capacity window, then still require a real successful workflow response.
 TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS = (2, 5, 10)
 EMPTY_RECOMMENDATION_RETRY_DELAYS_SECONDS = (5, 10, 20)
-WORKFLOW_COOLDOWN_SECONDS = 15
+# The hosted endpoint can throttle the next workflow after a successful live
+# completion. A full minute keeps these independent capacity windows separate.
+WORKFLOW_COOLDOWN_SECONDS = 60
 
 
 def require(condition: bool, message: str) -> None:
@@ -285,19 +287,19 @@ def main() -> int:
     try:
         check_promotion()
         print(
-            "::notice::waiting 15 seconds before the next live inference workflow.",
+            "::notice::waiting 60 seconds before the next live inference workflow.",
             file=sys.stderr,
         )
         time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_post_purchase()
         print(
-            "::notice::waiting 15 seconds before the parallel recommendation workflow.",
+            "::notice::waiting 60 seconds before the parallel recommendation workflow.",
             file=sys.stderr,
         )
         time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_recommendation()
         print(
-            "::notice::waiting 15 seconds before the final search workflow.",
+            "::notice::waiting 60 seconds before the final search workflow.",
             file=sys.stderr,
         )
         time.sleep(WORKFLOW_COOLDOWN_SECONDS)
