@@ -535,7 +535,12 @@ Open http://localhost:6006 to view traces, spans, latency breakdowns, and errors
 
 Lightweight RAG search agent that performs semantic product search against the Milvus `product_catalog` collection and returns top-k matches for a query.
 
-**Workflow Type:** `tool_calling_agent` | **Port:** 8005
+**Workflow Type:** `deterministic_product_search` | **Port:** 8005
+
+The search route invokes the configured Milvus retriever directly and returns
+normalized matches. It deliberately does not add an LLM tool-calling turn:
+Apps SDK product discovery is transactional, and the Apps SDK server enriches
+each match from the merchant API before it reaches the widget.
 
 **Requires:** Milvus running and seeded (see [Shared Infrastructure](#shared-infrastructure-milvus--phoenix)).
 

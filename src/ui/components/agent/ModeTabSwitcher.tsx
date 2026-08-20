@@ -88,11 +88,6 @@ export function ModeTabSwitcher({ activeMode, onModeChange }: ModeTabSwitcherPro
               aria-controls={`panel-${tab.mode}`}
               tabIndex={isActive ? 0 : -1}
               className={`mode-tab ${isActive ? "active" : ""}`}
-              onMouseDown={(e) => {
-                if (e.button === 0) {
-                  selectMode(tab.mode);
-                }
-              }}
               onClick={() => selectMode(tab.mode)}
               onKeyDown={(e) => handleKeyDown(e, tab.mode)}
               title={tab.description}
