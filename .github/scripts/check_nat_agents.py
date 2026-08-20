@@ -20,6 +20,7 @@ NO_AGENT_RESPONSE_PREFIX = "No response received from agent"
 # capacity window, then still require a real successful workflow response.
 TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS = (2, 5, 10)
 EMPTY_RECOMMENDATION_RETRY_DELAYS_SECONDS = (5, 10, 20)
+WORKFLOW_COOLDOWN_SECONDS = 15
 
 
 def require(condition: bool, message: str) -> None:
@@ -283,8 +284,23 @@ def main() -> int:
     """Run all NAT functional checks sequentially to avoid rate-limit bursts."""
     try:
         check_promotion()
+        print(
+            "::notice::waiting 15 seconds before the next live inference workflow.",
+            file=sys.stderr,
+        )
+        time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_post_purchase()
+        print(
+            "::notice::waiting 15 seconds before the parallel recommendation workflow.",
+            file=sys.stderr,
+        )
+        time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_recommendation()
+        print(
+            "::notice::waiting 15 seconds before the final search workflow.",
+            file=sys.stderr,
+        )
+        time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_search()
     except Exception as error:
         print(f"::error::NAT functional check failed: {error}", file=sys.stderr)
