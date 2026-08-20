@@ -15,15 +15,13 @@
 
 """ARAG custom components.
 
-Only four components require custom Python code:
+Only three components require custom Python code:
 
 1. **rag_retriever** — retrieval adapter that builds query context and normalizes
    retriever documents to ARAG candidate items.
 2. **text_function_adapter** — typed adapter that lets NAT ``chat_completion``
    steps participate in string-based control-flow chains.
 3. **output_contract_guard** — deterministic schema guard for final output.
-4. **deterministic_product_search** — retrieval adapter for the transactional
-   Apps SDK product search route.
 
 All recommendation semantics (NLI scoring, context synthesis, ranking) are
 performed by LLM agents declared in ``configs/recommendation.yml``.
@@ -242,117 +240,6 @@ async def rag_retriever_function(config: RAGRetrieverConfig, builder: Builder):
 # =============================================================================
 # Text Function Adapter — typed wrapper for string-based control flow
 # =============================================================================
-
-
-# =============================================================================
-# Deterministic Product Search — direct adapter around the configured retriever
-# =============================================================================
-
-
-class DeterministicProductSearchConfig(
-    FunctionBaseConfig, name="deterministic_product_search"
-):
-    """Configuration for the Apps SDK product search retrieval adapter."""
-
-    retrieval_tool_name: FunctionRef = Field(
-        default=FunctionRef("product_search"),
-        description="Retriever tool to execute for product search.",
-    )
-    max_results: int = Field(
-        default=50,
-        ge=1,
-        le=50,
-        description="Maximum number of product records returned by this adapter.",
-    )
-
-
-@register_function(
-    config_type=DeterministicProductSearchConfig,
-    framework_wrappers=[LLMFrameworkEnum.LANGCHAIN],
-)
-async def deterministic_product_search_function(
-    config: DeterministicProductSearchConfig, builder: Builder
-):
-    """Return normalized vector-search matches without an LLM round trip."""
-
-    retriever_tool = await builder.get_function(config.retrieval_tool_name)
-
-    def _extract_documents(raw_output: Any) -> list[dict[str, Any]]:
-        output_dict = _to_dict(raw_output) or {}
-        raw_results = output_dict.get("results")
-        if not isinstance(raw_results, list):
-            return []
-
-        documents: list[dict[str, Any]] = []
-        for item in raw_results:
-            item_dict = _to_dict(item)
-            if item_dict is not None:
-                documents.append(item_dict)
-        return documents
-
-    def _normalize_result(document: dict[str, Any]) -> dict[str, Any] | None:
-        metadata = document.get("metadata")
-        if not isinstance(metadata, dict):
-            metadata = {}
-
-        product_id = _as_str(
-            metadata.get("id")
-            or metadata.get("product_id")
-            or document.get("document_id")
-        )
-        if not product_id:
-            return None
-
-        result: dict[str, Any] = {
-            "product_id": product_id,
-            "product_name": _as_str(
-                metadata.get("name")
-                or metadata.get("product_name")
-                or metadata.get("title")
-                or product_id
-            ),
-            "snippet": _as_str(
-                document.get("page_content") or metadata.get("description")
-            ),
-        }
-
-        for key in ("distance", "score", "similarity"):
-            value = document.get(key, metadata.get(key))
-            if isinstance(value, int | float) and not isinstance(value, bool):
-                result[key] = value
-                break
-
-        return result
-
-    async def search_products(input_message: str) -> str:
-        """Run the configured retriever and return the Apps SDK search contract."""
-        payload = _to_dict(input_message) or {}
-        query = _as_str(payload.get("query")) or input_message.strip()
-        category = _as_str(payload.get("category"))
-        limit = _as_int(payload.get("limit")) or config.max_results
-        limit = min(max(limit, 1), config.max_results)
-        retriever_query = " ".join(part for part in (query, category) if part)
-
-        raw_output = await retriever_tool.acall_invoke(query=retriever_query)
-        results = [
-            result
-            for document in _extract_documents(raw_output)
-            if (result := _normalize_result(document)) is not None
-        ]
-
-        logger.info(
-            "Deterministic product search returned %d results for query: %s",
-            min(len(results), limit),
-            retriever_query,
-        )
-        return json.dumps({"query": query, "results": results[:limit]})
-
-    yield FunctionInfo.from_fn(
-        search_products,
-        description=(
-            "Retrieve normalized product search results without LLM arbitration"
-        ),
-    )
 
 
 class TextFunctionAdapterConfig(FunctionBaseConfig, name="text_function_adapter"):

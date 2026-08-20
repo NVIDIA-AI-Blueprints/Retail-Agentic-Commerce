@@ -40,6 +40,9 @@ SEARCH_AGENT_URL = settings.search_agent_url
 MERCHANT_API_URL = settings.merchant_api_url
 SEARCH_MIN_SIMILARITY = settings.search_min_similarity
 SEARCH_DISTANCE_CUTOFF = settings.search_distance_cutoff
+# The Lightning tool-calling workflow can return valid results after the former
+# 20-second client deadline. Keep this below the widget bridge's 65-second limit.
+SEARCH_AGENT_TIMEOUT_SECONDS = 60.0
 
 DEFAULT_USER = {
     "id": "user_demo123",
@@ -167,7 +170,7 @@ async def call_search_agent(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=SEARCH_AGENT_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{SEARCH_AGENT_URL}/generate",
                 json=payload,

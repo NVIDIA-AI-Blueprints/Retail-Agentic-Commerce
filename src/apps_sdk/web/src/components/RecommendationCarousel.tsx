@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { ShoppingCart, Star } from "lucide-react";
 import type { Product } from "@/types";
 import { formatPrice, getProductImage } from "@/types";
@@ -21,13 +21,29 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps) {
+  const addInProgressRef = useRef(false);
   const variantLabel = [product.variant, product.size].filter(Boolean).join(" - ");
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (addInProgressRef.current) return;
+
+      addInProgressRef.current = true;
       onAddToCart(product);
+      window.setTimeout(() => {
+        addInProgressRef.current = false;
+      }, 0);
     },
     [onAddToCart, product]
+  );
+
+  const handleAddToCartMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button === 0) {
+        handleAddToCart(e);
+      }
+    },
+    [handleAddToCart]
   );
 
   const handleCardClick = useCallback(() => {
@@ -84,6 +100,7 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
       {/* Add to Cart Button */}
       <div className="px-2.5 pb-2.5">
         <button
+          onMouseDown={handleAddToCartMouseDown}
           onClick={handleAddToCart}
           className="flex w-full items-center justify-center gap-1 rounded-full border border-accent/30 bg-transparent px-2 py-1.5 text-xs font-medium text-accent transition-colors hover:border-accent hover:bg-accent/5 active:scale-[0.98] dark:border-accent/40 dark:hover:border-accent/70 dark:hover:bg-accent/10"
           aria-label={`Add ${product.name} to cart`}

@@ -53,10 +53,27 @@ functions:
     topic: Search product catalog for items matching the user query
 
 # =============================================================================
+# LLM PROVIDERS
+# Model and endpoint can be configured via environment variables:
+# - NIM_LLM_BASE_URL: Public endpoint (default) or local NIM URL
+# - NIM_LLM_MODEL_NAME: Public model name (default) or local NIM model name
+# =============================================================================
+llms:
+  search_llm:
+    _type: nim
+    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
+    # Search powers a transactional widget, so sampled tool choices can turn a
+    # valid retrieval into an empty result set. Keep this route deterministic.
+    temperature: 0.0
+    max_tokens: 512
+    chat_template_kwargs:
+      enable_thinking: false
+
+# =============================================================================
 # EVALUATION LLMs - Judge model for eval evaluators, not the main workflow
 # Uses a larger model than the agent for unbiased evaluation scoring
 # =============================================================================
-llms:
   nim_eval_llm:
     _type: nim
     model_name: nvidia/nemotron-3-ultra-550b-a55b
@@ -69,20 +86,52 @@ llms:
     max_tokens: 2048
 
 # =============================================================================
-# MAIN WORKFLOW - Deterministic retrieval adapter
-#
-# Apps SDK search is a transactional product-discovery route. Passing retriever
-# results through an LLM tool-calling loop adds latency and can exceed the MCP
-# request timeout even after retrieval succeeds. The workflow therefore returns
-# the normalized retriever records directly; the merchant API remains the
-# product-data source of truth during Apps SDK enrichment.
+# MAIN WORKFLOW - Tool-calling agent
 # =============================================================================
 workflow:
-  _type: deterministic_product_search
-  name: product_search_agent
+  _type: tool_calling_agent
+  name: rag_search_agent
   workflow_alias: search_agent
-  retrieval_tool_name: product_search
-  max_results: 50
+  llm_name: search_llm
+  tool_names:
+    - product_search
+  verbose: true
+  max_iterations: 2
+  system_prompt: |-
+    You are a product search assistant. You must retrieve products using the product_search tool
+    and return the best results for the user's query. If the search results do not match the query,
+    return an empty results list instead of unrelated items.
+
+    INPUT FORMAT:
+    The input is a JSON object with:
+    - query: string (the search query)
+    - category: string | null (optional category hint)
+    - limit: number (maximum results to return)
+
+    MANDATORY FIRST STEP:
+    You MUST call product_search with a query derived directly from the user's query.
+    If a category is provided, include it in the search query.
+    Do not respond before calling the tool.
+
+    OUTPUT FORMAT (return ONLY this JSON):
+    {
+      "query": "<original query>",
+      "results": [
+        {
+          "product_id": "<exact product_id from search>",
+          "product_name": "<exact product_name from search>",
+          "snippet": "Short relevance note in one sentence",
+          "distance": 0.123
+        }
+      ]
+    }
+
+    RULES:
+    - Use exact product_id and product_name from search results.
+    - Preserve distance/score/similarity from the tool output when available.
+    - Return at most the requested limit.
+    - Do not include products not present in the search results.
+    - Return valid JSON only (no extra text).
 
 # =============================================================================
 # EVALUATION & PROFILING
