@@ -21,11 +21,23 @@ describe("ModeTabSwitcher", () => {
     expect(onModeChange).toHaveBeenCalledWith("apps-sdk");
   });
 
-  it("requests the new mode once during a full mouse click sequence", () => {
+  it("updates selection on mouse down before click handling completes", () => {
     const onModeChange = vi.fn();
     render(<ModeTabSwitcher activeMode="native" onModeChange={onModeChange} />);
 
     const appsSdkTab = screen.getByRole("tab", { name: "Apps SDK" });
+    fireEvent.mouseDown(appsSdkTab, { button: 0 });
+
+    expect(appsSdkTab).toHaveAttribute("aria-selected", "true");
+    expect(onModeChange).toHaveBeenCalledWith("apps-sdk");
+  });
+
+  it("does not request the same mode twice during a full mouse click sequence", () => {
+    const onModeChange = vi.fn();
+    render(<ModeTabSwitcher activeMode="native" onModeChange={onModeChange} />);
+
+    const appsSdkTab = screen.getByRole("tab", { name: "Apps SDK" });
+    fireEvent.mouseDown(appsSdkTab, { button: 0 });
     fireEvent.click(appsSdkTab);
 
     expect(onModeChange).toHaveBeenCalledTimes(1);
