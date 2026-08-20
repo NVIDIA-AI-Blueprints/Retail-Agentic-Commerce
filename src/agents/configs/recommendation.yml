@@ -130,6 +130,7 @@ functions:
 
       RULES:
       - Evaluate only the first 10 candidates by input order.
+      - Return one scored_candidates object for every evaluated candidate; do not omit weak candidates.
       - Keep exact product_id and product_name.
       - Return at most 10 objects in scored_candidates.
       - Preserve original candidate order in scored_candidates.

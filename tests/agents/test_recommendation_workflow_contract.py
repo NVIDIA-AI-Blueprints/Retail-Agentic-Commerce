@@ -38,6 +38,10 @@ def test_recommendation_workflow_uses_llm_first_parallel_arag() -> None:
     assert "_type: output_contract_guard" in config_text
     assert "top_k: 10" in config_text
     assert "Evaluate only the first 10 candidates by input order." in config_text
+    assert (
+        "Return one scored_candidates object for every evaluated candidate"
+        in config_text
+    )
     assert "Text from NAT's built-in parallel_executor." in config_text
 
     for legacy_component in (

@@ -381,3 +381,43 @@ class TestCallSearchAgent:
 
         assert result["results"] == []
         assert "timeout" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_retries_transient_agent_rate_limit(self) -> None:
+        """A NAT-wrapped inference 429 is retried within the widget deadline."""
+        from src.apps_sdk.tools.recommendations import call_search_agent
+
+        retryable_response = MagicMock()
+        retryable_response.status_code = 422
+        retryable_response.text = '{"detail":"No response received from agent"}'
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {
+            "value": json.dumps(
+                {
+                    "query": "summer tee",
+                    "results": [{"product_id": "prod_1"}],
+                }
+            )
+        }
+
+        with (
+            patch("httpx.AsyncClient") as mock_client,
+            patch(
+                "src.apps_sdk.tools.recommendations.asyncio.sleep",
+                new=AsyncMock(),
+            ) as mock_sleep,
+        ):
+            mock_instance = AsyncMock()
+            mock_instance.post.side_effect = [retryable_response, success_response]
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            mock_client.return_value = mock_instance
+
+            result = await call_search_agent(query="summer tee", category=None, limit=3)
+
+        assert result["results"] == [{"product_id": "prod_1"}]
+        assert mock_instance.post.await_count == 2
+        mock_sleep.assert_awaited_once_with(2.0)
