@@ -49,6 +49,10 @@ SEARCH_AGENT_TIMEOUT_SECONDS = 60.0
 # LLM turn after a successful tool call. Retry the complete workflow within the
 # same widget deadline so the LLM remains responsible for selecting results.
 SEARCH_AGENT_RETRY_DELAYS_SECONDS = (2.0, 4.0)
+_IN_FLIGHT_SEARCHES: dict[
+    tuple[str, str | None, int], asyncio.Task[dict[str, Any]]
+] = {}
+_IN_FLIGHT_SEARCHES_LOCK = asyncio.Lock()
 
 DEFAULT_USER = {
     "id": "user_demo123",
@@ -172,7 +176,7 @@ async def _fetch_product_from_merchant(product_id: str) -> dict[str, Any] | None
         return None
 
 
-async def call_search_agent(
+async def _call_search_agent_with_retries(
     query: str,
     category: str | None,
     limit: int,
@@ -234,6 +238,31 @@ async def call_search_agent(
         return {"results": [], "error": f"Search agent unavailable: {e}"}
     except Exception as e:
         return {"results": [], "error": str(e)}
+
+
+async def call_search_agent(
+    query: str,
+    category: str | None,
+    limit: int,
+) -> dict[str, Any]:
+    """Share an identical in-progress LLM search instead of duplicating it."""
+    request_key = (query, category, limit)
+
+    async with _IN_FLIGHT_SEARCHES_LOCK:
+        in_flight = _IN_FLIGHT_SEARCHES.get(request_key)
+        if in_flight is None or in_flight.done():
+            in_flight = asyncio.create_task(
+                _call_search_agent_with_retries(query, category, limit)
+            )
+            _IN_FLIGHT_SEARCHES[request_key] = in_flight
+
+    try:
+        return await asyncio.shield(in_flight)
+    finally:
+        if in_flight.done():
+            async with _IN_FLIGHT_SEARCHES_LOCK:
+                if _IN_FLIGHT_SEARCHES.get(request_key) is in_flight:
+                    _IN_FLIGHT_SEARCHES.pop(request_key, None)
 
 
 async def search_products(

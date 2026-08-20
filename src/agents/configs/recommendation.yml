@@ -50,7 +50,7 @@ llms:
     max_tokens: 512
     # Let the Apps SDK retry the complete workflow after a public-endpoint 429.
     # Retrying individual stages here can otherwise exceed the widget deadline.
-    num_retries: 0
+    max_retries: 0
     chat_template_kwargs:
       enable_thinking: false
     # Every stage in this ARAG pipeline hands JSON text to the next and the
@@ -66,7 +66,7 @@ llms:
     temperature: 0.0
     max_tokens: 640
     # Keep retry ownership consistent across the concurrent ARAG stages.
-    num_retries: 0
+    max_retries: 0
     chat_template_kwargs:
       enable_thinking: false
     response_format:
@@ -264,6 +264,9 @@ functions:
       - Rank up to 3 items from filtered_candidates.
       - If filtered_candidates has 3 or more items, return exactly 3 recommendations.
       - If fewer than 3 items exist, return all available items.
+      - REQUIRED CARDINALITY: Before responding, count recommendations. When three or
+        more filtered_candidates are available, the recommendations array must contain
+        exactly three distinct non-cart items. Do not omit a valid third candidate.
       - Prioritize: cross-sell fit > alignment_score > diversity.
       - Diversity rule: avoid duplicate categories when there are enough alternatives.
       - Use exact product_id and product_name from filtered_candidates.

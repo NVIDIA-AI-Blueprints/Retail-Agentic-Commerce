@@ -23,6 +23,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -466,3 +467,48 @@ class TestCallSearchAgent:
         assert result["results"] == [{"product_id": "prod_1"}]
         assert mock_instance.post.await_count == 2
         mock_sleep.assert_awaited_once_with(2.0)
+
+    @pytest.mark.asyncio
+    async def test_coalesces_identical_in_flight_searches(self) -> None:
+        """Identical simultaneous UI searches share one LLM workflow."""
+        from src.apps_sdk.tools.recommendations import call_search_agent
+
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def run_search_workflow(
+            query: str, category: str | None, limit: int
+        ) -> dict[str, object]:
+            assert (query, category, limit) == ("tee", None, 3)
+            started.set()
+            await release.wait()
+            return {"query": query, "results": [{"product_id": "prod_1"}]}
+
+        with patch(
+            "src.apps_sdk.tools.recommendations._call_search_agent_with_retries",
+            new=AsyncMock(side_effect=run_search_workflow),
+        ) as mock_workflow:
+            first_request = asyncio.create_task(
+                call_search_agent(query="tee", category=None, limit=3)
+            )
+            await started.wait()
+            second_request = asyncio.create_task(
+                call_search_agent(query="tee", category=None, limit=3)
+            )
+            await asyncio.sleep(0)
+
+            assert mock_workflow.await_count == 1
+
+            release.set()
+            first_result, second_result = await asyncio.gather(
+                first_request, second_request
+            )
+
+        assert (
+            first_result
+            == second_result
+            == {
+                "query": "tee",
+                "results": [{"product_id": "prod_1"}],
+            }
+        )
