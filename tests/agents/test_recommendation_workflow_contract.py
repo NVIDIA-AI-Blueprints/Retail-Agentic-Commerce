@@ -43,6 +43,11 @@ def test_recommendation_workflow_uses_llm_first_parallel_arag() -> None:
         in config_text
     )
     assert "Text from NAT's built-in parallel_executor." in config_text
+    assert config_text.count("num_retries: 0") == 2
+    assert (
+        "Let the Apps SDK retry the complete workflow after a public-endpoint 429."
+        in config_text
+    )
 
     for legacy_component in (
         "_type: nli_scorer",
