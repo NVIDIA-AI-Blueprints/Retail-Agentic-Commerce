@@ -15,7 +15,10 @@ EMPTY_LLM_RESPONSE_PREFIX = (
     "LLM returned an empty response (no content, no tool calls)."
 )
 NO_AGENT_RESPONSE_PREFIX = "No response received from agent"
-TRANSIENT_LLM_RESPONSE_RETRY_DELAY_SECONDS = 2
+# The recommendation probe makes several genuine, parallel LLM calls immediately
+# before the search probe.  Give a shared hosted endpoint time to clear a short
+# capacity window, then still require a real successful workflow response.
+TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS = (2, 5, 10)
 
 
 def require(condition: bool, message: str) -> None:
@@ -77,7 +80,7 @@ def call_agent(
     timeout: int,
 ) -> dict[str, Any]:
     """Execute a NAT workflow and unwrap its JSON response value."""
-    for attempt in range(2):
+    for attempt in range(len(TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS) + 1):
         request = urllib.request.Request(
             f"http://{agent}-agent:{port}/generate",
             data=json.dumps({"input_message": json.dumps(input_message)}).encode(),
@@ -91,13 +94,16 @@ def call_agent(
                 raw_response = response.read().decode()
         except urllib.error.HTTPError as error:
             detail = error.read().decode(errors="replace")
-            if attempt == 0 and is_retryable_transient_llm_response(error.code, detail):
+            if attempt < len(
+                TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS
+            ) and is_retryable_transient_llm_response(error.code, detail):
+                retry_delay = TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS[attempt]
                 print(
                     f"::warning::{agent} received a transient LLM response; "
-                    "retrying once in 2 seconds.",
+                    f"retrying in {retry_delay} seconds.",
                     file=sys.stderr,
                 )
-                time.sleep(TRANSIENT_LLM_RESPONSE_RETRY_DELAY_SECONDS)
+                time.sleep(retry_delay)
                 continue
             raise RuntimeError(
                 f"{agent} returned HTTP {error.code}: {detail[:1000]}"
