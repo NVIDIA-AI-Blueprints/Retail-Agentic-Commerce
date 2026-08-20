@@ -45,4 +45,30 @@ describe("RecommendationCarousel", () => {
     expect(onAddToCart).toHaveBeenCalledTimes(1);
     expect(onAddToCart).toHaveBeenCalledWith(product);
   });
+
+  it("opens product details once during a primary mouse click sequence", () => {
+    const product: Product = {
+      id: "prod_1",
+      sku: "TS-001",
+      name: "Classic Tee",
+      basePrice: 2500,
+      stockCount: 100,
+    };
+    const onProductClick = vi.fn();
+
+    render(
+      <RecommendationCarousel
+        products={[product]}
+        onAddToCart={vi.fn()}
+        onProductClick={onProductClick}
+      />
+    );
+
+    const productCard = screen.getByRole("button", { name: "View Classic Tee details" });
+    fireEvent.mouseDown(productCard, { button: 0 });
+    fireEvent.click(productCard);
+
+    expect(onProductClick).toHaveBeenCalledTimes(1);
+    expect(onProductClick).toHaveBeenCalledWith(product);
+  });
 });

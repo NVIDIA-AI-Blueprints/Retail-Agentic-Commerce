@@ -22,6 +22,7 @@ interface ProductCardProps {
 
 function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps) {
   const addInProgressRef = useRef(false);
+  const productClickInProgressRef = useRef(false);
   const variantLabel = [product.variant, product.size].filter(Boolean).join(" - ");
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
@@ -47,10 +48,23 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
   );
 
   const handleCardClick = useCallback(() => {
-    if (onProductClick) {
-      onProductClick(product);
-    }
+    if (!onProductClick || productClickInProgressRef.current) return;
+
+    productClickInProgressRef.current = true;
+    onProductClick(product);
+    window.setTimeout(() => {
+      productClickInProgressRef.current = false;
+    }, 0);
   }, [onProductClick, product]);
+
+  const handleCardMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button === 0) {
+        handleCardClick();
+      }
+    },
+    [handleCardClick]
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -64,6 +78,7 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
 
   return (
     <article
+      onMouseDown={handleCardMouseDown}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"
