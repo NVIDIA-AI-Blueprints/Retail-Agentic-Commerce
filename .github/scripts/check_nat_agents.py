@@ -19,6 +19,7 @@ NO_AGENT_RESPONSE_PREFIX = "No response received from agent"
 # before the search probe.  Give a shared hosted endpoint time to clear a short
 # capacity window, then still require a real successful workflow response.
 TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS = (2, 5, 10)
+EMPTY_RECOMMENDATION_RETRY_DELAYS_SECONDS = (5, 10, 20)
 
 
 def require(condition: bool, message: str) -> None:
@@ -217,24 +218,41 @@ def check_post_purchase() -> None:
 
 def check_recommendation() -> None:
     """Verify Milvus-backed complementary product recommendations."""
-    result = call_agent(
-        "recommendation",
-        8004,
-        {
-            "query": "Recommend products that complement a Classic Tee",
-            "cart_items": [
-                {
-                    "product_id": "prod_1",
-                    "name": "Classic Tee",
-                    "category": "tops",
-                    "price": 2500,
-                }
-            ],
-            "session_context": {"browse_history": ["casual wear", "jeans"]},
-        },
-        timeout=120,
-    )
-    recommendations = require_object_list(result, "recommendations", "recommendation")
+    request = {
+        "query": "Recommend products that complement a Classic Tee",
+        "cart_items": [
+            {
+                "product_id": "prod_1",
+                "name": "Classic Tee",
+                "category": "tops",
+                "price": 2500,
+            }
+        ],
+        "session_context": {"browse_history": ["casual wear", "jeans"]},
+    }
+
+    for retry_delay in (*EMPTY_RECOMMENDATION_RETRY_DELAYS_SECONDS, None):
+        result = call_agent("recommendation", 8004, request, timeout=120)
+        raw_recommendations = result.get("recommendations")
+        if isinstance(raw_recommendations, list) and raw_recommendations:
+            recommendations = require_object_list(
+                result, "recommendations", "recommendation"
+            )
+            break
+
+        if retry_delay is None:
+            recommendations = require_object_list(
+                result, "recommendations", "recommendation"
+            )
+            break
+
+        print(
+            "::warning::recommendation returned no products after a live "
+            f"LLM workflow; retrying in {retry_delay} seconds.",
+            file=sys.stderr,
+        )
+        time.sleep(retry_delay)
+
     require(
         all(
             bool(item.get("product_id")) and item.get("product_id") != "prod_1"
