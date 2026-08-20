@@ -17,9 +17,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import time
 from typing import Any, cast
 
 import httpx
@@ -29,6 +31,8 @@ from src.apps_sdk.schemas import CartItemInput
 
 settings = get_apps_sdk_settings()
 RECOMMENDATION_AGENT_URL = settings.recommendation_agent_url
+RECOMMENDATION_AGENT_TIMEOUT_SECONDS = 60.0
+RECOMMENDATION_AGENT_RETRY_DELAYS_SECONDS = (2.0, 4.0)
 
 # Merchant API URL for product lookups
 MERCHANT_API_URL = os.environ.get("MERCHANT_API_URL", "http://localhost:8000")
@@ -260,6 +264,19 @@ def _parse_agent_response(raw_result: Any) -> dict[str, Any]:
     return parsed
 
 
+def _is_retryable_agent_response(response: httpx.Response) -> bool:
+    """Return whether NAT surfaced a transient inference rate limit as 422."""
+    if response.status_code != 422:
+        return False
+
+    response_text = response.text.lower()
+    return (
+        "no response received from agent" in response_text
+        or "too many requests" in response_text
+        or '"status": 429' in response_text
+    )
+
+
 async def call_recommendation_agent(
     product_id: str,
     product_name: str,
@@ -297,27 +314,54 @@ async def call_recommendation_agent(
         )
     }
 
+    deadline = time.monotonic() + RECOMMENDATION_AGENT_TIMEOUT_SECONDS
+
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{RECOMMENDATION_AGENT_URL}/generate",
-                json=payload,
-            )
-            response.raise_for_status()
-            raw_result = response.json()
+        async with httpx.AsyncClient() as client:
+            for attempt, retry_delay in enumerate(
+                (*RECOMMENDATION_AGENT_RETRY_DELAYS_SECONDS, None)
+            ):
+                remaining_seconds = deadline - time.monotonic()
+                if remaining_seconds <= 0:
+                    raise httpx.TimeoutException("Recommendation agent timeout")
 
-            parsed_result: dict[str, Any] = _parse_agent_response(raw_result)
+                response = await client.post(
+                    f"{RECOMMENDATION_AGENT_URL}/generate",
+                    json=payload,
+                    timeout=remaining_seconds,
+                )
+                if (
+                    retry_delay is not None
+                    and _is_retryable_agent_response(response)
+                    and remaining_seconds > retry_delay
+                ):
+                    logger.warning(
+                        "Recommendation agent received a transient inference failure; "
+                        "retrying workflow (attempt %d/%d)",
+                        attempt + 1,
+                        len(RECOMMENDATION_AGENT_RETRY_DELAYS_SECONDS) + 1,
+                    )
+                    await asyncio.sleep(retry_delay)
+                    continue
 
-            recommendations: list[dict[str, Any]] = list(
-                parsed_result.get("recommendations", [])
-            )
-            enriched = await enrich_recommendations(recommendations)
+                response.raise_for_status()
+                raw_result = response.json()
+                parsed_result: dict[str, Any] = _parse_agent_response(raw_result)
 
-            return {
-                "recommendations": enriched,
-                "userIntent": parsed_result.get("user_intent"),
-                "pipelineTrace": parsed_result.get("pipeline_trace"),
-            }
+                recommendations: list[dict[str, Any]] = list(
+                    parsed_result.get("recommendations", [])
+                )
+                enriched = await enrich_recommendations(recommendations)
+
+                return {
+                    "recommendations": enriched,
+                    "userIntent": parsed_result.get("user_intent"),
+                    "pipelineTrace": parsed_result.get("pipeline_trace"),
+                }
+        return {
+            "recommendations": [],
+            "error": "Recommendation agent retry attempts exhausted",
+        }
     except httpx.TimeoutException:
         logger.error("Recommendation agent timeout")
         return {"recommendations": [], "error": "Recommendation agent timeout"}

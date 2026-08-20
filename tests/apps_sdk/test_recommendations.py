@@ -34,6 +34,51 @@ class TestCallRecommendationAgent:
     """Tests for the call_recommendation_agent function."""
 
     @pytest.mark.asyncio
+    async def test_retries_transient_agent_rate_limit(self) -> None:
+        """A NAT-wrapped inference 429 is retried before surfacing an error."""
+        from src.apps_sdk.main import call_recommendation_agent
+
+        retryable_response = MagicMock()
+        retryable_response.status_code = 422
+        retryable_response.text = '{"detail":"No response received from agent"}'
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {
+            "value": json.dumps(
+                {
+                    "recommendations": [],
+                    "user_intent": "casual summer outfit",
+                    "pipeline_trace": {"candidates_received": 10},
+                }
+            )
+        }
+
+        with (
+            patch("httpx.AsyncClient") as mock_client,
+            patch(
+                "src.apps_sdk.recommendation_helpers.asyncio.sleep",
+                new=AsyncMock(),
+            ) as mock_sleep,
+        ):
+            mock_instance = AsyncMock()
+            mock_instance.post.side_effect = [retryable_response, success_response]
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            mock_client.return_value = mock_instance
+
+            result = await call_recommendation_agent(
+                product_id="prod_001",
+                product_name="Classic Tee",
+                cart_items=[],
+            )
+
+        assert result["recommendations"] == []
+        assert mock_instance.post.await_count == 2
+        mock_sleep.assert_awaited_once_with(2.0)
+
+    @pytest.mark.asyncio
     async def test_happy_path_returns_recommendations(self) -> None:
         """Agent returns valid recommendations with all expected fields."""
         from src.apps_sdk.main import call_recommendation_agent
