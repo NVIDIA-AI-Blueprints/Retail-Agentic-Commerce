@@ -112,6 +112,20 @@ def call_agent(
             ) from error
         except (TimeoutError, urllib.error.URLError) as error:
             reason = getattr(error, "reason", str(error))
+            is_timeout = isinstance(error, TimeoutError) or isinstance(
+                reason, TimeoutError
+            )
+            if is_timeout and attempt < len(
+                TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS
+            ):
+                retry_delay = TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS[attempt]
+                print(
+                    f"::warning::{agent} request timed out; "
+                    f"retrying in {retry_delay} seconds.",
+                    file=sys.stderr,
+                )
+                time.sleep(retry_delay)
+                continue
             raise RuntimeError(f"{agent} request failed: {reason}") from error
 
         break
