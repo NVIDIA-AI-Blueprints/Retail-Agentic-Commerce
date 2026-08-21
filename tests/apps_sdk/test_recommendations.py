@@ -31,6 +31,14 @@ import httpx
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def clear_completed_recommendation_results() -> None:
+    """Keep the short-lived runtime cache isolated across unit tests."""
+    from src.apps_sdk import recommendation_helpers
+
+    recommendation_helpers._COMPLETED_RECOMMENDATION_RESULTS.clear()
+
+
 class TestCallRecommendationAgent:
     """Tests for the call_recommendation_agent function."""
 
@@ -182,6 +190,122 @@ class TestCallRecommendationAgent:
 
         assert "recommendations" in result
         assert len(result["recommendations"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_reuses_only_completed_full_model_results(self) -> None:
+        """An identical retry reuses the completed top-three ARAG output."""
+        from src.apps_sdk import recommendation_helpers
+        from src.apps_sdk.main import call_recommendation_agent
+
+        model_result = {
+            "recommendations": [
+                {
+                    "product_id": f"prod_{index}",
+                    "product_name": f"Product {index}",
+                    "rank": index,
+                    "reasoning": "Model-selected recommendation",
+                }
+                for index in range(1, 4)
+            ],
+            "userIntent": "casual outfit",
+        }
+
+        with patch(
+            "src.apps_sdk.recommendation_helpers._call_recommendation_agent_uncached",
+            new=AsyncMock(return_value=model_result),
+        ) as mock_agent:
+            first = await call_recommendation_agent("prod_1", "Classic Tee", [])
+            first["recommendations"].clear()
+            second = await call_recommendation_agent("prod_1", "Classic Tee", [])
+
+        assert mock_agent.await_count == 1
+        assert len(second["recommendations"]) == 3
+        assert recommendation_helpers._COMPLETED_RECOMMENDATION_RESULTS
+
+    @pytest.mark.asyncio
+    async def test_does_not_cache_incomplete_model_results(self) -> None:
+        """A short model response cannot mask a later complete response."""
+        from src.apps_sdk.main import call_recommendation_agent
+
+        incomplete_result = {
+            "recommendations": [
+                {
+                    "product_id": "prod_2",
+                    "product_name": "V-Neck Tee",
+                    "rank": 1,
+                    "reasoning": "Model-selected recommendation",
+                }
+            ]
+        }
+        complete_result = {
+            "recommendations": [
+                {
+                    "product_id": f"prod_{index}",
+                    "product_name": f"Product {index}",
+                    "rank": index,
+                    "reasoning": "Model-selected recommendation",
+                }
+                for index in range(1, 4)
+            ]
+        }
+
+        with patch(
+            "src.apps_sdk.recommendation_helpers._call_recommendation_agent_uncached",
+            new=AsyncMock(side_effect=[incomplete_result, complete_result]),
+        ) as mock_agent:
+            first = await call_recommendation_agent("prod_1", "Classic Tee", [])
+            second = await call_recommendation_agent("prod_1", "Classic Tee", [])
+
+        assert len(first["recommendations"]) == 1
+        assert len(second["recommendations"]) == 3
+        assert mock_agent.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_completed_result_survives_caller_cancellation(self) -> None:
+        """A browser timeout does not discard the ARAG result needed by its retry."""
+        from src.apps_sdk import recommendation_helpers
+        from src.apps_sdk.main import call_recommendation_agent
+
+        started = asyncio.Event()
+        release = asyncio.Event()
+        model_result = {
+            "recommendations": [
+                {
+                    "product_id": f"prod_{index}",
+                    "product_name": f"Product {index}",
+                    "rank": index,
+                    "reasoning": "Model-selected recommendation",
+                }
+                for index in range(1, 4)
+            ]
+        }
+
+        async def delayed_model_result(*args: object) -> dict[str, object]:
+            _ = args
+            started.set()
+            await release.wait()
+            return model_result
+
+        with patch(
+            "src.apps_sdk.recommendation_helpers._call_recommendation_agent_uncached",
+            new=AsyncMock(side_effect=delayed_model_result),
+        ) as mock_agent:
+            first_request = asyncio.create_task(
+                call_recommendation_agent("prod_1", "Classic Tee", [])
+            )
+            await started.wait()
+            first_request.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await first_request
+
+            release.set()
+            while recommendation_helpers._BACKGROUND_RECOMMENDATION_TASKS:
+                await asyncio.sleep(0)
+
+            second = await call_recommendation_agent("prod_1", "Classic Tee", [])
+
+        assert mock_agent.await_count == 1
+        assert len(second["recommendations"]) == 3
 
     @pytest.mark.asyncio
     async def test_agent_timeout_returns_empty_recommendations(self) -> None:
@@ -469,46 +593,39 @@ class TestCallSearchAgent:
         mock_sleep.assert_awaited_once_with(2.0)
 
     @pytest.mark.asyncio
-    async def test_coalesces_identical_in_flight_searches(self) -> None:
-        """Identical simultaneous UI searches share one LLM workflow."""
+    async def test_identical_searches_have_independent_failure_state(self) -> None:
+        """A stalled request does not make another identical search fail."""
         from src.apps_sdk.tools.recommendations import call_search_agent
 
-        started = asyncio.Event()
-        release = asyncio.Event()
-
-        async def run_search_workflow(
-            query: str, category: str | None, limit: int
-        ) -> dict[str, object]:
-            assert (query, category, limit) == ("tee", None, 3)
-            started.set()
-            await release.wait()
-            return {"query": query, "results": [{"product_id": "prod_1"}]}
-
-        with patch(
-            "src.apps_sdk.tools.recommendations._call_search_agent_with_retries",
-            new=AsyncMock(side_effect=run_search_workflow),
-        ) as mock_workflow:
-            first_request = asyncio.create_task(
-                call_search_agent(query="tee", category=None, limit=3)
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {
+            "value": json.dumps(
+                {
+                    "query": "tee",
+                    "results": [{"product_id": "prod_1"}],
+                }
             )
-            await started.wait()
-            second_request = asyncio.create_task(
-                call_search_agent(query="tee", category=None, limit=3)
-            )
-            await asyncio.sleep(0)
+        }
 
-            assert mock_workflow.await_count == 1
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.post.side_effect = [
+                httpx.TimeoutException("Timeout"),
+                success_response,
+            ]
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            mock_client.return_value = mock_instance
 
-            release.set()
-            first_result, second_result = await asyncio.gather(
-                first_request, second_request
+            results = await asyncio.gather(
+                call_search_agent(query="tee", category=None, limit=3),
+                call_search_agent(query="tee", category=None, limit=3),
             )
 
-        assert (
-            first_result
-            == second_result
-            == {
-                "query": "tee",
-                "results": [{"product_id": "prod_1"}],
-            }
+        assert mock_instance.post.await_count == 2
+        assert sum("error" in result for result in results) == 1
+        assert any(
+            result["results"] == [{"product_id": "prod_1"}] for result in results
         )
