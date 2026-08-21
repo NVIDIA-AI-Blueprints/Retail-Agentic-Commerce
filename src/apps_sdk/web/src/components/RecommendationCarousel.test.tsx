@@ -35,15 +35,24 @@ describe("RecommendationCarousel", () => {
       stockCount: 100,
     };
     const onAddToCart = vi.fn();
+    const onProductClick = vi.fn();
 
-    render(<RecommendationCarousel products={[product]} onAddToCart={onAddToCart} />);
+    render(
+      <RecommendationCarousel
+        products={[product]}
+        onAddToCart={onAddToCart}
+        onProductClick={onProductClick}
+      />
+    );
 
     const addButton = screen.getByRole("button", { name: "Add Classic Tee to cart" });
+    fireEvent.pointerDown(addButton, { button: 0 });
     fireEvent.mouseDown(addButton, { button: 0 });
     fireEvent.click(addButton);
 
     expect(onAddToCart).toHaveBeenCalledTimes(1);
     expect(onAddToCart).toHaveBeenCalledWith(product);
+    expect(onProductClick).not.toHaveBeenCalled();
   });
 
   it("opens product details once during a primary mouse click sequence", () => {

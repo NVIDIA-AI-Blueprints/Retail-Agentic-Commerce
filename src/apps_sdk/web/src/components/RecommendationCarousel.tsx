@@ -59,7 +59,12 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
 
   const handleCardPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (e.button === 0) {
+      const target = e.target;
+      if (
+        e.button === 0 &&
+        target instanceof Element &&
+        target.closest("button") === null
+      ) {
         handleCardClick();
       }
     },
