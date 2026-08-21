@@ -469,46 +469,39 @@ class TestCallSearchAgent:
         mock_sleep.assert_awaited_once_with(2.0)
 
     @pytest.mark.asyncio
-    async def test_coalesces_identical_in_flight_searches(self) -> None:
-        """Identical simultaneous UI searches share one LLM workflow."""
+    async def test_identical_searches_have_independent_failure_state(self) -> None:
+        """A stalled request does not make another identical search fail."""
         from src.apps_sdk.tools.recommendations import call_search_agent
 
-        started = asyncio.Event()
-        release = asyncio.Event()
-
-        async def run_search_workflow(
-            query: str, category: str | None, limit: int
-        ) -> dict[str, object]:
-            assert (query, category, limit) == ("tee", None, 3)
-            started.set()
-            await release.wait()
-            return {"query": query, "results": [{"product_id": "prod_1"}]}
-
-        with patch(
-            "src.apps_sdk.tools.recommendations._call_search_agent_with_retries",
-            new=AsyncMock(side_effect=run_search_workflow),
-        ) as mock_workflow:
-            first_request = asyncio.create_task(
-                call_search_agent(query="tee", category=None, limit=3)
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {
+            "value": json.dumps(
+                {
+                    "query": "tee",
+                    "results": [{"product_id": "prod_1"}],
+                }
             )
-            await started.wait()
-            second_request = asyncio.create_task(
-                call_search_agent(query="tee", category=None, limit=3)
-            )
-            await asyncio.sleep(0)
+        }
 
-            assert mock_workflow.await_count == 1
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.post.side_effect = [
+                httpx.TimeoutException("Timeout"),
+                success_response,
+            ]
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            mock_client.return_value = mock_instance
 
-            release.set()
-            first_result, second_result = await asyncio.gather(
-                first_request, second_request
+            results = await asyncio.gather(
+                call_search_agent(query="tee", category=None, limit=3),
+                call_search_agent(query="tee", category=None, limit=3),
             )
 
-        assert (
-            first_result
-            == second_result
-            == {
-                "query": "tee",
-                "results": [{"product_id": "prod_1"}],
-            }
+        assert mock_instance.post.await_count == 2
+        assert sum("error" in result for result in results) == 1
+        assert any(
+            result["results"] == [{"product_id": "prod_1"}] for result in results
         )

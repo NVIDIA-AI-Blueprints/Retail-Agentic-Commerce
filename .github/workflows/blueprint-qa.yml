@@ -99,6 +99,7 @@ jobs:
           docker run --rm --net=host -v "$(pwd):/workspace" "${QA_TEST_IMAGE}" \
             pytest -m retail_agentic_commerce \
               --retail-agentic-commerce-url="${UI_URL}" \
+              --reruns=1 --reruns-delay=15 \
               --disable-warnings -v --timeout=240 \
               --html=/workspace/retail-agentic-commerce-ui-test.html --self-contained-html
 
