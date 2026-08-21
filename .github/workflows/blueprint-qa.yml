@@ -96,6 +96,8 @@ jobs:
           [ -n "${TEST_DOCKER_PULL_KEY:-}" ] || exit 0
           echo "${TEST_DOCKER_PULL_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
           docker pull "${QA_TEST_IMAGE}"
+          docker run --rm "${QA_TEST_IMAGE}" python -c \
+            'import inspect; from pages.retail_agentic_commerce import RetailAgenticCommercePage as P; [print(inspect.getsource(getattr(P, name))) for name in ("get_widget_frame", "wait_for_widget_products", "open_widget_product")]'
           docker run --rm --net=host -v "$(pwd):/workspace" "${QA_TEST_IMAGE}" \
             pytest -m retail_agentic_commerce \
               --retail-agentic-commerce-url="${UI_URL}" \
