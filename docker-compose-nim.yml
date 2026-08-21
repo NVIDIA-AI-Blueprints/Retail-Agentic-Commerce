@@ -19,29 +19,34 @@
 #   docker compose -f docker-compose.infra.yml -f docker-compose-nim.yml -f docker-compose.yml up -d
 #
 # After starting, update your .env to use local NIMs:
-#   NIM_LLM_BASE_URL=http://nemotron-nano:8000/v1
-#   NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+#   NIM_LLM_BASE_URL=http://nemotron-lightning:8000/v1
+#   NIM_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning
 #   NIM_EMBED_BASE_URL=http://embedqa:8000/v1
-#   NIM_EMBED_MODEL_NAME=nvidia/nv-embedqa-e5-v5
+#   NIM_EMBED_MODEL_NAME=nvidia/nemotron-3-embed-1b
 #
-# Note: The model name for local NIM is 'nvidia/nemotron-3-nano' (without the version suffix)
-#       while the public endpoint uses 'nvidia/nemotron-3-nano-30b-a3b'
+# Note: The model name for local NIM is 'nvidia/nemotron-3.5-lightning' (without the size suffix)
+#       while the public endpoint uses 'nvidia/nemotron-3.5-lightning-30b-a3b'
 services:
 
   # =============================================================================
-  # NVIDIA NIM - LLM (Nemotron Nano)
+  # NVIDIA NIM - LLM (Nemotron 3.5 Lightning)
   # =============================================================================
-  nemotron-nano:
-    image: nvcr.io/nim/nvidia/nemotron-3-nano:1
-    container_name: nemotron-nano
+  nemotron-lightning:
+    image: nvcr.io/nim/nvidia/nemotron-3.5-lightning-30b-a3b:2.0.9-variant
+    container_name: nemotron-lightning
     ports:
       - "8010:8000"
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
+      # Enables OpenAI-compatible automatic tool calls for NAT agents.
+      - NIM_PASSTHROUGH_ARGS=--reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_coder
+      - NIM_MODEL_NAME=nvidia/nemotron-3.5-lightning
+      - NIM_SERVED_MODEL_NAME=nvidia/nemotron-3.5-lightning
     volumes:
       - ${LOCAL_NIM_CACHE:-~/.cache/nim}:/opt/nim/.cache
     user: "${UID:-1000}"
-    shm_size: "16gb"
+    ipc: host
+    shm_size: "32gb"
     deploy:
       resources:
         reservations:
@@ -64,7 +69,7 @@ services:
   # NVIDIA NIM - Embedding Model
   # =============================================================================
   embedqa:
-    image: nvcr.io/nim/nvidia/nv-embedqa-e5-v5:1.6
+    image: nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.2
     container_name: embedqa
     ports:
       - "8011:8000"

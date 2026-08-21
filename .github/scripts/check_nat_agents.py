@@ -14,7 +14,13 @@ from typing import Any, cast
 EMPTY_LLM_RESPONSE_PREFIX = (
     "LLM returned an empty response (no content, no tool calls)."
 )
-EMPTY_LLM_RESPONSE_RETRY_DELAY_SECONDS = 2
+NO_AGENT_RESPONSE_PREFIX = "No response received from agent"
+# The recommendation probe makes several genuine, parallel LLM calls immediately
+# before the search probe.  Give a shared hosted endpoint time to clear a short
+# capacity window, then still require a real successful workflow response.
+TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS = (2, 5, 10)
+EMPTY_RECOMMENDATION_RETRY_DELAYS_SECONDS = (5, 10, 20)
+WORKFLOW_COOLDOWN_SECONDS = 15
 
 
 def require(condition: bool, message: str) -> None:
@@ -47,8 +53,8 @@ def require_object_list(
     return objects
 
 
-def is_retryable_empty_llm_response(status: int, detail: str) -> bool:
-    """Return whether NAT reported the known transient empty-LLM failure."""
+def is_retryable_transient_llm_response(status: int, detail: str) -> bool:
+    """Return whether NAT reported a transient public-inference failure."""
     if status != 422:
         return False
 
@@ -65,7 +71,7 @@ def is_retryable_empty_llm_response(status: int, detail: str) -> bool:
         payload.get("code") == "workflow_error"
         and payload.get("details") == "RuntimeError"
         and isinstance(message, str)
-        and message.startswith(EMPTY_LLM_RESPONSE_PREFIX)
+        and message.startswith((EMPTY_LLM_RESPONSE_PREFIX, NO_AGENT_RESPONSE_PREFIX))
     )
 
 
@@ -76,7 +82,7 @@ def call_agent(
     timeout: int,
 ) -> dict[str, Any]:
     """Execute a NAT workflow and unwrap its JSON response value."""
-    for attempt in range(2):
+    for attempt in range(len(TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS) + 1):
         request = urllib.request.Request(
             f"http://{agent}-agent:{port}/generate",
             data=json.dumps({"input_message": json.dumps(input_message)}).encode(),
@@ -90,24 +96,41 @@ def call_agent(
                 raw_response = response.read().decode()
         except urllib.error.HTTPError as error:
             detail = error.read().decode(errors="replace")
-            if attempt == 0 and is_retryable_empty_llm_response(error.code, detail):
+            if attempt < len(
+                TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS
+            ) and is_retryable_transient_llm_response(error.code, detail):
+                retry_delay = TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS[attempt]
                 print(
-                    f"::warning::{agent} received a transient empty LLM response; "
-                    "retrying once in 2 seconds.",
+                    f"::warning::{agent} received a transient LLM response; "
+                    f"retrying in {retry_delay} seconds.",
                     file=sys.stderr,
                 )
-                time.sleep(EMPTY_LLM_RESPONSE_RETRY_DELAY_SECONDS)
+                time.sleep(retry_delay)
                 continue
             raise RuntimeError(
                 f"{agent} returned HTTP {error.code}: {detail[:1000]}"
             ) from error
         except (TimeoutError, urllib.error.URLError) as error:
             reason = getattr(error, "reason", str(error))
+            is_timeout = isinstance(error, TimeoutError) or isinstance(
+                reason, TimeoutError
+            )
+            if is_timeout and attempt < len(
+                TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS
+            ):
+                retry_delay = TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS[attempt]
+                print(
+                    f"::warning::{agent} request timed out; "
+                    f"retrying in {retry_delay} seconds.",
+                    file=sys.stderr,
+                )
+                time.sleep(retry_delay)
+                continue
             raise RuntimeError(f"{agent} request failed: {reason}") from error
 
         break
     else:
-        raise RuntimeError(f"{agent} exhausted its empty-response retry")
+        raise RuntimeError(f"{agent} exhausted its transient-response retry")
 
     require(status == 200, f"{agent} returned HTTP {status}")
 
@@ -210,24 +233,41 @@ def check_post_purchase() -> None:
 
 def check_recommendation() -> None:
     """Verify Milvus-backed complementary product recommendations."""
-    result = call_agent(
-        "recommendation",
-        8004,
-        {
-            "query": "Recommend products that complement a Classic Tee",
-            "cart_items": [
-                {
-                    "product_id": "prod_1",
-                    "name": "Classic Tee",
-                    "category": "tops",
-                    "price": 2500,
-                }
-            ],
-            "session_context": {"browse_history": ["casual wear", "jeans"]},
-        },
-        timeout=120,
-    )
-    recommendations = require_object_list(result, "recommendations", "recommendation")
+    request = {
+        "query": "Recommend products that complement a Classic Tee",
+        "cart_items": [
+            {
+                "product_id": "prod_1",
+                "name": "Classic Tee",
+                "category": "tops",
+                "price": 2500,
+            }
+        ],
+        "session_context": {"browse_history": ["casual wear", "jeans"]},
+    }
+
+    for retry_delay in (*EMPTY_RECOMMENDATION_RETRY_DELAYS_SECONDS, None):
+        result = call_agent("recommendation", 8004, request, timeout=120)
+        raw_recommendations = result.get("recommendations")
+        if isinstance(raw_recommendations, list) and raw_recommendations:
+            recommendations = require_object_list(
+                result, "recommendations", "recommendation"
+            )
+            break
+
+        if retry_delay is None:
+            recommendations = require_object_list(
+                result, "recommendations", "recommendation"
+            )
+            break
+
+        print(
+            "::warning::recommendation returned no products after a live "
+            f"LLM workflow; retrying in {retry_delay} seconds.",
+            file=sys.stderr,
+        )
+        time.sleep(retry_delay)
+
     require(
         all(
             bool(item.get("product_id")) and item.get("product_id") != "prod_1"
@@ -258,8 +298,23 @@ def main() -> int:
     """Run all NAT functional checks sequentially to avoid rate-limit bursts."""
     try:
         check_promotion()
+        print(
+            "::notice::waiting 15 seconds before the next live inference workflow.",
+            file=sys.stderr,
+        )
+        time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_post_purchase()
+        print(
+            "::notice::waiting 15 seconds before the parallel recommendation workflow.",
+            file=sys.stderr,
+        )
+        time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_recommendation()
+        print(
+            "::notice::waiting 15 seconds before the final search workflow.",
+            file=sys.stderr,
+        )
+        time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_search()
     except Exception as error:
         print(f"::error::NAT functional check failed: {error}", file=sys.stderr)

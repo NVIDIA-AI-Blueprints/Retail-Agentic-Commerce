@@ -703,10 +703,10 @@ When using a private NIM endpoint, set these before running evals:
 
 ```bash
 export NIM_LLM_BASE_URL=http://<your-nim-host>:8002/v1
-export NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+export NIM_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning
 export NIM_EMBED_BASE_URL=http://<your-nim-host>:8005/v1
 export NIM_EVAL_LLM_BASE_URL=http://<your-nim-host>:8002/v1
-export NIM_EVAL_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+export NIM_EVAL_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning
 ```
 
 Without these, the configs fall back to the public `https://integrate.api.nvidia.com/v1` endpoint (requires `NVIDIA_API_KEY`).
@@ -799,7 +799,7 @@ llms:
   nim_eval_llm:
     _type: nim
     base_url: ${NIM_EVAL_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: ${NIM_EVAL_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    model_name: ${NIM_EVAL_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
     temperature: 0.0
     max_tokens: 1024
     chat_template_kwargs:

@@ -664,7 +664,6 @@ export function CheckoutPage({
               <button
                 className="flex w-full items-center justify-center gap-2.5 rounded-full bg-primary px-6 py-4 text-base font-semibold text-white shadow-lg transition-all hover:bg-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-primary/20"
                 onClick={handleOpenPayment}
-                disabled={isCalculatingDiscounts}
               >
                 <Lock className="h-4 w-4" strokeWidth={2} />
                 <span className="flex-1 text-center">Complete Purchase</span>

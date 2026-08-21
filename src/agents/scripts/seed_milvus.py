@@ -18,7 +18,7 @@
 Seed Milvus Vector Database with Product Catalog Embeddings
 
 This script creates the product_catalog collection in Milvus and populates it
-with product embeddings generated using NVIDIA's NV-EmbedQA-E5-v5 model.
+with product embeddings generated using NVIDIA's Nemotron 3 Embed 1B model.
 
 Features:
 - Skip-if-exists: Won't re-seed if collection already has data
@@ -42,7 +42,7 @@ Environment Variables:
     NIM_EMBED_BASE_URL  - Embedding API base URL
                           Public (default): https://integrate.api.nvidia.com/v1
                           Local NIM example: http://embedqa:8000/v1
-    NIM_EMBED_MODEL_NAME - Embedding model name (default: nvidia/nv-embedqa-e5-v5)
+    NIM_EMBED_MODEL_NAME - Embedding model name (default: nvidia/nemotron-3-embed-1b)
 
     Legacy (backward compatibility):
     EMBED_API_URL       - Full embedding endpoint URL (overrides NIM_EMBED_BASE_URL)
@@ -80,13 +80,13 @@ FORCE_RESEED = os.environ.get("FORCE_RESEED", "false").lower() == "true"
 # NIM_EMBED_MODEL_NAME: Embedding model name (same for both public and local)
 COLLECTION_NAME = "product_catalog"
 DEFAULT_EMBED_BASE_URL = "https://integrate.api.nvidia.com/v1"
-DEFAULT_EMBED_MODEL = "nvidia/nv-embedqa-e5-v5"
+DEFAULT_EMBED_MODEL = "nvidia/nemotron-3-embed-1b"
 
 # Get embedding endpoint from NIM_EMBED_BASE_URL (consistent with NAT configs)
 # Falls back to legacy EMBED_API_URL for backward compatibility
 NIM_EMBED_BASE_URL = os.environ.get("NIM_EMBED_BASE_URL", DEFAULT_EMBED_BASE_URL)
 EMBEDDING_MODEL = os.environ.get("NIM_EMBED_MODEL_NAME", DEFAULT_EMBED_MODEL)
-EMBEDDING_DIM = 1024  # NV-EmbedQA-E5-v5 dimension
+EMBEDDING_DIM = int(os.getenv("NIM_EMBED_DIM", "2048"))
 
 # Build the full embedding API URL
 # If legacy EMBED_API_URL is set, use it directly for backward compatibility

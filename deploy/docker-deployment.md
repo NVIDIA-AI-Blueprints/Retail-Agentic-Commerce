@@ -18,12 +18,17 @@ By default the stack calls NVIDIA public NIMs hosted on `build.nvidia.com`.
 export NVIDIA_API_KEY=<YOUR_KEY>
 ```
 
-**Optional** — override the model or point to self-hosted NIMs:
+**Optional** — choose a hosted endpoint or point the stack to the local NIM containers:
 
 ```bash
-export NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano-30b-a3b
-export NIM_LLM_BASE_URL=http://HOST:POST/v1
-export NIM_EMBED_BASE_URL=http://HOST:PORT/v1
+# NVIDIA hosted endpoint
+export NIM_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning-30b-a3b
+
+# Local NIM containers from docker-compose-nim.yml
+export NIM_LLM_BASE_URL=http://nemotron-lightning:8000/v1
+export NIM_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning
+export NIM_EMBED_BASE_URL=http://embedqa:8000/v1
+export NIM_EMBED_MODEL_NAME=nvidia/nemotron-3-embed-1b
 ```
 
 ## 2. Create Shared Docker Network (one-time)

@@ -25,8 +25,10 @@ enriches results from the merchant API - no hardcoded product data.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import time
 from typing import Any, cast
 
 import httpx
@@ -40,6 +42,13 @@ SEARCH_AGENT_URL = settings.search_agent_url
 MERCHANT_API_URL = settings.merchant_api_url
 SEARCH_MIN_SIMILARITY = settings.search_min_similarity
 SEARCH_DISTANCE_CUTOFF = settings.search_distance_cutoff
+# The Lightning tool-calling workflow can return valid results after the former
+# 20-second client deadline. Keep this below the widget bridge's 65-second limit.
+SEARCH_AGENT_TIMEOUT_SECONDS = 60.0
+# The public inference endpoint can transiently rate-limit the agent's second
+# LLM turn after a successful tool call. Retry the complete workflow within the
+# same widget deadline so the LLM remains responsible for selecting results.
+SEARCH_AGENT_RETRY_DELAYS_SECONDS = (2.0, 4.0)
 
 DEFAULT_USER = {
     "id": "user_demo123",
@@ -120,6 +129,19 @@ def _parse_search_agent_response(raw_result: Any) -> dict[str, Any]:
     return parsed
 
 
+def _is_retryable_agent_response(response: httpx.Response) -> bool:
+    """Return whether NAT surfaced a transient inference rate limit as 422."""
+    if response.status_code != 422:
+        return False
+
+    response_text = response.text.lower()
+    return (
+        "no response received from agent" in response_text
+        or "too many requests" in response_text
+        or '"status": 429' in response_text
+    )
+
+
 async def _fetch_product_from_merchant(product_id: str) -> dict[str, Any] | None:
     """Fetch a product from the merchant API.
 
@@ -166,19 +188,44 @@ async def call_search_agent(
         )
     }
 
+    deadline = time.monotonic() + SEARCH_AGENT_TIMEOUT_SECONDS
+
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(
-                f"{SEARCH_AGENT_URL}/generate",
-                json=payload,
-            )
-            response.raise_for_status()
-            raw_result = response.json()
-            parsed = _parse_search_agent_response(raw_result)
-            return {
-                "query": parsed.get("query", query),
-                "results": parsed.get("results", []),
-            }
+        async with httpx.AsyncClient() as client:
+            for attempt, retry_delay in enumerate(
+                (*SEARCH_AGENT_RETRY_DELAYS_SECONDS, None)
+            ):
+                remaining_seconds = deadline - time.monotonic()
+                if remaining_seconds <= 0:
+                    raise httpx.TimeoutException("Search agent timeout")
+
+                response = await client.post(
+                    f"{SEARCH_AGENT_URL}/generate",
+                    json=payload,
+                    timeout=remaining_seconds,
+                )
+                if (
+                    retry_delay is not None
+                    and _is_retryable_agent_response(response)
+                    and remaining_seconds > retry_delay
+                ):
+                    logger.warning(
+                        "Search agent received a transient inference failure; retrying "
+                        "workflow (attempt %d/%d)",
+                        attempt + 1,
+                        len(SEARCH_AGENT_RETRY_DELAYS_SECONDS) + 1,
+                    )
+                    await asyncio.sleep(retry_delay)
+                    continue
+
+                response.raise_for_status()
+                raw_result = response.json()
+                parsed = _parse_search_agent_response(raw_result)
+                return {
+                    "query": parsed.get("query", query),
+                    "results": parsed.get("results", []),
+                }
+        return {"results": [], "error": "Search agent retry attempts exhausted"}
     except httpx.TimeoutException:
         return {"results": [], "error": "Search agent timeout"}
     except httpx.HTTPStatusError as e:

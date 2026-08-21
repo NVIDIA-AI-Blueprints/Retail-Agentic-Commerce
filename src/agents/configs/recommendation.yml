@@ -43,30 +43,92 @@ llms:
   nim_llm:
     _type: nim
     base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
-    temperature: 0.1
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
+    # The widget renders a fixed top-three recommendation set. Low-temperature
+    # LLM ranking keeps the output contract stable across identical requests.
+    temperature: 0.0
     max_tokens: 512
     chat_template_kwargs:
       enable_thinking: false
+    # Every stage in this ARAG pipeline hands JSON text to the next and the
+    # output_contract_guard parses it strictly; a single malformed stage
+    # collapses `recommendations` to empty (Apps SDK widget renders 0 products).
+    # json_object forces the NIM to emit valid JSON so the pipeline holds.
+    response_format:
+      type: json_object
   nim_llm_nli:
     _type: nim
     base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
     temperature: 0.0
     max_tokens: 640
     chat_template_kwargs:
       enable_thinking: false
+    response_format:
+      type: json_object
+  # Context synthesis is a strict pipeline boundary: downstream ranking cannot
+  # recover when a syntactically valid JSON response omits the expected fields.
+  # NIM's guided JSON decoding constrains only the response shape; the model
+  # still performs all candidate filtering and synthesis described in the prompt.
+  nim_llm_context:
+    _type: nim
+    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
+    temperature: 0.0
+    max_tokens: 512
+    chat_template_kwargs:
+      enable_thinking: false
+    guided_json:
+      type: object
+      properties:
+        user_query:
+          type: string
+        user_intent:
+          type: string
+        candidates_received:
+          type: integer
+          minimum: 0
+        after_alignment_filter:
+          type: integer
+          minimum: 0
+        filtered_candidates:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+              product_name:
+                type: string
+              category:
+                type: string
+              alignment_score:
+                type: number
+            required:
+              - product_id
+              - product_name
+              - category
+              - alignment_score
+            additionalProperties: false
+      required:
+        - user_query
+        - user_intent
+        - candidates_received
+        - after_alignment_filter
+        - filtered_candidates
+      additionalProperties: false
 
   # -- Evaluation LLMs (judge model, not the main workflow) --------------------
   # Uses a larger model than the agent for unbiased evaluation scoring
   nim_eval_llm:
     _type: nim
-    model_name: meta/llama-3.1-70b-instruct
+    model_name: nvidia/nemotron-3-ultra-550b-a55b
     temperature: 0.0
     max_tokens: 1024
   nim_trajectory_eval_llm:
     _type: nim
-    model_name: meta/llama-3.1-70b-instruct
+    model_name: nvidia/nemotron-3-ultra-550b-a55b
     temperature: 0.0
     max_tokens: 2048
 
@@ -74,7 +136,7 @@ embedders:
   product_embedder:
     _type: nim
     base_url: ${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
-    model_name: ${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+    model_name: ${NIM_EMBED_MODEL_NAME:-nvidia/nemotron-3-embed-1b}
     truncate: "END"
 
 retrievers:
@@ -120,6 +182,7 @@ functions:
 
       RULES:
       - Evaluate only the first 10 candidates by input order.
+      - Return one scored_candidates object for every evaluated candidate; do not omit weak candidates.
       - Keep exact product_id and product_name.
       - Return at most 10 objects in scored_candidates.
       - Preserve original candidate order in scored_candidates.
@@ -180,7 +243,7 @@ functions:
   # -- Step 3: Context Summary Agent (LLM) ------------------------------------
   context_summary_agent_chat:
     _type: chat_completion
-    llm_name: nim_llm
+    llm_name: nim_llm_context
     system_prompt: |
       You are the context synthesis stage in an ARAG recommendation pipeline.
 
@@ -248,6 +311,9 @@ functions:
       - Rank up to 3 items from filtered_candidates.
       - If filtered_candidates has 3 or more items, return exactly 3 recommendations.
       - If fewer than 3 items exist, return all available items.
+      - REQUIRED CARDINALITY: Before responding, count recommendations. When three or
+        more filtered_candidates are available, the recommendations array must contain
+        exactly three distinct non-cart items. Do not omit a valid third candidate.
       - Prioritize: cross-sell fit > alignment_score > diversity.
       - Diversity rule: avoid duplicate categories when there are enough alternatives.
       - Use exact product_id and product_name from filtered_candidates.

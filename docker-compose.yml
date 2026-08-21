@@ -145,10 +145,10 @@ services:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
       # NIM Configuration - defaults to public NVIDIA API endpoints
-      # For local NIM: set NIM_LLM_BASE_URL=http://nemotron-nano:8000/v1
-      #                    NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
+      # For local NIM: set NIM_LLM_BASE_URL=http://nemotron-lightning:8000/v1
+      #                    NIM_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 30s
@@ -172,7 +172,7 @@ services:
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
       # NIM Configuration
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s
@@ -200,9 +200,9 @@ services:
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
       # NIM Configuration (LLM and Embeddings)
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
       - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nemotron-3-embed-1b}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 30s
@@ -230,9 +230,9 @@ services:
       - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
       # NIM Configuration (LLM and Embeddings)
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3.5-lightning-30b-a3b}
       - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nemotron-3-embed-1b}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
       interval: 30s
@@ -263,7 +263,10 @@ services:
       # NIM Embedding Configuration - defaults to public NVIDIA API endpoint
       # For local NIM: set NIM_EMBED_BASE_URL=http://embedqa:8000/v1
       - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+      - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nemotron-3-embed-1b}
+      # Vector dimension for the Milvus collection schema; must match the
+      # embedding model (nemotron-3-embed-1b=2048)
+      - NIM_EMBED_DIM=${NIM_EMBED_DIM:-2048}
       # Set to "true" to force re-seeding even if data exists
       # - FORCE_RESEED=false
     depends_on:

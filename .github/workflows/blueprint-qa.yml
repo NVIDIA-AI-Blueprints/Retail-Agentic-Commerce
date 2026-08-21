@@ -82,6 +82,12 @@ jobs:
           docker compose -f docker-compose.infra.yml -f docker-compose.yml exec -T merchant \
             python - < .github/scripts/check_nat_agents.py
 
+      # The functional probe performs live public-inference calls.  Give the
+      # shared endpoint a brief cooldown before the independent browser suite
+      # starts its own Apps SDK searches and recommendations.
+      - name: Cool down hosted inference before UI tests
+        run: sleep 15
+
       - name: Run UI automation tests
         env:
           TEST_DOCKER_PULL_KEY: ${{ secrets.TEST_DOCKER_PULL_KEY }}
@@ -93,6 +99,7 @@ jobs:
           docker run --rm --net=host -v "$(pwd):/workspace" "${QA_TEST_IMAGE}" \
             pytest -m retail_agentic_commerce \
               --retail-agentic-commerce-url="${UI_URL}" \
+              --reruns=2 --reruns-delay=15 \
               --disable-warnings -v --timeout=240 \
               --html=/workspace/retail-agentic-commerce-ui-test.html --self-contained-html
 

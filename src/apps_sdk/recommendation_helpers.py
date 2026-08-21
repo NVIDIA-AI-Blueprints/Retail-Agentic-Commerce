@@ -17,9 +17,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import copy
 import json
 import logging
 import os
+import time
 from typing import Any, cast
 
 import httpx
@@ -29,6 +32,25 @@ from src.apps_sdk.schemas import CartItemInput
 
 settings = get_apps_sdk_settings()
 RECOMMENDATION_AGENT_URL = settings.recommendation_agent_url
+RECOMMENDATION_AGENT_TIMEOUT_SECONDS = 60.0
+RECOMMENDATION_AGENT_RETRY_DELAYS_SECONDS = (2.0, 4.0)
+# A UI client can stop waiting before a hosted ARAG workflow completes. Retain
+# only completed, full model results briefly so an immediate retry can consume
+# the LLM output that is already available instead of starting from scratch.
+RECOMMENDATION_RESULT_CACHE_TTL_SECONDS = 120.0
+RECOMMENDATION_RESULT_CACHE_MAX_ENTRIES = 32
+
+type RecommendationCacheKey = tuple[
+    str,
+    str,
+    tuple[tuple[str, str, int], ...],
+]
+
+_COMPLETED_RECOMMENDATION_RESULTS: dict[
+    RecommendationCacheKey,
+    tuple[float, dict[str, Any]],
+] = {}
+_BACKGROUND_RECOMMENDATION_TASKS: set[asyncio.Task[dict[str, Any]]] = set()
 
 # Merchant API URL for product lookups
 MERCHANT_API_URL = os.environ.get("MERCHANT_API_URL", "http://localhost:8000")
@@ -260,12 +282,101 @@ def _parse_agent_response(raw_result: Any) -> dict[str, Any]:
     return parsed
 
 
-async def call_recommendation_agent(
+def _is_retryable_agent_response(response: httpx.Response) -> bool:
+    """Return whether NAT surfaced a transient inference rate limit as 422."""
+    if response.status_code != 422:
+        return False
+
+    response_text = response.text.lower()
+    return (
+        "no response received from agent" in response_text
+        or "too many requests" in response_text
+        or '"status": 429' in response_text
+    )
+
+
+def _recommendation_cache_key(
+    product_id: str,
+    product_name: str,
+    cart_items: list[CartItemInput],
+) -> RecommendationCacheKey:
+    """Build a stable key for an identical recommendation request."""
+    cart_key = tuple(
+        sorted((item.product_id, item.name, item.price) for item in cart_items)
+    )
+    return product_id, product_name, cart_key
+
+
+def _get_cached_recommendation_result(
+    request_key: RecommendationCacheKey,
+) -> dict[str, Any] | None:
+    """Return a fresh copy of a non-expired completed model result."""
+    now = time.monotonic()
+    expired_keys = [
+        key
+        for key, (expires_at, _) in _COMPLETED_RECOMMENDATION_RESULTS.items()
+        if expires_at <= now
+    ]
+    for key in expired_keys:
+        _COMPLETED_RECOMMENDATION_RESULTS.pop(key, None)
+
+    cached = _COMPLETED_RECOMMENDATION_RESULTS.get(request_key)
+    if cached is None:
+        return None
+
+    logger.info("Using completed recommendation agent result for retry")
+    return copy.deepcopy(cached[1])
+
+
+def _store_completed_recommendation_result(
+    request_key: RecommendationCacheKey,
+    result: dict[str, Any],
+) -> None:
+    """Cache only a successful, full top-three result produced by the LLM."""
+    recommendations = result.get("recommendations")
+    if result.get("error") or not isinstance(recommendations, list):
+        return
+    if len(cast(list[Any], recommendations)) != 3:
+        return
+
+    if (
+        len(_COMPLETED_RECOMMENDATION_RESULTS)
+        >= RECOMMENDATION_RESULT_CACHE_MAX_ENTRIES
+    ):
+        oldest_key = min(
+            _COMPLETED_RECOMMENDATION_RESULTS,
+            key=lambda key: _COMPLETED_RECOMMENDATION_RESULTS[key][0],
+        )
+        _COMPLETED_RECOMMENDATION_RESULTS.pop(oldest_key, None)
+
+    _COMPLETED_RECOMMENDATION_RESULTS[request_key] = (
+        time.monotonic() + RECOMMENDATION_RESULT_CACHE_TTL_SECONDS,
+        copy.deepcopy(result),
+    )
+
+
+def _capture_background_recommendation_result(
+    request_key: RecommendationCacheKey,
+    task: asyncio.Task[dict[str, Any]],
+) -> None:
+    """Store a completed result after the original UI caller disconnects."""
+    _BACKGROUND_RECOMMENDATION_TASKS.discard(task)
+    if task.cancelled():
+        return
+    try:
+        result = task.result()
+    except Exception:
+        logger.exception("Background recommendation agent request failed")
+        return
+    _store_completed_recommendation_result(request_key, result)
+
+
+async def _call_recommendation_agent_uncached(
     product_id: str,
     product_name: str,
     cart_items: list[CartItemInput],
 ) -> dict[str, Any]:
-    """Call the ARAG recommendation agent at port 8004."""
+    """Call and enrich one independent ARAG recommendation workflow."""
     agent_cart_items = [
         {
             "product_id": product_id,
@@ -297,27 +408,54 @@ async def call_recommendation_agent(
         )
     }
 
+    deadline = time.monotonic() + RECOMMENDATION_AGENT_TIMEOUT_SECONDS
+
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{RECOMMENDATION_AGENT_URL}/generate",
-                json=payload,
-            )
-            response.raise_for_status()
-            raw_result = response.json()
+        async with httpx.AsyncClient() as client:
+            for attempt, retry_delay in enumerate(
+                (*RECOMMENDATION_AGENT_RETRY_DELAYS_SECONDS, None)
+            ):
+                remaining_seconds = deadline - time.monotonic()
+                if remaining_seconds <= 0:
+                    raise httpx.TimeoutException("Recommendation agent timeout")
 
-            parsed_result: dict[str, Any] = _parse_agent_response(raw_result)
+                response = await client.post(
+                    f"{RECOMMENDATION_AGENT_URL}/generate",
+                    json=payload,
+                    timeout=remaining_seconds,
+                )
+                if (
+                    retry_delay is not None
+                    and _is_retryable_agent_response(response)
+                    and remaining_seconds > retry_delay
+                ):
+                    logger.warning(
+                        "Recommendation agent received a transient inference failure; "
+                        "retrying workflow (attempt %d/%d)",
+                        attempt + 1,
+                        len(RECOMMENDATION_AGENT_RETRY_DELAYS_SECONDS) + 1,
+                    )
+                    await asyncio.sleep(retry_delay)
+                    continue
 
-            recommendations: list[dict[str, Any]] = list(
-                parsed_result.get("recommendations", [])
-            )
-            enriched = await enrich_recommendations(recommendations)
+                response.raise_for_status()
+                raw_result = response.json()
+                parsed_result: dict[str, Any] = _parse_agent_response(raw_result)
 
-            return {
-                "recommendations": enriched,
-                "userIntent": parsed_result.get("user_intent"),
-                "pipelineTrace": parsed_result.get("pipeline_trace"),
-            }
+                recommendations: list[dict[str, Any]] = list(
+                    parsed_result.get("recommendations", [])
+                )
+                enriched = await enrich_recommendations(recommendations)
+
+                return {
+                    "recommendations": enriched,
+                    "userIntent": parsed_result.get("user_intent"),
+                    "pipelineTrace": parsed_result.get("pipeline_trace"),
+                }
+        return {
+            "recommendations": [],
+            "error": "Recommendation agent retry attempts exhausted",
+        }
     except httpx.TimeoutException:
         logger.error("Recommendation agent timeout")
         return {"recommendations": [], "error": "Recommendation agent timeout"}
@@ -333,6 +471,39 @@ async def call_recommendation_agent(
     except Exception as e:
         logger.error(f"Recommendation agent error: {e}")
         return {"recommendations": [], "error": str(e)}
+
+
+async def call_recommendation_agent(
+    product_id: str,
+    product_name: str,
+    cart_items: list[CartItemInput],
+) -> dict[str, Any]:
+    """Call ARAG, preserving a completed full result for immediate UI retries."""
+    request_key = _recommendation_cache_key(product_id, product_name, cart_items)
+    cached_result = _get_cached_recommendation_result(request_key)
+    if cached_result is not None:
+        return cached_result
+
+    task = asyncio.create_task(
+        _call_recommendation_agent_uncached(product_id, product_name, cart_items)
+    )
+    _BACKGROUND_RECOMMENDATION_TASKS.add(task)
+    task.add_done_callback(
+        lambda completed_task: _capture_background_recommendation_result(
+            request_key, completed_task
+        )
+    )
+
+    try:
+        result = await asyncio.shield(task)
+    except asyncio.CancelledError:
+        logger.info(
+            "Recommendation caller disconnected; allowing the ARAG workflow to finish"
+        )
+        raise
+
+    _store_completed_recommendation_result(request_key, result)
+    return copy.deepcopy(result)
 
 
 async def enrich_recommendations(

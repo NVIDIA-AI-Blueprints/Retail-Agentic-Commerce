@@ -107,7 +107,7 @@ All agents are orchestrated via NAT's multi-agent pattern in `configs/recommenda
 embedders:
   product_embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
 
 retrievers:
   product_retriever:
@@ -216,13 +216,13 @@ Following the established ACP agent pattern, each agent call is wrapped in deter
 
 ## RAG Configuration with Milvus
 
-**Embedding Model**: NVIDIA NV-EmbedQA-E5-v5 for semantic product search
+**Embedding Model**: NVIDIA Nemotron-3-Embed-1B for semantic product search
 
 ```yaml
 embedders:
   product_embedder:
     _type: nim
-    model_name: nvidia/nv-embedqa-e5-v5
+    model_name: nvidia/nemotron-3-embed-1b
     truncate: "END"
 
 retrievers:
@@ -243,7 +243,7 @@ retrievers:
 -- Product embeddings for semantic search
 product_embeddings:
   - product_id (FK to products)
-  - embedding (vector[768])  -- NV-EmbedQA-E5 dimension
+  - embedding (vector[2048]) -- Nemotron-3-Embed-1B dimension
   - embedding_text           -- Text used for embedding
   - updated_at
 ```
@@ -311,12 +311,12 @@ async def get_recommendations(
 **Phase 1: RAG Foundation**
 - [x] Set up Milvus vector database for product embeddings (docker-compose.yml)
 - [ ] Create product embedding generation pipeline (deferred - requires catalog)
-- [x] Configure `product_retriever` with NV-EmbedQA-E5-v5 in recommendation.yml
+- [x] Configure `product_retriever` with Nemotron-3-Embed-1B in recommendation.yml
 - [x] Test base retrieval function with top-k recall
 
 **Phase 2: Multi-Agent Configuration**
 - [x] Create `configs/recommendation.yml` with all ARAG components:
-  - [x] Define `embedders` section with NV-EmbedQA-E5-v5
+  - [x] Define `embedders` section with Nemotron-3-Embed-1B
   - [x] Define `retrievers` section with Milvus configuration
   - [x] Define `functions` section with:
     - [x] `product_search` (nat_retriever tool)
@@ -324,7 +324,7 @@ async def get_recommendations(
     - [x] `nli_agent` (text adapter around chat_completion with NLI prompt)
     - [x] `context_summary_agent` (text adapter around chat_completion with CSA prompt)
     - [x] `item_ranker_agent` (text adapter around chat_completion with IRA prompt)
-  - [x] Define `llms` section (using nvidia/nemotron-3-nano-30b-a3b)
+  - [x] Define `llms` section (using nvidia/nemotron-3.5-lightning-30b-a3b)
   - [x] Define main `workflow` (`sequential_executor` with built-in `parallel_executor`)
 - [x] Test full pipeline coordination via `nat serve` + curl
 

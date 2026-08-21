@@ -6,7 +6,7 @@
 
 * **[ ] 1.1 Project Scaffolding:** Epic 1 includes explicit steps for **FastAPI/Uvicorn** initialization and creation of the **SQLite** relational DB file(s).
 
-* **[ ] 1.2 Development Environment:** Local setup specifies **Python 3.12+** and the required **NVIDIA NIM** / **NAT** environment variables for the **Nemotron-3-Nano** LLM.
+* **[ ] 1.2 Development Environment:** Local setup specifies **Python 3.12+** and the required **NVIDIA NIM** / **NAT** environment variables for the **Nemotron-3.5-Lightning** LLM.
 
 * **[ ] 1.3 Core Dependencies:** Critical packages like `fastapi`, `uvicorn`, `sqlmodel`, and `nemo-agent-toolkit` are installed in the first story.
 
