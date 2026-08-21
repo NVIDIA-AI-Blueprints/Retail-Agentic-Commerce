@@ -57,8 +57,8 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
     }, 0);
   }, [onProductClick, product]);
 
-  const handleCardMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handleCardPointerDown = useCallback(
+    (e: React.PointerEvent) => {
       if (e.button === 0) {
         handleCardClick();
       }
@@ -78,7 +78,7 @@ function ProductCard({ product, onAddToCart, onProductClick }: ProductCardProps)
 
   return (
     <article
-      onMouseDown={handleCardMouseDown}
+      onPointerDown={handleCardPointerDown}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"

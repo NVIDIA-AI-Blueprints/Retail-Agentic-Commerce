@@ -29,7 +29,7 @@ performed by LLM agents declared in ``configs/recommendation.yml``.
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from nat.builder.builder import Builder
 from nat.builder.framework_enum import LLMFrameworkEnum
@@ -354,7 +354,8 @@ async def output_contract_guard_function(
         """Return normalized output with strict contract enforcement."""
         payload = _to_dict(input_message) or {}
 
-        recommendations = _normalize_recommendations(payload.get("recommendations"))
+        raw_recommendations = payload.get("recommendations")
+        recommendations = _normalize_recommendations(raw_recommendations)
         pipeline_trace = _to_dict(payload.get("pipeline_trace")) or {}
 
         candidates_received = _as_int(
@@ -383,6 +384,18 @@ async def output_contract_guard_function(
             result["message"] = (
                 message or "No suitable cross-sell recommendations for current cart"
             )
+
+        logger.info(
+            "Recommendation output contract: parsed=%s raw=%d valid=%d "
+            "candidates=%d filtered=%d",
+            bool(payload),
+            len(cast(list[Any], raw_recommendations))
+            if isinstance(raw_recommendations, list)
+            else 0,
+            len(recommendations),
+            result["pipeline_trace"]["candidates_received"],
+            result["pipeline_trace"]["after_alignment_filter"],
+        )
 
         return json.dumps(result)
 

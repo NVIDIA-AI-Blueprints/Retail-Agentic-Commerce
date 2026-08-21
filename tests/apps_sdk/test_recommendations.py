@@ -31,6 +31,14 @@ import httpx
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def clear_completed_recommendation_results() -> None:
+    """Keep the short-lived runtime cache isolated across unit tests."""
+    from src.apps_sdk import recommendation_helpers
+
+    recommendation_helpers._COMPLETED_RECOMMENDATION_RESULTS.clear()
+
+
 class TestCallRecommendationAgent:
     """Tests for the call_recommendation_agent function."""
 
@@ -182,6 +190,122 @@ class TestCallRecommendationAgent:
 
         assert "recommendations" in result
         assert len(result["recommendations"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_reuses_only_completed_full_model_results(self) -> None:
+        """An identical retry reuses the completed top-three ARAG output."""
+        from src.apps_sdk import recommendation_helpers
+        from src.apps_sdk.main import call_recommendation_agent
+
+        model_result = {
+            "recommendations": [
+                {
+                    "product_id": f"prod_{index}",
+                    "product_name": f"Product {index}",
+                    "rank": index,
+                    "reasoning": "Model-selected recommendation",
+                }
+                for index in range(1, 4)
+            ],
+            "userIntent": "casual outfit",
+        }
+
+        with patch(
+            "src.apps_sdk.recommendation_helpers._call_recommendation_agent_uncached",
+            new=AsyncMock(return_value=model_result),
+        ) as mock_agent:
+            first = await call_recommendation_agent("prod_1", "Classic Tee", [])
+            first["recommendations"].clear()
+            second = await call_recommendation_agent("prod_1", "Classic Tee", [])
+
+        assert mock_agent.await_count == 1
+        assert len(second["recommendations"]) == 3
+        assert recommendation_helpers._COMPLETED_RECOMMENDATION_RESULTS
+
+    @pytest.mark.asyncio
+    async def test_does_not_cache_incomplete_model_results(self) -> None:
+        """A short model response cannot mask a later complete response."""
+        from src.apps_sdk.main import call_recommendation_agent
+
+        incomplete_result = {
+            "recommendations": [
+                {
+                    "product_id": "prod_2",
+                    "product_name": "V-Neck Tee",
+                    "rank": 1,
+                    "reasoning": "Model-selected recommendation",
+                }
+            ]
+        }
+        complete_result = {
+            "recommendations": [
+                {
+                    "product_id": f"prod_{index}",
+                    "product_name": f"Product {index}",
+                    "rank": index,
+                    "reasoning": "Model-selected recommendation",
+                }
+                for index in range(1, 4)
+            ]
+        }
+
+        with patch(
+            "src.apps_sdk.recommendation_helpers._call_recommendation_agent_uncached",
+            new=AsyncMock(side_effect=[incomplete_result, complete_result]),
+        ) as mock_agent:
+            first = await call_recommendation_agent("prod_1", "Classic Tee", [])
+            second = await call_recommendation_agent("prod_1", "Classic Tee", [])
+
+        assert len(first["recommendations"]) == 1
+        assert len(second["recommendations"]) == 3
+        assert mock_agent.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_completed_result_survives_caller_cancellation(self) -> None:
+        """A browser timeout does not discard the ARAG result needed by its retry."""
+        from src.apps_sdk import recommendation_helpers
+        from src.apps_sdk.main import call_recommendation_agent
+
+        started = asyncio.Event()
+        release = asyncio.Event()
+        model_result = {
+            "recommendations": [
+                {
+                    "product_id": f"prod_{index}",
+                    "product_name": f"Product {index}",
+                    "rank": index,
+                    "reasoning": "Model-selected recommendation",
+                }
+                for index in range(1, 4)
+            ]
+        }
+
+        async def delayed_model_result(*args: object) -> dict[str, object]:
+            _ = args
+            started.set()
+            await release.wait()
+            return model_result
+
+        with patch(
+            "src.apps_sdk.recommendation_helpers._call_recommendation_agent_uncached",
+            new=AsyncMock(side_effect=delayed_model_result),
+        ) as mock_agent:
+            first_request = asyncio.create_task(
+                call_recommendation_agent("prod_1", "Classic Tee", [])
+            )
+            await started.wait()
+            first_request.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await first_request
+
+            release.set()
+            while recommendation_helpers._BACKGROUND_RECOMMENDATION_TASKS:
+                await asyncio.sleep(0)
+
+            second = await call_recommendation_agent("prod_1", "Classic Tee", [])
+
+        assert mock_agent.await_count == 1
+        assert len(second["recommendations"]) == 3
 
     @pytest.mark.asyncio
     async def test_agent_timeout_returns_empty_recommendations(self) -> None:

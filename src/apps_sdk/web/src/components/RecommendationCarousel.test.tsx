@@ -65,7 +65,7 @@ describe("RecommendationCarousel", () => {
     );
 
     const productCard = screen.getByRole("button", { name: "View Classic Tee details" });
-    fireEvent.mouseDown(productCard, { button: 0 });
+    fireEvent.pointerDown(productCard, { button: 0 });
     fireEvent.click(productCard);
 
     expect(onProductClick).toHaveBeenCalledTimes(1);
