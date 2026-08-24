@@ -1,9 +1,16 @@
-# Deploys the Retail Agentic Commerce stack via Docker Compose, waits for it
-# to become healthy, then runs the UI E2E test suite from the shared QA image.
+# Deploys the Nsight Copilot (self-hosted / offline inference) stack via Docker
+# Compose, waits for the inference services and the primary backend to become
+# healthy, exercises the OpenAI-compatible endpoints, then runs the Nsight
+# Copilot test suite from the shared QA image.
+#
+# This blueprint loads its models one at a time on start (single/multi-GPU with
+# memory freed between loads); GPT-OSS alone can take ~15-20 min to initialize,
+# so the readiness waits below are generous and the job timeout is large.
 #
 # Required repository secrets:
-#   NGC_API_KEY            NVIDIA API key used to pull images and populate
-#                          NVIDIA_API_KEY in .env.
+#   NGC_API_KEY            NVIDIA API key used to pull NIM images from nvcr.io
+#                          and download model weights from NGC. Needs access to
+#                          nvcr.io/nim/* and the blueprint model artifacts.
 #   TEST_DOCKER_PULL_KEY   NVIDIA API key with pull access to
 #                          nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image.
 #                          If unset, the test step is skipped.
@@ -23,14 +30,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  retail-agentic-commerce-ui:
-    name: Retail Agentic Commerce UI E2E
+  nsight-copilot-e2e:
+    name: Nsight Copilot E2E
     runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
     timeout-minutes: 480
     env:
       NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
       QA_TEST_IMAGE: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
-      UI_URL: http://localhost
+      COMPOSE_FILE: deploy/compose/compose.yaml
+      # Local cache for model weights / vector DB data (>= 200 GB free needed).
+      OFFLINE_INFERENCE_DIR: ${{ github.workspace }}/nsc-offline
+      # Endpoints published by the compose stack (see docs "Service Ports").
+      GATEWAY_URL: http://localhost:8000   # LiteLLM OpenAI-compatible gateway
+      SERVER_URL: http://localhost:8080    # Nsight Copilot primary backend
+      RERANK_URL: http://localhost:8020    # Rerank NIM
+      RAG_URL: http://localhost:8030       # RAG retrieval backend
     steps:
       - uses: actions/checkout@v4
 
@@ -38,57 +52,122 @@ jobs:
         run: |
           set -euo pipefail
           : "${NGC_API_KEY:?NGC_API_KEY secret missing}"
-          cp env.example .env
-          sed -i "s|^NVIDIA_API_KEY=.*|NVIDIA_API_KEY=${NGC_API_KEY}|" .env
+
+          # This GPU runner already exposes the host driver to containers via Docker's
+          # NVIDIA runtime (the sibling QA workflows deploy on it the same way), so the
+          # GPUs reach the compose services directly. We deploy with plain
+          # `docker compose up` rather than the DGX Spark bare-metal setup script: that
+          # script tries to install a GPU driver *inside* this runner container, which
+          # can't work (no nvidia-smi in the pod, and kernel modules can't be loaded
+          # from a container) and aborts the job.
+          export OFFLINE_INFERENCE_DIR
+          export USER_ID="$(id -u)"
+          mkdir -p "${OFFLINE_INFERENCE_DIR}/nim"
+
+          # GPU placement: this runner has 2 discrete GPUs (>=80 GB each, as
+          # gpt-oss-120b requires), so mirror the setup script's multi-GPU layout:
+          # dedicate GPU 0 to the LLM and put the small models (autocomplete, bge,
+          # rerank) on GPU 1. Discrete GPUs use the 2.0.7 gpt-oss image; 1.6.1 is only
+          # for unified-memory DGX Spark. If a run shows the LLM out of memory, the
+          # GPUs are smaller than assumed - revisit this layout.
+          export GPT_OSS_IMAGE_TAG=2.0.7
+          export GPT_OSS_GPU=0
+          export GPT_OSS_KVCACHE_PERCENT=0.9
+          export AUTOCOMPLETE_GPU=1
+          export AUTOCOMPLETE_GPU_MEM_UTIL=0.3
+          export BGE_GPU=1
+          export BGE_GPU_MEM_UTIL=0.05
+          export RERANK_GPU=1
+
           echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
-          docker network create acp-infra-network 2>/dev/null || true
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d --build
 
-          echo "Waiting for the merchant API and the UI to answer (up to 10 min)..."
-          if ! timeout 600 bash -c 'until curl -fsS "${UI_URL}/api/health" > /dev/null 2>&1 && curl -fsS -o /dev/null "${UI_URL}/"; do sleep 10; done'; then
-            echo "::error::Merchant API or UI root page did not answer within 10 minutes."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml ps --all
-            exit 1
-          fi
+          # Detached start; the next step waits for the services to report healthy.
+          docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
 
-          echo "Waiting for Milvus catalog seeding to finish (up to 10 min)..."
-          if ! SEEDER_EXIT_CODE="$(timeout 600 docker wait milvus-seeder)"; then
-            echo "::error::Milvus catalog seeding did not finish within 10 minutes."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 milvus-seeder
-            exit 1
-          fi
-          if [ "${SEEDER_EXIT_CODE}" != "0" ]; then
-            echo "::error::Milvus catalog seeding failed with exit code ${SEEDER_EXIT_CODE}."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 milvus-seeder
-            exit 1
-          fi
+          # Compose may create the cache bind source as root; normalize ownership
+          # so the NIMs (running as USER_ID) can write their caches.
+          sudo chown -R "$(id -u):$(id -g)" "${OFFLINE_INFERENCE_DIR}" || true
 
-          echo "Waiting for NAT agents to become healthy (up to 10 min)..."
-          if ! timeout 600 bash -c 'until docker compose -f docker-compose.infra.yml -f docker-compose.yml exec -T merchant python -c "import urllib.request as u; [u.urlopen(url, timeout=5).read() for url in (\"http://promotion-agent:8002/health\", \"http://post-purchase-agent:8003/health\", \"http://recommendation-agent:8004/health\", \"http://search-agent:8005/health\")]" > /dev/null 2>&1; do sleep 10; done'; then
-            echo "::error::One or more NAT agents did not become healthy within 10 minutes."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml ps --all
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 \
-              promotion-agent post-purchase-agent recommendation-agent search-agent
-            exit 1
-          fi
-
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml exec -T merchant \
-            python -c "import urllib.request as u; print('promotion', u.urlopen('http://promotion-agent:8002/health', timeout=5).status); print('post-purchase', u.urlopen('http://post-purchase-agent:8003/health', timeout=5).status); print('recommendation', u.urlopen('http://recommendation-agent:8004/health', timeout=5).status); print('search', u.urlopen('http://search-agent:8005/health', timeout=5).status)"
-          echo "Stack and agents are ready."
-
-      - name: Exercise NAT agent workflows
+      - name: Wait for services to become healthy
         run: |
           set -euo pipefail
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml exec -T merchant \
-            python - < .github/scripts/check_nat_agents.py
 
-      # The functional probe performs live public-inference calls.  Give the
-      # shared endpoint a brief cooldown before the independent browser suite
-      # starts its own Apps SDK searches and recommendations.
-      - name: Cool down hosted inference before UI tests
+          echo "Waiting for the LiteLLM gateway to list models (up to 40 min)..."
+          if ! timeout 2400 bash -c 'until curl -fsS "${GATEWAY_URL}/v1/models" > /dev/null 2>&1; do sleep 15; done'; then
+            echo "::error::LiteLLM gateway did not become ready within 40 minutes."
+            docker compose -f "${COMPOSE_FILE}" ps --all
+            exit 1
+          fi
+
+          echo "Waiting for the rerank and RAG services to report ready (up to 10 min)..."
+          if ! timeout 600 bash -c 'until curl -fsS "${RERANK_URL}/v1/health/ready" > /dev/null 2>&1 && curl -fsS "${RAG_URL}/v1/health/ready" > /dev/null 2>&1; do sleep 10; done'; then
+            echo "::error::Rerank or RAG backend did not become ready within 10 minutes."
+            docker compose -f "${COMPOSE_FILE}" ps --all
+            exit 1
+          fi
+
+          echo "Waiting for the Nsight Copilot primary backend on :8080 (up to 10 min)..."
+          if ! timeout 600 bash -c 'until curl -fsS -o /dev/null "${SERVER_URL}/openapi.json"; do sleep 10; done'; then
+            echo "::error::Nsight Copilot backend (:8080) did not answer within 10 minutes."
+            docker compose -f "${COMPOSE_FILE}" ps --all
+            exit 1
+          fi
+
+          echo "Stack is ready. Current service status:"
+          docker compose -f "${COMPOSE_FILE}" ps --all
+
+      - name: Exercise inference endpoints
+        run: |
+          set -euo pipefail
+
+          # Capture each response into a variable and print a truncated preview.
+          # Piping `curl ... | head -c 1000` under `pipefail` fails the step when the
+          # body exceeds 1000 bytes: head closes the pipe early, curl dies with
+          # SIGPIPE (141), and pipefail propagates that. Slicing a variable avoids
+          # the SIGPIPE while still letting `curl -f` abort on an HTTP error.
+          echo "== Chat (GPT-OSS) via primary backend :8080 =="
+          chat_resp="$(curl -fsS "${SERVER_URL}/v1/chat/completions" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "gpt-oss-120b medium reasoning + CUDA knowledge",
+              "messages": [{"role": "user", "content": "Write a CUDA kernel that applies ReLU to a float array."}],
+              "max_tokens": 256
+            }')"
+          echo "${chat_resp:0:1000}"
+
+          echo "== Code completion (CUDA-autocomplete) via primary backend :8080 =="
+          completion_resp="$(curl -fsS "${SERVER_URL}/v1/completions" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "nvidia/CUDA-autocomplete",
+              "prompt": "<|fim_prefix|>__global__ void relu(float* o, const float* i, int n) {\n  int t = blockIdx.x * blockDim.x + threadIdx.x;\n  if (t < n) o[t] = <|fim_suffix|>;\n}\n<|fim_middle|>",
+              "max_tokens": 32,
+              "temperature": 0.01,
+              "stop": ["<|endoftext|>", "<|fim_prefix|>", "<|fim_middle|>", "<|fim_suffix|>"]
+            }')"
+          echo "${completion_resp:0:1000}"
+
+          echo "== Reranking NIM :8020 =="
+          rerank_resp="$(curl -fsS -X POST "${RERANK_URL}/v1/ranking" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "nvidia/llama-nemotron-rerank-1b-v2",
+              "query": {"text": "What is the memory bandwidth of H100 SXM?"},
+              "passages": [
+                {"text": "H100 delivers 3 TB/s of memory bandwidth per GPU with NVLink and NVSwitch scalability."},
+                {"text": "A100 can be partitioned into seven GPU instances to adjust to shifting demands."}
+              ]
+            }')"
+          echo "${rerank_resp:0:1000}"
+
+          echo "Inference endpoints are responding."
+
+      # The endpoint probe above performs live inference. Give the shared
+      # inference stack a brief cooldown before the browser/API test suite runs.
+      - name: Cool down inference before tests
         run: sleep 15
 
-      - name: Run UI automation tests
+      - name: Run Nsight Copilot tests
         env:
           TEST_DOCKER_PULL_KEY: ${{ secrets.TEST_DOCKER_PULL_KEY }}
         run: |
@@ -97,32 +176,34 @@ jobs:
           echo "${TEST_DOCKER_PULL_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
           docker pull "${QA_TEST_IMAGE}"
           docker run --rm --net=host -v "$(pwd):/workspace" "${QA_TEST_IMAGE}" \
-            pytest -m retail_agentic_commerce \
-              --retail-agentic-commerce-url="${UI_URL}" \
+            pytest -m nsight_copilot \
+              --nsc-base-url="${GATEWAY_URL}" \
+              --nsc-rerank-url="${RERANK_URL}" \
+              --nsc-repo=/workspace \
               --reruns=2 --reruns-delay=15 \
               --disable-warnings -v --timeout=240 \
-              --html=/workspace/retail-agentic-commerce-ui-test.html --self-contained-html
+              --html=/workspace/nsight-copilot-test.html --self-contained-html
 
       - name: Capture failure diagnostics
         if: failure()
         run: |
           mkdir -p ci-diagnostics
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml ps --all \
+          docker compose -f "${COMPOSE_FILE}" ps --all \
             > ci-diagnostics/docker-compose-ps.txt 2>&1 || true
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml logs \
+          docker compose -f "${COMPOSE_FILE}" logs \
             --no-color --timestamps --tail 300 \
-            apps-sdk merchant psp ui nginx promotion-agent post-purchase-agent \
-            recommendation-agent search-agent milvus-seeder milvus-standalone \
-            milvus-etcd milvus-minio phoenix \
+            litellm gpt-oss-nim autocomplete-nim rerank-nim vllm-bge \
+            rag-server-offline nsight-copilot-offline \
+            standalone etcd minio \
             > ci-diagnostics/service-logs.txt 2>&1 || true
 
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: retail-agentic-commerce-ui-test
+          name: nsight-copilot-test
           path: |
-            retail-agentic-commerce-ui-test.html
+            nsight-copilot-test.html
             ci-diagnostics/
           if-no-files-found: ignore
           retention-days: 30
@@ -130,9 +211,8 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v --rmi all 2>/dev/null || true
+          docker compose -f "${COMPOSE_FILE}" down -v --rmi all 2>/dev/null || true
           docker rmi "${QA_TEST_IMAGE}" 2>/dev/null || true
-          docker network rm acp-infra-network 2>/dev/null || true
           docker image prune -f
 
       - name: Detect SMTP
