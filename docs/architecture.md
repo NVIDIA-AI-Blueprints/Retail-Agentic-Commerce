@@ -16,7 +16,7 @@
 The **Intelligent Commerce Middleware** is a Python **3.12+**-based reference architecture designed to host autonomous merchant agents. It exposes **two protocol implementations**:
 
 1. **ACP (Agentic Commerce Protocol)** - Five RESTful endpoints compliant with v2026-01-16
-2. **UCP (Universal Commerce Protocol)** - Industry-standard protocol aligned to v2026-01-11 (Discovery + Checkout, REST only in this project)
+2. **UCP (Universal Commerce Protocol)** - Industry-standard protocol aligned to v2026-01-11 (Discovery + Checkout over A2A only in this project)
 
 Both protocols utilize the **NVIDIA NeMo Agent Toolkit** to perform real-time business logic optimization. The system uses an "Async Parallel Orchestration" pattern to ensure fast, responsive agent reasoning while sharing the same intelligent agent layer and backend services.
 
@@ -25,7 +25,7 @@ We will also build a **client agent simulator** that plays the "client" role:
 
 * **Implementation**: Static simulator with pre-defined user flows and 4 pre-populated products
 * **Search Flow**: User enters a prompt (e.g., "find some t-shirts") → Simulator displays 4 product cards
-* **Checkout Flow**: User clicks a product → Simulator initiates `POST /checkout_sessions` to start the ACP checkout
+* **Checkout Flow**: User clicks a product → Simulator initiates checkout through the selected protocol (ACP REST or UCP A2A)
 
 **2. High-Level Project Diagram**
 
@@ -47,7 +47,7 @@ graph TD
     subgraph "Intelligent Middleware (FastAPI)"
         ROUTER[Protocol Router Layer]
         ACP_ROUTER[ACP Endpoints]
-        UCP_ROUTER[UCP Endpoints + Discovery]
+        UCP_ROUTER[UCP Discovery + A2A Endpoint]
         ROUTER --> ACP_ROUTER & UCP_ROUTER
         C[Shared Business Logic Layer]
         D[NAT Promotion Agent]
@@ -90,7 +90,7 @@ graph TD
     REC_CAROUSEL -.->|Fetches 3 items| E
     SHOP_CART -->|callTool checkout| ACP_ROUTER
     A -->|ACP REST| ACP_ROUTER
-    A -->|UCP REST + UCP-Agent header| UCP_ROUTER
+    A -->|UCP A2A + UCP-Agent/X-A2A headers| UCP_ROUTER
     D & E & F <-->|SQL Queries| G & H & I
     A -.->|Simulation View| K1
     ACP_ROUTER -.->|ACP JSON| K2_ACP
@@ -121,8 +121,8 @@ The system implements **both ACP and UCP protocols** to demonstrate how merchant
 │   └───────┬────────┴────────┬───────┘                                   │
 │           │                 │                                            │
 │           ▼                 ▼                                            │
-│   POST /checkout_sessions   POST /checkout-sessions (REST)              │
-│   (underscore, REST)        OR a2a.ucp.checkout.create (A2A)            │
+│   POST /checkout_sessions   POST /a2a (message/send)                    │
+│   (underscore, REST)        with create_checkout / update_checkout       │
 │                                                                          │
 │   ✓ Same Client Agent UI   ✓ Same Client Agent UI                       │
 │   ✓ Same NAT Agents        ✓ Same NAT Agents                            │
@@ -135,11 +135,11 @@ graph TD
     subgraph "Protocol Router Layer"
         DISC[GET /.well-known/ucp]
         ACP[ACP Endpoints]
-        UCP[UCP Endpoints]
+        UCP[UCP A2A Endpoint]
         ACP1[POST /checkout_sessions]
         ACP2[GET /checkout_sessions/:id]
-        UCP1[POST /checkout-sessions]
-        UCP2[GET /checkout-sessions/:id]
+        UCP1[POST /a2a message/send]
+        UCP2[create/get/update/complete/cancel actions]
         
         DISC -.->|UCP Discovery| UCP
         ACP --> ACP1 & ACP2
@@ -178,9 +178,9 @@ graph TD
 |--------|-----|-----|
 | **Discovery** | Static config | `GET /.well-known/ucp` |
 | **Versioning** | Header: `API-Version: 2026-01-16` | Profile + negotiation: `2026-01-11` |
-| **Transport** | REST only | REST + A2A (JSON-RPC 2.0) |
-| **Session Endpoint** | `POST /checkout_sessions` | `POST /checkout-sessions` or `a2a.ucp.checkout.create` |
-| **Update Method** | `POST /checkout_sessions/{id}` | `PUT /checkout-sessions/{id}` or `a2a.ucp.checkout.update` |
+| **Transport** | REST only | A2A (JSON-RPC 2.0) only in this implementation |
+| **Session Endpoint** | `POST /checkout_sessions` | `POST /a2a` with `message/send` + `create_checkout` |
+| **Update Method** | `POST /checkout_sessions/{id}` | `POST /a2a` with `message/send` + `update_checkout` |
 | **Status Names** | `not_ready_for_payment`, `ready_for_payment` | `incomplete`, `requires_escalation`, `ready_for_complete`, `complete_in_progress` |
 | **Response Metadata** | Payment provider info | `ucp` object with capabilities |
 | **Platform Advertisement** | API key (`Authorization` / `X-API-Key`) + `API-Version` | `UCP-Agent: profile="..."` (RFC 8941) |
@@ -235,8 +235,8 @@ Client Agent
 **UCP Flow:**
 ```
 Client Agent
-  ↓ POST /checkout-sessions (Header: UCP-Agent: profile="...")
-UCP Router
+  ↓ POST /a2a (Headers: UCP-Agent: profile="...", X-A2A-Extensions)
+UCP A2A Router
   ↓ fetch platform profile, compute capabilities
   ↓ normalize to internal format
 Shared Checkout Service
@@ -245,9 +245,9 @@ NAT Agents (Promotion, Recommendation)
   ↓ return decisions
 Shared Checkout Service
   ↓ transform to UCP response format
-UCP Router
+UCP A2A Router
   ↓ inject negotiated capabilities relevant to checkout in ucp metadata
-  ↓ Response with ucp.capabilities, status: ready_for_complete
+  ↓ JSON-RPC result with a2a.ucp.checkout data, ucp.capabilities, status: ready_for_complete
 Client Agent
 ```
 
@@ -289,7 +289,7 @@ graph TD
 * **Simulator Flow**:
   1. User enters search query (e.g., "find some t-shirts")
   2. Simulator displays 4 product cards with images and prices
-  3. User clicks a product to start checkout via ACP protocol
+  3. User clicks a product to start checkout through the selected protocol (ACP REST or UCP A2A)
 * **Static Product Catalog**: 4 pre-populated products stored in SQLite.
 * **Delegated Payments (PSP)** - ACP-compliant payment flow (UCP uses payment handlers; this demo may map handlers to the same PSP flow):
   1. **Client/Agent obtains vault token**: `POST /agentic_commerce/delegate_payment`

@@ -54,8 +54,8 @@ Use when working on discovery, capability negotiation, UCP status lifecycle, or 
 
 Validate:
 - Statuses: `incomplete`, `requires_escalation`, `ready_for_complete`, `complete_in_progress`, `completed`, `canceled`
-- Headers: `UCP-Agent`, `API-Version`, `Idempotency-Key`
-- A2A methods: `a2a.ucp.checkout.create|get|update|complete|cancel`
+- Headers: `UCP-Agent`, `X-A2A-Extensions`
+- A2A method/action contract: JSON-RPC `message/send` with `create_checkout|get_checkout|update_checkout|complete_checkout|cancel_checkout`
 - Discovery contract: `/.well-known/ucp`
 
 Note: Merchant Activity ACP/UCP tabs switch backend protocol behavior. Apps SDK mode remains ACP-only.
