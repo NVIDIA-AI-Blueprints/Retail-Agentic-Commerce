@@ -64,12 +64,18 @@ async def serve_widget() -> Response | HTMLResponse:
 @router.get("/widget/{asset:path}", tags=["widget"], response_model=None)
 async def serve_widget_assets(asset: str) -> FileResponse | HTMLResponse:
     """Serve widget assets from dist/ or web/public/."""
-    asset_path = DIST_DIR / asset
-    if asset_path.exists() and asset_path.is_file():
+    dist_dir = DIST_DIR.resolve()
+    asset_path = (dist_dir / asset).resolve()
+    if not asset_path.is_relative_to(dist_dir):
+        return HTMLResponse(content="Forbidden", status_code=403)
+    if asset_path.is_file():
         return FileResponse(asset_path)
 
-    public_asset_path = PUBLIC_DIR / asset
-    if public_asset_path.exists() and public_asset_path.is_file():
+    public_dir = PUBLIC_DIR.resolve()
+    public_asset_path = (public_dir / asset).resolve()
+    if not public_asset_path.is_relative_to(public_dir):
+        return HTMLResponse(content="Forbidden", status_code=403)
+    if public_asset_path.is_file():
         return FileResponse(public_asset_path)
 
     return HTMLResponse(content="Asset not found", status_code=404)

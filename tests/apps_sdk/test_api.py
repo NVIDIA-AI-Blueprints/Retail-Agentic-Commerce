@@ -76,6 +76,16 @@ class TestWidgetEndpoints:
         assert isinstance(response, HTMLResponse)
         assert response.status_code == 404
 
+    @pytest.mark.asyncio
+    async def test_asset_path_traversal_returns_403(self) -> None:
+        """Widget assets cannot escape their configured directories."""
+        from src.apps_sdk.main import serve_widget_assets
+
+        response = await serve_widget_assets("../config.py")
+
+        assert isinstance(response, HTMLResponse)
+        assert response.status_code == 403
+
     def test_dist_dir_path_is_correct(self) -> None:
         """Widget dist directory path is correctly configured."""
         from src.apps_sdk.main import DIST_DIR
