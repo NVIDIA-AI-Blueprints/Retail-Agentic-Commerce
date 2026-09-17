@@ -49,7 +49,7 @@ services:
       - minio_data:/minio_data
     command: minio server /minio_data --console-address ":9001"
     ports:
-      - "9001:9001"  # MinIO Console (for debugging)
+      - "127.0.0.1:9001:9001"  # MinIO Console (for local debugging)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -64,8 +64,8 @@ services:
     container_name: milvus-standalone
     command: ["milvus", "run", "standalone"]
     ports:
-      - "19530:19530"  # Milvus gRPC port
-      - "9091:9091"    # Milvus metrics/health port
+      - "127.0.0.1:19530:19530"  # Milvus gRPC port
+      - "127.0.0.1:9091:9091"    # Milvus metrics/health port
     environment:
       ETCD_ENDPOINTS: milvus-etcd:2379
       MINIO_ADDRESS: milvus-minio:9000
@@ -93,8 +93,8 @@ services:
     image: arizephoenix/phoenix:latest
     container_name: phoenix
     ports:
-      - "6006:6006"   # Phoenix UI and OTLP HTTP collector
-      - "4317:4317"   # OTLP gRPC collector
+      - "127.0.0.1:6006:6006"   # Phoenix UI and OTLP HTTP collector
+      - "127.0.0.1:4317:4317"   # OTLP gRPC collector
     environment:
       - PHOENIX_WORKING_DIR=/mnt/data
     volumes:
