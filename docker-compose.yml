@@ -93,6 +93,7 @@ services:
     expose:
       - "2091"
     environment:
+      - DEBUG=false
       - MERCHANT_API_URL=http://merchant:8000
       - PSP_API_URL=http://psp:8001
       - RECOMMENDATION_AGENT_URL=http://recommendation-agent:8004

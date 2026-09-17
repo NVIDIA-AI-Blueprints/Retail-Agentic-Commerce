@@ -35,7 +35,7 @@ class AppsSdkSettings(BaseSettings):
     # App metadata
     app_name: str = "ACP Merchant Widget"
     app_version: str = "0.1.0"
-    debug: bool = True
+    debug: bool = False
 
     # Server config
     mcp_server_port: int = 2091
