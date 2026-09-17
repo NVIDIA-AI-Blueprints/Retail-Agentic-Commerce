@@ -70,12 +70,6 @@ function verifySignature(
   signature: string | null,
   timestamp: string | null
 ): boolean {
-  // Skip verification in development if no signature provided
-  if (!signature && process.env.NODE_ENV === "development") {
-    console.warn("[Webhook] Skipping signature verification in development");
-    return true;
-  }
-
   if (!signature || !timestamp) {
     return false;
   }
@@ -113,12 +107,10 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get("X-Webhook-Signature");
     const timestamp = request.headers.get("X-Webhook-Timestamp");
 
-    // Verify signature (skip in development for easier testing)
-    if (process.env.NODE_ENV === "production") {
-      if (!verifySignature(rawBody, signature, timestamp)) {
-        console.error("[Webhook] Invalid signature");
-        return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
-      }
+    // Verify signature before processing the webhook payload
+    if (!verifySignature(rawBody, signature, timestamp)) {
+      console.error("[Webhook] Invalid signature");
+      return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
     }
 
     // Parse the webhook payload

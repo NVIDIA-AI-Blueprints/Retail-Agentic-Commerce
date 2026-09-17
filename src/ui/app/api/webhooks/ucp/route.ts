@@ -58,11 +58,6 @@ function verifyRequestSignature(
   requestSignature: string | null,
   requestUrl: string
 ): boolean {
-  if (!requestSignature && process.env.NODE_ENV === "development") {
-    console.warn("[UCP Webhook] Skipping Request-Signature verification in development");
-    return true;
-  }
-
   if (!requestSignature) {
     return false;
   }
@@ -186,11 +181,9 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const requestSignature = request.headers.get("Request-Signature");
 
-    if (process.env.NODE_ENV === "production") {
-      if (!verifyRequestSignature(rawBody, requestSignature, request.url)) {
-        console.error("[UCP Webhook] Invalid Request-Signature");
-        return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
-      }
+    if (!verifyRequestSignature(rawBody, requestSignature, request.url)) {
+      console.error("[UCP Webhook] Invalid Request-Signature");
+      return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
     }
 
     let payload: UCPOrderWebhookPayload;
