@@ -19,6 +19,7 @@ Tests cover:
 - Health check endpoint
 - Widget serving endpoint (via direct route testing)
 - Widget asset serving
+- MCP transport security
 
 Note: The MCP session manager has a limitation where it can only be run once
 per instance, which makes it difficult to test with TestClient. We use
@@ -39,6 +40,22 @@ class TestHealthEndpoint:
 
         result = health_check()
         assert result == {"status": "ok"}
+
+
+class TestMcpTransportSecurity:
+    """Tests for MCP transport security configuration."""
+
+    def test_dns_rebinding_protection(self) -> None:
+        """MCP enables protection with localhost allowlists."""
+        from src.apps_sdk.main import mcp
+
+        settings = mcp.settings.transport_security
+        assert settings is not None
+        assert settings.enable_dns_rebinding_protection is True
+        assert "localhost" in settings.allowed_hosts
+        assert "localhost:*" in settings.allowed_hosts
+        assert "http://localhost" in settings.allowed_origins
+        assert "http://localhost:*" in settings.allowed_origins
 
 
 class TestWidgetEndpoints:
