@@ -135,7 +135,25 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP(
     name="acp-merchant",
     stateless_http=True,
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[
+            "localhost",
+            "localhost:*",
+            "127.0.0.1",
+            "127.0.0.1:*",
+            "[::1]",
+            "[::1]:*",
+        ],
+        allowed_origins=[
+            "http://localhost",
+            "http://localhost:*",
+            "http://127.0.0.1",
+            "http://127.0.0.1:*",
+            "http://[::1]",
+            "http://[::1]:*",
+        ],
+    ),
 )
 
 
