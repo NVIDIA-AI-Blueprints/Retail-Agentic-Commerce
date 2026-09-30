@@ -15,13 +15,15 @@
 
 """ARAG custom components.
 
-Only three components require custom Python code:
+Custom Python components registered with NAT:
 
 1. **rag_retriever** — retrieval adapter that builds query context and normalizes
    retriever documents to ARAG candidate items.
 2. **text_function_adapter** — typed adapter that lets NAT ``chat_completion``
    steps participate in string-based control-flow chains.
 3. **output_contract_guard** — deterministic schema guard for final output.
+4. **alloydb_search** — AlloyDB AI vector search function (registered via the
+   ``alloydb_search`` module imported below).
 
 All recommendation semantics (NLI scoring, context synthesis, ranking) are
 performed by LLM agents declared in ``configs/recommendation.yml``.
@@ -38,6 +40,8 @@ from nat.cli.register_workflow import register_function
 from nat.data_models.component_ref import FunctionRef
 from nat.data_models.function import FunctionBaseConfig
 from pydantic import Field
+
+import alloydb_search  # noqa: F401  -- registers the alloydb_search function
 
 logger = logging.getLogger(__name__)
 

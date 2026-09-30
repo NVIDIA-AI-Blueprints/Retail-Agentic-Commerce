@@ -1,0 +1,167 @@
+# RAG Search Agent (AlloyDB AI)
+# ============================
+# Purpose: Provide top-k product search results from AlloyDB AI embeddings.
+#
+# Usage:
+#   nat serve --config_file configs/search-alloydb.yml --port 8005
+#   nat run --config_file configs/search-alloydb.yml --input '{"query": "lightweight summer tee", "limit": 3}'
+
+general:
+  use_uvloop: true
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: info
+    tracing:
+      phoenix:
+        _type: phoenix
+        project: "search-agent"
+        endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006/v1/traces}
+
+# =============================================================================
+# FUNCTIONS - Product search tool backed by AlloyDB AI (pgvector + ScaNN)
+# =============================================================================
+# Connection mode is controlled via env vars; defaults work for local password
+# auth against AlloyDB public IP. For Cloud Run, set ALLOYDB_USE_IAM_AUTH=true
+# and ALLOYDB_INSTANCE_URI to the full
+# projects/.../locations/.../clusters/.../instances/... resource path.
+functions:
+  product_search:
+    _type: alloydb_search
+    host: ${ALLOYDB_HOST:-localhost}
+    port: ${ALLOYDB_PORT:-5432}
+    database: ${ALLOYDB_DATABASE:-catalog_vectors}
+    user: ${ALLOYDB_USER:-postgres}
+    password: ${ALLOYDB_PASSWORD:-}
+    sslmode: ${ALLOYDB_SSLMODE:-require}
+    table: products
+    embedding_column: embedding
+    top_k: 10
+    embedding_base_url: ${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    embedding_model_name: ${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+    use_iam_auth: ${ALLOYDB_USE_IAM_AUTH:-false}
+    alloydb_instance_uri: ${ALLOYDB_INSTANCE_URI:-}
+    topic: Search product catalog for items matching the user query
+
+# =============================================================================
+# LLM PROVIDERS
+# Model and endpoint can be configured via environment variables:
+# - NIM_LLM_BASE_URL: Public endpoint (default) or local NIM URL
+# - NIM_LLM_MODEL_NAME: Public model name (default) or local NIM model name
+# =============================================================================
+llms:
+  search_llm:
+    _type: nim
+    base_url: ${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+    model_name: ${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+    temperature: 0.2
+    max_tokens: 512
+    chat_template_kwargs:
+      enable_thinking: false
+
+# =============================================================================
+# EVALUATION LLMs - Judge model for eval evaluators, not the main workflow
+# Uses a larger model than the agent for unbiased evaluation scoring
+# =============================================================================
+  nim_eval_llm:
+    _type: nim
+    model_name: meta/llama-3.1-70b-instruct
+    temperature: 0.0
+    max_tokens: 1024
+  nim_trajectory_eval_llm:
+    _type: nim
+    model_name: meta/llama-3.1-70b-instruct
+    temperature: 0.0
+    max_tokens: 2048
+
+# =============================================================================
+# MAIN WORKFLOW - Tool-calling agent
+# =============================================================================
+workflow:
+  _type: tool_calling_agent
+  name: rag_search_agent
+  workflow_alias: search_agent
+  llm_name: search_llm
+  tool_names:
+    - product_search
+  verbose: true
+  max_iterations: 2
+  system_prompt: |-
+    You are a product search assistant. You must retrieve products using the product_search tool
+    and return the best results for the user's query. If the search results do not match the query,
+    return an empty results list instead of unrelated items.
+
+    INPUT FORMAT:
+    The input is a JSON object with:
+    - query: string (the search query)
+    - category: string | null (optional category hint)
+    - limit: number (maximum results to return)
+
+    MANDATORY FIRST STEP:
+    You MUST call product_search with a query derived directly from the user's query.
+    If a category is provided, include it in the search query.
+    Do not respond before calling the tool.
+
+    OUTPUT FORMAT (return ONLY this JSON):
+    {
+      "query": "<original query>",
+      "results": [
+        {
+          "product_id": "<exact product_id from search>",
+          "product_name": "<exact product_name from search>",
+          "snippet": "Short relevance note in one sentence",
+          "distance": 0.123
+        }
+      ]
+    }
+
+    RULES:
+    - Use exact product_id and product_name from search results.
+    - Preserve distance/score/similarity from the tool output when available.
+    - Return at most the requested limit.
+    - Do not include products not present in the search results.
+    - Return valid JSON only (no extra text).
+
+# =============================================================================
+# EVALUATION & PROFILING
+# Run with: nat eval --config_file configs/search-alloydb.yml
+# =============================================================================
+eval:
+  general:
+    output_dir: ./.tmp/eval/search_agent_alloydb
+    verbose: true
+    max_concurrency: 2
+    dataset:
+      _type: json
+      file_path: data/eval/search_eval.json
+      id_key: "id"
+      structure:
+        question_key: question
+        answer_key: answer
+    profiler:
+      token_uniqueness_forecast: true
+      workflow_runtime_forecast: true
+      compute_llm_metrics: true
+      csv_exclude_io_text: true
+      prompt_caching_prefixes:
+        enable: true
+        min_frequency: 0.1
+      bottleneck_analysis:
+        enable_nested_stack: true
+      concurrency_spike_analysis:
+        enable: true
+        spike_threshold: 5
+
+  evaluators:
+    accuracy:
+      _type: ragas
+      metric: AnswerAccuracy
+      llm_name: nim_eval_llm
+    relevance:
+      _type: ragas
+      metric: ContextRelevance
+      llm_name: nim_eval_llm
+    trajectory:
+      _type: trajectory
+      llm_name: nim_trajectory_eval_llm
