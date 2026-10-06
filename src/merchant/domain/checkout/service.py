@@ -47,6 +47,11 @@ from src.merchant.domain.checkout.models import (
     UpdateCheckoutRequest,
 )
 
+# Importing the PSP models also registers their tables on the shared SQLModel
+# metadata, so the merchant engine (same database, see payment/config.py) can
+# read the settled payment state written by the PSP service.
+from src.payment.db.models import PaymentIntent, PaymentIntentStatus, VaultToken
+
 logger = logging.getLogger(__name__)
 
 
@@ -92,6 +97,19 @@ class InvalidStateTransitionError(CheckoutServiceError):
             message=f"Cannot {action} session with status '{current_status}'",
             code="invalid_status_transition",
         )
+
+
+class PaymentVerificationError(CheckoutServiceError):
+    """Raised when a checkout cannot be completed because payment is unverified.
+
+    The order (the paid resource) must only be released once a settled payment
+    is bound to the session and covers the server-computed total. This is raised
+    when that invariant does not hold, so the caller never receives an order
+    without a confirmed transfer (issue #112).
+    """
+
+    def __init__(self, message: str):
+        super().__init__(message=message, code="invalid_payment")
 
 
 # =============================================================================
@@ -511,10 +529,69 @@ async def update_checkout_session_from_data(
     return await update_checkout_session(db, session_id, request)
 
 
+def _session_total_amount(session: CheckoutSession) -> int:
+    """Return the server-computed grand total for a session (minor units).
+
+    Reads the persisted totals, never a caller-supplied amount.
+    """
+    totals: list[dict[str, Any]] = json.loads(session.totals_json)
+    return next((t["amount"] for t in totals if t["type"] == "total"), 0)
+
+
+def verify_payment_for_session(
+    db: Session, session: CheckoutSession, payment_token: str
+) -> None:
+    """Verify a settled payment is bound to the session before releasing it.
+
+    Enforces the issue #112 invariant: an order may only be created when a
+    completed payment intent exists that is (a) reached via the presented vault
+    token, (b) bound to THIS session via the vault token's allowance, (c) covers
+    the server-computed session total, and (d) matches the session currency.
+
+    Args:
+        db: Database session (shared DB also holds the PSP tables).
+        session: The checkout session being completed.
+        payment_token: The vault token presented in ``payment_data.token``.
+
+    Raises:
+        PaymentVerificationError: If no settled, bound, sufficient payment exists.
+    """
+    vault_token = db.exec(
+        select(VaultToken).where(VaultToken.id == payment_token)
+    ).first()
+    if vault_token is None:
+        raise PaymentVerificationError("No payment is associated with this token.")
+
+    # The vault token's allowance must be bound to THIS checkout session.
+    allowance: dict[str, Any] = json.loads(vault_token.allowance_json)
+    if allowance.get("checkout_session_id") != session.id:
+        raise PaymentVerificationError(
+            "Payment token is not bound to this checkout session."
+        )
+
+    # A completed payment intent must exist for this vault token.
+    payment_intent = db.exec(
+        select(PaymentIntent)
+        .where(PaymentIntent.vault_token_id == vault_token.id)
+        .where(PaymentIntent.status == PaymentIntentStatus.COMPLETED)
+    ).first()
+    if payment_intent is None:
+        raise PaymentVerificationError("Payment has not been completed.")
+
+    # The settled amount must cover the server-computed total, same currency.
+    session_total = _session_total_amount(session)
+    if payment_intent.amount < session_total:
+        raise PaymentVerificationError("Payment amount does not cover the order total.")
+    if payment_intent.currency.lower() != session.currency.lower():
+        raise PaymentVerificationError(
+            "Payment currency does not match the order currency."
+        )
+
+
 def complete_checkout_session(
     db: Session,
     session_id: str,
-    payment_data: PaymentDataInput,  # noqa: ARG001  # Reserved for payment validation
+    payment_data: PaymentDataInput,
     buyer: BuyerInput | None = None,
 ) -> CheckoutSessionResponse:
     """Complete a checkout session with payment.
@@ -559,6 +636,10 @@ def complete_checkout_session(
     if not check_ready_for_payment(session):
         logger.warning(f"Session {session_id} not ready for payment")
         raise InvalidStateTransitionError(session.status.value, "complete")
+
+    # Verify a settled payment is bound to this session and covers the total
+    # before releasing the order (issue #112).
+    verify_payment_for_session(db, session, payment_data.token)
 
     # Create order
     order_id = generate_order_id()
