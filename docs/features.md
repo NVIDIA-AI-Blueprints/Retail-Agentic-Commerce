@@ -15,7 +15,7 @@ Both protocols share the same intelligent agent layer (NAT-powered Promotion, Re
 
 **Protocol Toggle:** The Merchant Activity Panel provides a tab switcher (ACP | UCP). The client agent flow remains unchanged - only the backend protocol changes based on the toggle.
 
-**UCP scope in this project:** Discovery + Checkout (REST + A2A). The A2A transport uses JSON-RPC 2.0 for agent-to-agent communication. Cart/Order/Identity Linking and MCP/Embedded transports are out of scope for Feature 17.
+**UCP scope in this project:** Discovery + Checkout over A2A only. The A2A transport uses JSON-RPC 2.0 for agent-to-agent communication through `POST /a2a`. Cart/Order/Identity Linking and REST/MCP/Embedded transports are out of scope for Feature 17.
 
 ## Quick Links
 
@@ -37,6 +37,6 @@ Both protocols share the same intelligent agent layer (NAT-powered Promotion, Re
 | 14 | [Enhanced Checkout (Payment & Shipping)](./features/feature-14-enhanced-checkout.md) | ✅ Complete |
 | 15 | [Multi-Language Post-Purchase Messages](./features/feature-15-multi-language.md) | ✅ Complete |
 | 16 | [Apps SDK Integration (Merchant Iframe)](./features/feature-16-apps-sdk.md) | 🔲 Planned |
-| 17 | [UCP Protocol Integration](./features/feature-17-ucp-integration.md) | 🔲 Planned |
+| 17 | [UCP Protocol Integration](./features/feature-17-ucp-integration.md) | 🟡 In Progress |
 
 For the full overview including implementation phases and non-functional requirements, see the [Feature Overview](./features/index.md).
