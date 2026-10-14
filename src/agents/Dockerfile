@@ -30,7 +30,8 @@ RUN pip install uv
 WORKDIR /app
 
 # Copy agent-specific pyproject.toml, README, and custom component registration
-COPY src/agents/pyproject.toml src/agents/README.md src/agents/register.py ./
+COPY src/agents/pyproject.toml src/agents/README.md \
+     src/agents/register.py src/agents/alloydb_search.py ./
 
 # Install dependencies with prerelease support for nvidia-nat
 RUN uv pip install -e ".[dev]" --system
@@ -38,15 +39,20 @@ RUN uv pip install -e ".[dev]" --system
 # Copy agent configurations
 COPY src/agents/configs ./configs
 
-# Copy scripts (for seeding Milvus, etc.)
+# Copy scripts (for seeding Milvus / AlloyDB, etc.)
 COPY src/agents/scripts ./scripts
 
-# Copy shared data (product catalog for Milvus seeder)
+# Copy shared data (product catalog for the seeders)
 COPY src/data ./src/data
 
-# No default CMD - set via docker-compose command for each agent
+# No default CMD - set via docker-compose command (local) or
+# `gcloud run deploy --command/--args` (Cloud Run).
+# For Cloud Run the agent must bind to $PORT (defaults to 8080).
 # Examples:
 # - nat serve --config_file configs/promotion.yml --port 8002
 # - nat serve --config_file configs/post-purchase.yml --port 8003
+# - nat serve --config_file configs/search.yml --host 0.0.0.0 --port 8005
+# - nat serve --config_file configs/search-alloydb.yml --host 0.0.0.0 --port 8005
 # - nat serve --config_file configs/recommendation.yml --port 8004
-# - python scripts/seed_milvus.py (for Milvus seeder)
+# - python scripts/seed_milvus.py (one-shot Milvus seeder)
+# - python scripts/seed_alloydb.py (one-shot AlloyDB seeder)

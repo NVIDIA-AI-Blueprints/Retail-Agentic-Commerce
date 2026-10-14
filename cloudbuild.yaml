@@ -1,0 +1,31 @@
+# Cloud Build config for the agents image (used for the search agent
+# validation; reusable for promotion/post-purchase/recommendation by changing
+# the deployed config_file at run time).
+#
+# Usage:
+#   gcloud builds submit \
+#       --config cloudbuild.yaml \
+#       --substitutions=_IMAGE=us-central1-docker.pkg.dev/$PROJECT_ID/retail-validation/search-agent:v1 \
+#       .
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - src/agents/Dockerfile
+      - -t
+      - ${_IMAGE}
+      - .
+
+images:
+  - ${_IMAGE}
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s
+
+substitutions:
+  _IMAGE: ''
