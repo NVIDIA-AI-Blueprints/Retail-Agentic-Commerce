@@ -158,12 +158,27 @@ Called by merchant backend to process payment using the vault token.
 
 **Processing Logic**:
 1. Validate vault token is `active` and not expired
-2. Validate amount ≤ `max_amount` and currency matches
-3. Check if 3DS authentication is required (based on risk, card issuer)
-4. If 3DS required: return `requires_authentication` with metadata
-5. If no 3DS: create Stripe PaymentIntent, capture payment
-6. Mark vault token as `consumed`
-7. Return completed payment intent
+2. If `checkout_session_id` is sent, validate it matches `allowance.checkout_session_id` (`422 checkout_session_mismatch` otherwise)
+3. Validate amount ≤ `max_amount` and currency matches
+4. Check if 3DS authentication is required (based on risk, card issuer)
+5. If 3DS required: return `requires_authentication` with metadata
+6. If no 3DS: create Stripe PaymentIntent, capture payment
+7. Mark vault token as `consumed`
+8. Return completed payment intent
+
+**Merchant integration** (`POST /checkout_sessions/{id}/complete`):
+
+The merchant calls this endpoint before creating an order, using the vault token from
+`payment_data.token`, the server-computed session total, the session currency, and the
+session ID. Clients never supply the charged amount. The order is created only when the
+PSP returns a `completed` payment intent:
+
+- PSP rejection (unknown, consumed or expired token, amount over allowance, currency or
+  session mismatch) → merchant returns `402` with code `payment_declined`; no order.
+- PSP unreachable or misconfigured → merchant returns `503` with code
+  `payment_processor_unavailable`; no order.
+
+The merchant reads `PSP_API_URL`, `PSP_API_KEY` and `PSP_TIMEOUT` (seconds, default 10).
 
 ## PaymentMethodCard Schema
 

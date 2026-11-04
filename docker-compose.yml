@@ -51,6 +51,9 @@ services:
       - DATABASE_URL=sqlite:////data/agentic_commerce.db
       # Authentication key for clients calling merchant API
       - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
+      # PSP used to charge the delegated vault token on checkout completion
+      - PSP_API_URL=http://psp:8001
+      - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}
       # Agent URLs for promotion and post-purchase flows
       - PROMOTION_AGENT_URL=http://promotion-agent:8002
       - POST_PURCHASE_AGENT_URL=http://post-purchase-agent:8003

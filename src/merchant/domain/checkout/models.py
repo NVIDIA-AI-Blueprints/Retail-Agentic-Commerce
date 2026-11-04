@@ -545,6 +545,7 @@ class ErrorTypeEnum(StrEnum):
     INTERNAL_ERROR = "internal_error"
     UNAUTHORIZED = "unauthorized"
     FORBIDDEN = "forbidden"
+    SERVICE_UNAVAILABLE = "service_unavailable"
 
 
 class ErrorResponseCodeEnum(StrEnum):
@@ -555,6 +556,8 @@ class ErrorResponseCodeEnum(StrEnum):
     SESSION_NOT_FOUND = "session_not_found"
     PRODUCT_NOT_FOUND = "product_not_found"
     INVALID_PAYMENT = "invalid_payment"
+    PAYMENT_DECLINED = "payment_declined"
+    PAYMENT_PROCESSOR_UNAVAILABLE = "payment_processor_unavailable"
     VALIDATION_ERROR = "validation_error"
     MISSING_API_KEY = "missing_api_key"
     INVALID_API_KEY = "invalid_api_key"

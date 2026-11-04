@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +33,10 @@ from src.merchant.protocols.ucp.services.a2a_transport import (
 from src.merchant.protocols.ucp.services.agent_executor import clear_idempotency_cache
 from src.merchant.protocols.ucp.services.negotiation import clear_profile_cache
 from src.merchant.services.idempotency import reset_idempotency_store
+from src.merchant.services.payment import (
+    PaymentDeclinedError,
+    PaymentProcessorUnavailableError,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -663,6 +667,83 @@ class TestApplicationErrors:
             body["error"]["message"]
             == "Unsupported payment handler_id: unknown_handler"
         )
+
+    @staticmethod
+    def _create_ready_and_complete(
+        auth_client: TestClient, a2a_headers: dict[str, str], token: str
+    ) -> dict[str, Any]:
+        create_req = _make_request(
+            "create_checkout",
+            {
+                "line_items": [{"item": {"id": "prod_1"}, "quantity": 1}],
+                "buyer": {"first_name": "Jane", "email": "jane@example.com"},
+                "fulfillment_address": {
+                    "name": "Jane Doe",
+                    "line_one": "1 Market St",
+                    "city": "San Francisco",
+                    "state": "CA",
+                    "country": "US",
+                    "postal_code": "94105",
+                },
+            },
+        )
+        create_resp = auth_client.post("/a2a", json=create_req, headers=a2a_headers)
+        ctx = create_resp.json()["result"]["contextId"]
+        complete_req = _make_request(
+            "complete_checkout",
+            context_id=ctx,
+            extra_parts=[
+                {
+                    "kind": "data",
+                    "data": {
+                        "a2a.ucp.checkout.payment": {
+                            "instruments": [
+                                {
+                                    "type": "tokenized_card",
+                                    "handler_id": "processor_tokenizer",
+                                    "credential": {"token": token},
+                                }
+                            ]
+                        }
+                    },
+                }
+            ],
+        )
+        return auth_client.post("/a2a", json=complete_req, headers=a2a_headers).json()
+
+    @pytest.mark.usefixtures("mock_platform_profile")
+    def test_complete_checkout_with_declined_payment_returns_invalid_params(
+        self,
+        auth_client: TestClient,
+        a2a_headers: dict[str, str],
+        mock_psp_payment: MagicMock,
+    ) -> None:
+        mock_psp_payment.side_effect = PaymentDeclinedError(
+            "Vault token 'vt_fake' not found", psp_code="vault_token_not_found"
+        )
+
+        body = self._create_ready_and_complete(auth_client, a2a_headers, "vt_fake")
+
+        assert body["error"]["code"] == -32602
+        assert body["error"]["message"] == (
+            "Payment declined: Vault token 'vt_fake' not found"
+        )
+        assert mock_psp_payment.call_args.kwargs["vault_token"] == "vt_fake"
+
+    @pytest.mark.usefixtures("mock_platform_profile")
+    def test_complete_checkout_with_psp_unavailable_returns_internal_error(
+        self,
+        auth_client: TestClient,
+        a2a_headers: dict[str, str],
+        mock_psp_payment: MagicMock,
+    ) -> None:
+        mock_psp_payment.side_effect = PaymentProcessorUnavailableError(
+            "Payment processor is unavailable."
+        )
+
+        body = self._create_ready_and_complete(auth_client, a2a_headers, "vt_any")
+
+        assert body["error"]["code"] == -32603
 
 
 # ===========================================================================
