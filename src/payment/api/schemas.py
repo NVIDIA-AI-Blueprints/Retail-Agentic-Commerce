@@ -172,6 +172,13 @@ class CreatePaymentIntentRequest(BaseModel):
     currency: Annotated[
         str, Field(min_length=3, max_length=3, description="ISO 4217 currency code")
     ]
+    checkout_session_id: str | None = Field(
+        default=None,
+        description=(
+            "Checkout session being paid. When provided, it must match the "
+            "session bound to the vault token's allowance."
+        ),
+    )
 
 
 # =============================================================================

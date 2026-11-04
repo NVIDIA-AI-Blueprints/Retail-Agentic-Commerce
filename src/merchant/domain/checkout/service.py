@@ -46,6 +46,11 @@ from src.merchant.domain.checkout.models import (
     PaymentDataInput,
     UpdateCheckoutRequest,
 )
+from src.merchant.services.payment import (
+    PaymentDeclinedError,
+    PaymentProcessorUnavailableError,
+    get_psp_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +97,20 @@ class InvalidStateTransitionError(CheckoutServiceError):
             message=f"Cannot {action} session with status '{current_status}'",
             code="invalid_status_transition",
         )
+
+
+class PaymentFailedError(CheckoutServiceError):
+    """Raised when the PSP declines the payment for a checkout session."""
+
+    def __init__(self, message: str):
+        super().__init__(message=message, code="payment_declined")
+
+
+class PaymentUnavailableError(CheckoutServiceError):
+    """Raised when payment cannot be processed because the PSP is unavailable."""
+
+    def __init__(self, message: str):
+        super().__init__(message=message, code="payment_processor_unavailable")
 
 
 # =============================================================================
@@ -514,10 +533,15 @@ async def update_checkout_session_from_data(
 def complete_checkout_session(
     db: Session,
     session_id: str,
-    payment_data: PaymentDataInput,  # noqa: ARG001  # Reserved for payment validation
+    payment_data: PaymentDataInput,
     buyer: BuyerInput | None = None,
 ) -> CheckoutSessionResponse:
     """Complete a checkout session with payment.
+
+    The order is only created after the merchant has charged the presented
+    vault token through the PSP for the server-computed session total. The PSP
+    enforces that the token is active, unexpired, bound to this checkout
+    session, and that the amount and currency fit its allowance.
 
     Args:
         db: Database session.
@@ -531,6 +555,8 @@ def complete_checkout_session(
     Raises:
         SessionNotFoundError: If session is not found.
         InvalidStateTransitionError: If session cannot be completed.
+        PaymentFailedError: If the PSP declines the payment.
+        PaymentUnavailableError: If the PSP cannot process the payment.
     """
     logger.info(f"Completing checkout session {session_id}")
 
@@ -560,6 +586,23 @@ def complete_checkout_session(
         logger.warning(f"Session {session_id} not ready for payment")
         raise InvalidStateTransitionError(session.status.value, "complete")
 
+    # Charge the vault token for the server-computed total before releasing
+    # the order. Never trust a client-supplied amount.
+    totals_data = json.loads(session.totals_json)
+    total_amount = next((t["amount"] for t in totals_data if t["type"] == "total"), 0)
+    try:
+        payment = get_psp_client().create_and_process_payment_intent(
+            vault_token=payment_data.token,
+            amount=total_amount,
+            currency=session.currency.lower(),
+            checkout_session_id=session_id,
+        )
+    except PaymentDeclinedError as e:
+        logger.warning(f"Payment declined for session {session_id}: {e.message}")
+        raise PaymentFailedError(e.message) from e
+    except PaymentProcessorUnavailableError as e:
+        raise PaymentUnavailableError(e.message) from e
+
     # Create order
     order_id = generate_order_id()
     order_data = {
@@ -588,12 +631,10 @@ def complete_checkout_session(
     db.commit()
     db.refresh(session)
 
-    # Get total from stored JSON for logging
-    totals_data = json.loads(session.totals_json)
-    total_amount = next((t["amount"] for t in totals_data if t["type"] == "total"), 0)
     logger.info(
         f"Order {order_id} completed | "
         f"session={session_id} | "
+        f"payment_intent={payment.payment_intent_id} | "
         f"total=${total_amount / 100:.2f}"
     )
 
