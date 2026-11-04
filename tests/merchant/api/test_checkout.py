@@ -15,8 +15,77 @@
 
 """Tests for the checkout session API endpoints."""
 
+import json
+import uuid
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
+
+from src.merchant.db import get_engine
+from src.payment.db.models import PaymentIntent, PaymentIntentStatus, VaultToken
+
+
+def _settle_payment(
+    *,
+    checkout_session_id: str,
+    amount: int,
+    currency: str = "usd",
+    status: PaymentIntentStatus = PaymentIntentStatus.COMPLETED,
+) -> str:
+    """Insert a vault token + payment intent into the shared DB.
+
+    Mirrors what the PSP service writes after a successful
+    ``create_and_process_payment_intent`` call. Returns the vault token ID,
+    which is what a client presents as ``payment_data.token``.
+
+    Args:
+        checkout_session_id: Session the vault token's allowance is bound to.
+        amount: Payment intent amount in minor units (cents).
+        currency: ISO 4217 currency code.
+        status: Payment intent status (default COMPLETED).
+
+    Returns:
+        The vault token ID (``vt_...``).
+    """
+    token_id = f"vt_{uuid.uuid4().hex[:12]}"
+    allowance = {
+        "reason": "one_time",
+        "max_amount": amount,
+        "currency": currency,
+        "checkout_session_id": checkout_session_id,
+        "merchant_id": "merchant_001",
+        "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+    }
+    vault_token = VaultToken(
+        id=token_id,
+        idempotency_key=uuid.uuid4().hex,
+        payment_method_json="{}",
+        allowance_json=json.dumps(allowance),
+    )
+    completed_at = (
+        datetime.now(UTC) if status == PaymentIntentStatus.COMPLETED else None
+    )
+    intent = PaymentIntent(
+        id=f"pi_{uuid.uuid4().hex[:12]}",
+        vault_token_id=token_id,
+        amount=amount,
+        currency=currency.lower(),
+        status=status,
+        completed_at=completed_at,
+    )
+    with Session(get_engine()) as db:
+        db.add(vault_token)
+        db.add(intent)
+        db.commit()
+    return token_id
+
+
+def _session_total(auth_client: TestClient, session_id: str) -> int:
+    """Read the server-computed total (minor units) for a session."""
+    data = auth_client.get(f"/checkout_sessions/{session_id}").json()
+    return next(t["amount"] for t in data["totals"] if t["type"] == "total")
 
 
 class TestCreateCheckoutSession:
@@ -558,12 +627,14 @@ class TestUpdateCheckoutSession:
             json={"fulfillment_option_id": fulfillment_option_id},
         )
 
-        # Complete the session
+        # Complete the session (settle a payment that covers the total first)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
         auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
             json={
                 "payment_data": {
-                    "token": "tok_test",
+                    "token": token,
                     "provider": "stripe",
                 }
             },
@@ -612,10 +683,12 @@ class TestCompleteCheckoutSession:
     def test_complete_ready_session_returns_200(self, auth_client: TestClient) -> None:
         """Happy path: Completing a ready session returns 200."""
         session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
 
         response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
-            json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
+            json={"payment_data": {"token": token, "provider": "stripe"}},
         )
 
         assert response.status_code == 200
@@ -625,10 +698,12 @@ class TestCompleteCheckoutSession:
     ) -> None:
         """Happy path: Completed session has status 'completed'."""
         session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
 
         response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
-            json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
+            json={"payment_data": {"token": token, "provider": "stripe"}},
         )
         data = response.json()
 
@@ -637,10 +712,12 @@ class TestCompleteCheckoutSession:
     def test_complete_session_creates_order(self, auth_client: TestClient) -> None:
         """Happy path: Completed session includes order object."""
         session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
 
         response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
-            json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
+            json={"payment_data": {"token": token, "provider": "stripe"}},
         )
         data = response.json()
 
@@ -654,6 +731,8 @@ class TestCompleteCheckoutSession:
     ) -> None:
         """Happy path: Complete checkout can update buyer with last_name."""
         session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
 
         response = auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
@@ -663,7 +742,7 @@ class TestCompleteCheckoutSession:
                     "last_name": "User",
                     "email": "complete.user@example.com",
                 },
-                "payment_data": {"token": "tok_test", "provider": "stripe"},
+                "payment_data": {"token": token, "provider": "stripe"},
             },
         )
         data = response.json()
@@ -707,11 +786,13 @@ class TestCompleteCheckoutSession:
     ) -> None:
         """Failure case: Completing an already completed session returns 405."""
         session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
 
         # Complete once
         auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
-            json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
+            json={"payment_data": {"token": token, "provider": "stripe"}},
         )
 
         # Try to complete again
@@ -721,6 +802,147 @@ class TestCompleteCheckoutSession:
         )
 
         assert response.status_code == 405
+
+
+class TestCompleteCheckoutPaymentVerification:
+    """Payment verification gate for POST /checkout_sessions/{id}/complete.
+
+    Regression suite for issue #112: an order must only be created when a
+    settled payment intent is bound to the session, covers the server-computed
+    total, and matches the session currency.
+    """
+
+    def _create_ready_session(self, auth_client: TestClient) -> str:
+        """Helper to create a session ready for payment."""
+        create_response = auth_client.post(
+            "/checkout_sessions",
+            json={
+                "items": [{"id": "prod_1", "quantity": 1}],
+                "buyer": {"first_name": "Ready", "email": "ready@example.com"},
+                "fulfillment_address": {
+                    "name": "Ready User",
+                    "line_one": "100 Ready St",
+                    "city": "Ready City",
+                    "state": "RD",
+                    "country": "US",
+                    "postal_code": "00000",
+                },
+            },
+        )
+        session_id = create_response.json()["id"]
+        fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
+        auth_client.post(
+            f"/checkout_sessions/{session_id}",
+            json={"fulfillment_option_id": fulfillment_option_id},
+        )
+        return session_id
+
+    def test_complete_without_settled_payment_returns_402(
+        self, auth_client: TestClient
+    ) -> None:
+        """A token with no settled payment intent must not create an order."""
+        session_id = self._create_ready_session(auth_client)
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}/complete",
+            json={"payment_data": {"token": "tok_unsettled", "provider": "stripe"}},
+        )
+
+        assert response.status_code == 402
+        assert response.json()["detail"]["code"] == "invalid_payment"
+
+    def test_complete_with_underpaying_intent_returns_402(
+        self, auth_client: TestClient
+    ) -> None:
+        """A settled intent below the server total must not create an order."""
+        session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total - 1)
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}/complete",
+            json={"payment_data": {"token": token, "provider": "stripe"}},
+        )
+
+        assert response.status_code == 402
+        assert response.json()["detail"]["code"] == "invalid_payment"
+
+    def test_complete_with_intent_for_other_session_returns_402(
+        self, auth_client: TestClient
+    ) -> None:
+        """A settled intent bound to another session must not be reusable."""
+        session_id = self._create_ready_session(auth_client)
+        other_session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        # Settle a payment for a DIFFERENT session, then present its token here.
+        token = _settle_payment(
+            checkout_session_id=other_session_id, amount=total + 1000
+        )
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}/complete",
+            json={"payment_data": {"token": token, "provider": "stripe"}},
+        )
+
+        assert response.status_code == 402
+        assert response.json()["detail"]["code"] == "invalid_payment"
+
+    def test_complete_with_wrong_currency_intent_returns_402(
+        self, auth_client: TestClient
+    ) -> None:
+        """A settled intent in a different currency must not create an order."""
+        session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(
+            checkout_session_id=session_id, amount=total, currency="eur"
+        )
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}/complete",
+            json={"payment_data": {"token": token, "provider": "stripe"}},
+        )
+
+        assert response.status_code == 402
+        assert response.json()["detail"]["code"] == "invalid_payment"
+
+    def test_complete_with_pending_intent_returns_402(
+        self, auth_client: TestClient
+    ) -> None:
+        """A pending (not completed) intent must not create an order."""
+        session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(
+            checkout_session_id=session_id,
+            amount=total,
+            status=PaymentIntentStatus.PENDING,
+        )
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}/complete",
+            json={"payment_data": {"token": token, "provider": "stripe"}},
+        )
+
+        assert response.status_code == 402
+        assert response.json()["detail"]["code"] == "invalid_payment"
+
+    def test_complete_with_settled_payment_creates_order(
+        self, auth_client: TestClient
+    ) -> None:
+        """A settled intent that covers the total in the right currency succeeds."""
+        session_id = self._create_ready_session(auth_client)
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
+
+        response = auth_client.post(
+            f"/checkout_sessions/{session_id}/complete",
+            json={"payment_data": {"token": token, "provider": "stripe"}},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        assert data["order"] is not None
+        assert data["order"]["id"].startswith("order_")
 
 
 class TestCancelCheckoutSession:
@@ -816,14 +1038,16 @@ class TestCancelCheckoutSession:
         session_id = create_response.json()["id"]
         fulfillment_option_id = create_response.json()["fulfillment_options"][0]["id"]
 
-        # Make it ready and complete
+        # Make it ready and complete (settle a payment that covers the total)
         auth_client.post(
             f"/checkout_sessions/{session_id}",
             json={"fulfillment_option_id": fulfillment_option_id},
         )
+        total = _session_total(auth_client, session_id)
+        token = _settle_payment(checkout_session_id=session_id, amount=total)
         auth_client.post(
             f"/checkout_sessions/{session_id}/complete",
-            json={"payment_data": {"token": "tok_test", "provider": "stripe"}},
+            json={"payment_data": {"token": token, "provider": "stripe"}},
         )
 
         response = auth_client.post(f"/checkout_sessions/{session_id}/cancel")
