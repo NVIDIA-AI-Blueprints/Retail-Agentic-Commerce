@@ -15,6 +15,8 @@ dependencies = [
     # NAT with RAG (Milvus retriever), LangChain, Phoenix, profiler, and Ragas extras
     "nvidia-nat[langchain,phoenix,profiler,rag,ragas]==1.7.0",
     "httpx>=0.27.0",
+    # SQLAlchemy asyncio (used by nvidia-nat) needs greenlet, which is not pulled transitively.
+    "greenlet>=3.0",
 ]
 
 [project.optional-dependencies]
