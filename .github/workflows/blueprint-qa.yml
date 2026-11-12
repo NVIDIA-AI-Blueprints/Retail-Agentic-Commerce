@@ -1,139 +1,98 @@
-# Deploys the Retail Agentic Commerce stack via Docker Compose, waits for it
-# to become healthy, then runs the UI E2E test suite from the shared QA image.
-#
-# Required repository secrets:
-#   NGC_API_KEY            NVIDIA API key used to pull images and populate
-#                          NVIDIA_API_KEY in .env.
-#   TEST_DOCKER_PULL_KEY   NVIDIA API key with pull access to
-#                          nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image.
-#                          If unset, the test step is skipped.
-#
-# Optional SMTP secrets (mail step skipped if any are missing):
-#   SMTP_USERNAME, SMTP_PASSWORD, SMTP_MAIL_TO, SMTP_MAIL_FROM
-
 name: Blueprint QA
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      test_image:
+        description: QA test image (nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:<tag>)
+        required: false
+        default: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  COMPOSE: docker compose -f docker-compose.infra.yml -f docker-compose.yml
+
 jobs:
-  retail-agentic-commerce-ui:
-    name: Retail Agentic Commerce UI E2E
-    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
-    timeout-minutes: 480
+  retail-agentic-commerce:
+    name: Retail Agentic Commerce UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     env:
-      NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-      QA_TEST_IMAGE: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
-      UI_URL: http://localhost
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      QA_TEST_IMAGE: ${{ inputs.test_image || 'nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy stack
+      - name: Check secrets
+        env:
+          TEST_DOCKER_PULL_KEY: ${{ secrets.TEST_DOCKER_PULL_KEY }}
+        run: |
+          [ -n "${NVIDIA_API_KEY:-}" ] || { echo "::error::NVIDIA_API_KEY secret missing"; exit 1; }
+          [ -n "${TEST_DOCKER_PULL_KEY:-}" ] || { echo "::error::TEST_DOCKER_PULL_KEY secret missing"; exit 1; }
+
+      - name: Deploy the stack
         run: |
           set -euo pipefail
-          : "${NGC_API_KEY:?NGC_API_KEY secret missing}"
-          cp env.example .env
-          sed -i "s|^NVIDIA_API_KEY=.*|NVIDIA_API_KEY=${NGC_API_KEY}|" .env
-          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
-          docker network create acp-infra-network 2>/dev/null || true
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml up -d --build
+          docker network create acp-infra-network || true
+          ${COMPOSE} up --build -d
+          for path in /api/health /psp/health /apps-sdk/health; do
+            for _ in $(seq 1 90); do
+              curl -fsS "http://localhost${path}" >/dev/null 2>&1 && break
+              sleep 10
+            done
+            curl -fsS "http://localhost${path}" || { echo "::error::http://localhost${path} not healthy"; exit 1; }
+            echo
+          done
+          ${COMPOSE} ps
 
-          echo "Waiting for the merchant API and the UI to answer (up to 10 min)..."
-          if ! timeout 600 bash -c 'until curl -fsS "${UI_URL}/api/health" > /dev/null 2>&1 && curl -fsS -o /dev/null "${UI_URL}/"; do sleep 10; done'; then
-            echo "::error::Merchant API or UI root page did not answer within 10 minutes."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml ps --all
-            exit 1
-          fi
-
-          echo "Waiting for Milvus catalog seeding to finish (up to 10 min)..."
-          if ! SEEDER_EXIT_CODE="$(timeout 600 docker wait milvus-seeder)"; then
-            echo "::error::Milvus catalog seeding did not finish within 10 minutes."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 milvus-seeder
-            exit 1
-          fi
-          if [ "${SEEDER_EXIT_CODE}" != "0" ]; then
-            echo "::error::Milvus catalog seeding failed with exit code ${SEEDER_EXIT_CODE}."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 milvus-seeder
-            exit 1
-          fi
-
-          echo "Waiting for NAT agents to become healthy (up to 10 min)..."
-          if ! timeout 600 bash -c 'until docker compose -f docker-compose.infra.yml -f docker-compose.yml exec -T merchant python -c "import urllib.request as u; [u.urlopen(url, timeout=5).read() for url in (\"http://promotion-agent:8002/health\", \"http://post-purchase-agent:8003/health\", \"http://recommendation-agent:8004/health\", \"http://search-agent:8005/health\")]" > /dev/null 2>&1; do sleep 10; done'; then
-            echo "::error::One or more NAT agents did not become healthy within 10 minutes."
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml ps --all
-            docker compose -f docker-compose.infra.yml -f docker-compose.yml logs --tail 200 \
-              promotion-agent post-purchase-agent recommendation-agent search-agent
-            exit 1
-          fi
-
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml exec -T merchant \
-            python -c "import urllib.request as u; print('promotion', u.urlopen('http://promotion-agent:8002/health', timeout=5).status); print('post-purchase', u.urlopen('http://post-purchase-agent:8003/health', timeout=5).status); print('recommendation', u.urlopen('http://recommendation-agent:8004/health', timeout=5).status); print('search', u.urlopen('http://search-agent:8005/health', timeout=5).status)"
-          echo "Stack and agents are ready."
-
-      - name: Exercise NAT agent workflows
-        run: |
-          set -euo pipefail
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml exec -T merchant \
-            python - < .github/scripts/check_nat_agents.py
-
-      # The functional probe performs live public-inference calls.  Give the
-      # shared endpoint a brief cooldown before the independent browser suite
-      # starts its own Apps SDK searches and recommendations.
-      - name: Cool down hosted inference before UI tests
-        run: sleep 15
-
-      - name: Run UI automation tests
+      - name: Run Retail Agentic Commerce tests
         env:
           TEST_DOCKER_PULL_KEY: ${{ secrets.TEST_DOCKER_PULL_KEY }}
         run: |
           set -euo pipefail
-          [ -n "${TEST_DOCKER_PULL_KEY:-}" ] || exit 0
           echo "${TEST_DOCKER_PULL_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
           docker pull "${QA_TEST_IMAGE}"
-          docker run --rm --net=host -v "$(pwd):/workspace" "${QA_TEST_IMAGE}" \
-            pytest -m retail_agentic_commerce \
-              --retail-agentic-commerce-url="${UI_URL}" \
-              --reruns=2 --reruns-delay=15 \
-              --disable-warnings -v --timeout=240 \
-              --html=/workspace/retail-agentic-commerce-ui-test.html --self-contained-html
+          mkdir -p reports
+          docker run --rm --network host \
+            -v "$(pwd)/reports:/blueprint/reports" \
+            -w /app \
+            "${QA_TEST_IMAGE}" \
+            pytest testcases/retail_agentic_commerce/test_retail_agentic_commerce_ui.py \
+              -m retail_agentic_commerce \
+              --retail-agentic-commerce-url=http://localhost \
+              --reports-dir=/blueprint/reports \
+              --html=/blueprint/reports/retail-agentic-commerce-test.html --self-contained-html \
+              --disable-warnings -v --timeout=900
+          [ -s reports/junit.xml ] || { echo "::error::no test report written"; exit 1; }
 
-      - name: Capture failure diagnostics
+      - name: Container logs
         if: failure()
         run: |
-          mkdir -p ci-diagnostics
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml ps --all \
-            > ci-diagnostics/docker-compose-ps.txt 2>&1 || true
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml logs \
-            --no-color --timestamps --tail 300 \
-            apps-sdk merchant psp ui nginx promotion-agent post-purchase-agent \
-            recommendation-agent search-agent milvus-seeder milvus-standalone \
-            milvus-etcd milvus-minio phoenix \
-            > ci-diagnostics/service-logs.txt 2>&1 || true
+          mkdir -p reports
+          ${COMPOSE} ps -a > reports/compose-ps.txt 2>&1 || true
+          ${COMPOSE} logs --no-color > reports/compose-logs.txt 2>&1 || true
+          tail -n 200 reports/compose-logs.txt || true
 
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: retail-agentic-commerce-ui-test
-          path: |
-            retail-agentic-commerce-ui-test.html
-            ci-diagnostics/
+          name: retail-agentic-commerce-test
+          path: reports/
           if-no-files-found: ignore
           retention-days: 30
 
       - name: Cleanup
         if: always()
         run: |
-          docker compose -f docker-compose.infra.yml -f docker-compose.yml down -v --rmi all 2>/dev/null || true
+          ${COMPOSE} down -v 2>/dev/null || true
           docker rmi "${QA_TEST_IMAGE}" 2>/dev/null || true
-          docker network rm acp-infra-network 2>/dev/null || true
-          docker image prune -f
+          docker image prune -f 2>/dev/null || true
 
       - name: Detect SMTP
         id: smtp
@@ -144,8 +103,7 @@ jobs:
           SMTP_MAIL_TO: ${{ secrets.SMTP_MAIL_TO }}
           SMTP_MAIL_FROM: ${{ secrets.SMTP_MAIL_FROM }}
         run: |
-          [ -n "${SMTP_USERNAME:-}${SMTP_PASSWORD:-}${SMTP_MAIL_TO:-}${SMTP_MAIL_FROM:-}" ] \
-            && [ -n "${SMTP_USERNAME:-}" ] && [ -n "${SMTP_PASSWORD:-}" ] \
+          [ -n "${SMTP_USERNAME:-}" ] && [ -n "${SMTP_PASSWORD:-}" ] \
             && [ -n "${SMTP_MAIL_TO:-}" ] && [ -n "${SMTP_MAIL_FROM:-}" ] \
             && echo "enabled=true" >> "$GITHUB_OUTPUT" \
             || echo "enabled=false" >> "$GITHUB_OUTPUT"
