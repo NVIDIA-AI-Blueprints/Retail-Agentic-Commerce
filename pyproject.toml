@@ -13,7 +13,7 @@ dependencies = [
     "pydantic-settings==2.14.2",
     "python-dotenv==1.2.2",
     "httpx==0.28.1",
-    "mcp==1.28.1",
+    "mcp==1.30.0",
     "pymilvus==2.6.7",
     "a2a-sdk[http-server]==0.3.22",
 ]

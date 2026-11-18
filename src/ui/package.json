@@ -42,10 +42,10 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "fast-equals": "^5.3.2",
-    "next": "^16.3.8",
-    "react": "^19.2.8",
+    "next": "16.4.5",
+    "react": "~19.2.9",
     "react-day-picker": "^9.11.0",
-    "react-dom": "^19.2.8",
+    "react-dom": "~19.2.9",
     "recharts": "^3.7.0",
     "tailwind-merge": "^2.6.0"
   },
@@ -54,13 +54,13 @@
       "ajv": "8.18.0",
       "eslint>ajv": "6.14.0",
       "@eslint/eslintrc>ajv": "6.14.0",
-      "fast-uri": "3.1.8",
+      "eslint-config-next>typescript-eslint": "^8.73.0",
+      "fast-uri": "3.1.9",
       "source-map-js": "1.2.2",
       "brace-expansion@1": "1.1.21",
       "brace-expansion@2": "2.1.7",
       "brace-expansion@5": "5.0.12",
       "minimatch@3": "3.1.5",
-      "minimatch@9": "9.0.9",
       "js-yaml": "4.3.2",
       "browserslist": "4.28.7",
       "nanoid@3": "3.3.18",
@@ -69,7 +69,7 @@
       "sharp": "0.35.4",
       "flatted": "3.4.2",
       "form-data": "4.0.6",
-      "picomatch": "4.0.4",
+      "picomatch": "4.0.5",
       "@humanfs/node": "0.16.8",
       "esbuild": "0.28.1"
     }
@@ -85,13 +85,13 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^9.17.0",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.5",
     "eslint-config-prettier": "^9.1.0",
     "jsdom": "^25.0.1",
     "prettier": "^3.4.2",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.11"
+    "vite": "~8.1.6",
+    "vitest": "^4.1.12"
   }
 }
