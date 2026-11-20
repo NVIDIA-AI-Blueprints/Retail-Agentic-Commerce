@@ -23,8 +23,9 @@ Emits SSE events for Protocol Inspector integration.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import httpx
@@ -36,6 +37,99 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+# How long one checkout attempt (and its PSP allowance) stays valid for retries.
+CHECKOUT_ATTEMPT_TTL = timedelta(hours=1)
+
+
+@dataclass(frozen=True)
+class CheckoutAttempt:
+    """Idempotency state shared by every retry of one checkout.
+
+    The merchant API and the PSP both replay a cached response when a POST
+    repeats an ``Idempotency-Key`` with the same body. Sending the same keys and
+    bodies on a retry therefore returns the session and vault token that the
+    lost attempt already created instead of creating new ones, and the order
+    too when the merchant cached it. The merchant caches only 2xx responses, so
+    after a failed ``/complete`` the order is looked up on the session instead.
+    """
+
+    key: str
+    expires_at: datetime
+    request: tuple[Any, ...]
+
+
+# Open checkout attempts by cart ID; removed when the attempt ends.
+_checkout_attempts: dict[str, CheckoutAttempt] = {}
+
+
+def _get_checkout_attempt(cart_id: str, request: tuple[Any, ...]) -> CheckoutAttempt:
+    """Return the open attempt for this cart, or start a new one.
+
+    A new attempt (new key) starts when the cart has none, when the previous
+    one expired, or when the cart contents or buyer changed since then.
+    """
+    now = datetime.now(UTC)
+    for expired_cart_id in [
+        cid for cid, a in _checkout_attempts.items() if a.expires_at <= now
+    ]:
+        del _checkout_attempts[expired_cart_id]
+
+    attempt = _checkout_attempts.get(cart_id)
+    if attempt is None or attempt.request != request:
+        attempt = CheckoutAttempt(
+            key=f"checkout_{cart_id}_{uuid4().hex[:8]}",
+            expires_at=now + CHECKOUT_ATTEMPT_TTL,
+            request=request,
+        )
+        _checkout_attempts[cart_id] = attempt
+    return attempt
+
+
+def _end_attempt_on_conflict(cart_id: str, response: httpx.Response) -> None:
+    """End the cart's attempt when its key was already used for another request.
+
+    The merchant and the PSP answer 409 ``request_not_idempotent`` when a key
+    comes back with a different body. This happens when the merchant restarted
+    and lost its cached responses: the retry then gets a new session, and the
+    PSP (whose cache survives) refuses that session under the old key. The same
+    key would fail until the attempt expires, so the next call starts fresh.
+    """
+    if response.status_code == 409:
+        _checkout_attempts.pop(cart_id, None)
+
+
+async def _read_checkout_session(
+    client: httpx.AsyncClient,
+    merchant_api_url: str,
+    merchant_api_key: str,
+    session_id: str,
+) -> dict[str, Any] | None:
+    """Return the merchant's current view of a session, or None if unknown.
+
+    Used after a failed ``/complete``. The merchant caches only 2xx responses
+    for an Idempotency-Key, so a ``/complete`` that placed the order and then
+    failed (5xx) is not replayed: the retry runs it again and gets a 405
+    because the session is already completed. Reading the session is how the
+    tool finds the order in both cases. A session the merchant does not know
+    (404) is returned as an empty dict, since it has no order.
+    """
+    try:
+        response = await client.get(
+            f"{merchant_api_url}/checkout_sessions/{session_id}",
+            headers={"Authorization": f"Bearer {merchant_api_key}"},
+        )
+        if response.status_code == 404:
+            return {}
+        if response.status_code != 200:
+            return None
+        session = response.json()
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning(f"Could not read checkout session {session_id}: {e}")
+        return None
+    if not isinstance(session, dict):
+        return None
+    return cast("dict[str, Any]", session)
 
 
 def _emit_event(
@@ -129,6 +223,21 @@ async def process_acp_checkout(
     # Build items for ACP session (only id and quantity needed)
     items = [{"id": item["id"], "quantity": item["quantity"]} for item in cart_items]
 
+    # Reuse the idempotency key of a previous attempt whose response was lost,
+    # so the merchant and the PSP can replay the session, vault token and
+    # order that attempt already created instead of making new ones. A new
+    # key (and so possibly a second order) is used once the attempt has
+    # expired, after a 409 (for example a merchant restart), or when the cart
+    # or buyer changed; see _get_checkout_attempt().
+    attempt = _get_checkout_attempt(
+        cart_id,
+        (
+            tuple((item["id"], item["quantity"]) for item in items),
+            totals["total"],
+            full_name,
+        ),
+    )
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             # Step 1: Create checkout session on merchant API
@@ -147,6 +256,7 @@ async def process_acp_checkout(
                 headers={
                     "Authorization": f"Bearer {merchant_api_key}",
                     "Content-Type": "application/json",
+                    "Idempotency-Key": f"{attempt.key}_session",
                 },
                 json={
                     "items": items,
@@ -167,6 +277,7 @@ async def process_acp_checkout(
             )
 
             if session_response.status_code != 201:
+                _end_attempt_on_conflict(cart_id, session_response)
                 logger.warning(
                     f"Failed to create checkout session: {session_response.status_code}"
                 )
@@ -201,6 +312,7 @@ async def process_acp_checkout(
                     headers={
                         "Authorization": f"Bearer {merchant_api_key}",
                         "Content-Type": "application/json",
+                        "Idempotency-Key": f"{attempt.key}_update",
                     },
                     json={
                         "fulfillment_option_id": selected_option_id,
@@ -208,6 +320,7 @@ async def process_acp_checkout(
                 )
 
                 if update_response.status_code != 200:
+                    _end_attempt_on_conflict(cart_id, update_response)
                     logger.warning(
                         f"Failed to update checkout session: {update_response.status_code} - {update_response.text}"
                     )
@@ -230,15 +343,12 @@ async def process_acp_checkout(
                 session_id=session_id,
                 event_id=delegate_payment_event_id,
             )
-            idempotency_key = f"checkout_{cart_id}_{uuid4().hex[:8]}"
-            expires_at = datetime.now(UTC) + timedelta(hours=1)
-
             delegate_response = await client.post(
                 f"{psp_api_url}/agentic_commerce/delegate_payment",
                 headers={
                     "Authorization": f"Bearer {psp_api_key}",
                     "Content-Type": "application/json",
-                    "Idempotency-Key": idempotency_key,
+                    "Idempotency-Key": f"{attempt.key}_delegate",
                 },
                 json={
                     "payment_method": {
@@ -257,7 +367,7 @@ async def process_acp_checkout(
                         "currency": "USD",
                         "checkout_session_id": session_id,
                         "merchant_id": "merchant_acp_demo",
-                        "expires_at": expires_at.isoformat(),
+                        "expires_at": attempt.expires_at.isoformat(),
                     },
                     "risk_signals": [
                         {
@@ -277,6 +387,7 @@ async def process_acp_checkout(
             )
 
             if delegate_response.status_code not in (200, 201):
+                _end_attempt_on_conflict(cart_id, delegate_response)
                 logger.warning(
                     f"Failed to delegate payment: {delegate_response.status_code} - {delegate_response.text}"
                 )
@@ -312,6 +423,7 @@ async def process_acp_checkout(
                 headers={
                     "Authorization": f"Bearer {merchant_api_key}",
                     "Content-Type": "application/json",
+                    "Idempotency-Key": f"{attempt.key}_complete",
                 },
                 json={
                     "payment_data": {
@@ -329,13 +441,30 @@ async def process_acp_checkout(
                 },
             )
 
+            order: dict[str, Any] | None = None
+            session_state: dict[str, Any] | None = None
             if complete_response.status_code == 200:
-                result = complete_response.json()
-                order = result.get("order", {})
+                order = complete_response.json().get("order") or {}
+            else:
+                # The order may exist even though /complete failed; see
+                # _read_checkout_session().
+                session_state = await _read_checkout_session(
+                    client, merchant_api_url, merchant_api_key, session_id
+                )
+                if session_state and session_state.get("status") == "completed":
+                    order = session_state.get("order") or {}
+                    logger.info(
+                        f"/complete answered {complete_response.status_code}, "
+                        f"but session {session_id} already has an order"
+                    )
+
+            if order is not None:
                 order_id = order.get("id", f"order_{uuid4().hex[:8].upper()}")
 
                 # Clear cart after successful checkout
                 carts[cart_id] = []
+                # The order exists, so the next checkout of this cart is new.
+                _checkout_attempts.pop(cart_id, None)
 
                 logger.info(f"Checkout completed successfully: {order_id}")
                 _emit_event(
@@ -358,6 +487,13 @@ async def process_acp_checkout(
                     "orderUrl": order.get("permalink_url"),
                 }
             else:
+                if complete_response.status_code < 500 and session_state is not None:
+                    # The merchant refused /complete and the session has no
+                    # order, so the next checkout of this cart is a new
+                    # attempt. After a 5xx, or when the session could not be
+                    # read, the key is kept: the retry replays the session and
+                    # the vault token and looks for the order again.
+                    _checkout_attempts.pop(cart_id, None)
                 logger.error(
                     f"Failed to complete checkout: {complete_response.status_code} - {complete_response.text}"
                 )
@@ -384,6 +520,7 @@ async def process_acp_checkout(
         # Simulated checkout fallback when API is unavailable
         order_id = f"order_{uuid4().hex[:8].upper()}"
         carts[cart_id] = []  # Clear cart
+        _checkout_attempts.pop(cart_id, None)
 
         return {
             "success": True,
