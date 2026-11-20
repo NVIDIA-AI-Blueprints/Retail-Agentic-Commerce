@@ -1,9 +1,7 @@
 /**
  * Post-Purchase Agent Proxy API Route
  *
- * This route proxies requests to the NAT Post-Purchase Agent running on port 8003.
- * This is necessary because the NAT agent doesn't have CORS headers configured,
- * so browser requests would be blocked.
+ * This route proxies browser requests to the Post-Purchase Agent.
  */
 
 /* eslint-disable no-console */
@@ -47,7 +45,7 @@ interface PostPurchaseMessageRequest {
 /**
  * POST /api/agents/post-purchase
  *
- * Proxies the request to the NAT Post-Purchase Agent
+ * Proxies the request to the Post-Purchase Agent
  */
 export async function POST(request: NextRequest) {
   try {
@@ -61,14 +59,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call the NAT agent
     const response = await fetch(`${POST_PURCHASE_AGENT_URL}/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query: JSON.stringify(body),
+        input_message: JSON.stringify(body),
       }),
     });
 
@@ -82,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
 
-    // NAT agent returns { value: "json string" }
+    // The agent returns { value: "json string" }.
     try {
       const parsed = JSON.parse(data.value);
       return NextResponse.json(parsed);

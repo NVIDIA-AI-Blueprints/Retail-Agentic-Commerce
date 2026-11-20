@@ -198,7 +198,7 @@ ok "Root venv ready ($ROOT_VENV)"
 info "Setting up agents Python environment..."
 cd "$AGENTS_DIR"
 uv venv --quiet 2>/dev/null || uv venv
-uv sync --quiet --extra dev 2>/dev/null || uv sync --extra dev
+uv sync --frozen --extra dev
 ok "Agents venv ready ($AGENTS_VENV)"
 
 # UI
@@ -222,36 +222,14 @@ fi
 
 cd "$ROOT_DIR"
 
-# =============================================================================
-# 6. Build environment prefix for agents and seeder
-# =============================================================================
-# Env vars are already exported from the source above (set -a / set +a block)
-NAT_ENV_VARS=(
-    NVIDIA_API_KEY
-    NIM_LLM_BASE_URL
-    NIM_LLM_MODEL_NAME
-    NIM_EMBED_BASE_URL
-    NIM_EMBED_MODEL_NAME
-    MILVUS_URI
-    PHOENIX_ENDPOINT
-)
-
-AGENT_ENV=""
-for var in "${NAT_ENV_VARS[@]}"; do
-    val="${!var:-}"
-    if [ -n "$val" ]; then
-        AGENT_ENV="$AGENT_ENV $var=$val"
-    fi
-done
-
 mkdir -p "$LOG_DIR"
 
 # =============================================================================
-# 7. Seed Milvus vector database with product embeddings
+# 6. Seed Milvus vector database with product embeddings
 # =============================================================================
 if $MILVUS_READY; then
     info "Seeding Milvus with product catalog embeddings..."
-    if env $AGENT_ENV "$AGENTS_VENV/bin/python" "$AGENTS_DIR/scripts/seed_milvus.py" > "$LOG_DIR/milvus-seeder.log" 2>&1; then
+    if "$AGENTS_VENV/bin/python" "$AGENTS_DIR/scripts/seed_milvus.py" > "$LOG_DIR/milvus-seeder.log" 2>&1; then
         ok "Milvus seeded with product embeddings (see logs/milvus-seeder.log)"
     else
         warn "Milvus seeding failed — check logs/milvus-seeder.log for details"
@@ -262,7 +240,7 @@ else
 fi
 
 # =============================================================================
-# 8. Start services
+# 7. Start services
 # =============================================================================
 info "Starting services..."
 
@@ -295,28 +273,18 @@ start_service "psp" 8001 \
 start_service "apps-sdk" 2091 \
     "$ROOT_VENV/bin/uvicorn" src.apps_sdk.main:app --host 0.0.0.0 --port 2091
 
-# --- NAT Agents (using agents venv, need env vars) ---
+# --- Commerce agents (using agents venv) ---
+start_service "promotion-agent" 8002 \
+    "$AGENTS_VENV/bin/python" -m commerce_agents promotion --host localhost --port 8002
 
-start_agent() {
-    local name="$1"
-    local port="$2"
-    local config="$3"
-    local logfile="$LOG_DIR/$name.log"
-    cd "$AGENTS_DIR"
-    env $AGENT_ENV "$AGENTS_VENV/bin/nat" serve --config_file "configs/$config" --port "$port" > "$logfile" 2>&1 &
-    local pid=$!
-    echo "$pid:$name" >> "$PID_FILE"
-    SVC_NAMES+=("$name")
-    SVC_PORTS+=("$port")
-    SVC_PIDS+=("$pid")
-    info "  Started $name (PID $pid, port $port) → logs/$name.log"
-    cd "$ROOT_DIR"
-}
+start_service "post-purchase-agent" 8003 \
+    "$AGENTS_VENV/bin/python" -m commerce_agents post-purchase --host localhost --port 8003
 
-start_agent "promotion-agent"      8002 "promotion.yml"
-start_agent "post-purchase-agent"  8003 "post-purchase.yml"
-start_agent "recommendation-agent" 8004 "recommendation.yml"
-start_agent "search-agent"         8005 "search.yml"
+start_service "recommendation-agent" 8004 \
+    "$AGENTS_VENV/bin/python" -m commerce_agents recommendation --host localhost --port 8004
+
+start_service "search-agent" 8005 \
+    "$AGENTS_VENV/bin/python" -m commerce_agents search --host localhost --port 8005
 
 # --- UI (Next.js dev server) ---
 cd "$UI_DIR"
@@ -332,7 +300,7 @@ cd "$ROOT_DIR"
 ok "All services launched"
 
 # =============================================================================
-# 9. Health checks
+# 8. Health checks
 # =============================================================================
 info "Waiting for services to start (15s)..."
 sleep 15
@@ -378,7 +346,7 @@ for i in "${!HEALTH_ENDPOINTS_NAMES[@]}"; do
 done
 
 # =============================================================================
-# 10. Summary
+# 9. Summary
 # =============================================================================
 printf "\n"
 if $ALL_HEALTHY; then

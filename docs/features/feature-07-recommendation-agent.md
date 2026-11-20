@@ -1,4 +1,4 @@
-# Feature 7: Recommendation Agent (NAT) - ARAG Architecture
+# Feature 7: Recommendation Agent - ARAG Architecture
 
 **Goal**: Implement a personalized cross-sell recommendation agent using an Agentic Retrieval Augmented Generation (ARAG) multi-agent architecture, inspired by state-of-the-art research in LLM-based recommendation systems.
 
@@ -6,7 +6,7 @@
 
 ## Architecture Overview
 
-The Recommendation Agent implements a 4-agent collaborative framework that significantly outperforms vanilla RAG approaches by integrating agentic reasoning into the retrieval pipeline:
+The recommendation service runs four specialized model calls to infer shopper intent, filter candidates, and rank complementary catalog products.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -17,7 +17,7 @@ The Recommendation Agent implements a 4-agent collaborative framework that signi
 │      └─ Query: cart items + session context                                 │
 │      └─ Retrieve top-k candidates from product catalog                      │
 │                                                                             │
-│   2. PARALLEL AGENT EXECUTION (NAT parallel_executor)                       │
+│   2. PARALLEL AGENT EXECUTION                       │
 │      ┌─────────────────────┐    ┌─────────────────────┐                    │
 │      │ User Understanding  │    │     NLI Agent       │                    │
 │      │      Agent (UUA)    │    │ (Intent Alignment)  │                    │
@@ -45,7 +45,7 @@ The Recommendation Agent implements a 4-agent collaborative framework that signi
 
 ## Agent Components
 
-All 4 ARAG agents are defined in a **single NAT configuration file** (`configs/recommendation.yml`) using NAT's multi-agent orchestration pattern. Each specialized agent is registered as a `function` and called by the coordinator workflow.
+The ARAG service runs four specialized model calls. Its [profile](../../src/agents/commerce_agents/configs/recommendation.yml) defines the prompts and model settings.
 
 ### 7.1 User Understanding Agent (UUA)
 
@@ -58,7 +58,7 @@ All 4 ARAG agents are defined in a **single NAT configuration file** (`configs/r
 
 **Output**: Natural language summary of user preferences and inferred shopping intent.
 
-**Defined as NAT function**: `user_understanding_agent`
+**Workflow stage**: `user_understanding_agent`
 
 ### 7.2 Natural Language Inference (NLI) Agent
 
@@ -66,11 +66,11 @@ All 4 ARAG agents are defined in a **single NAT configuration file** (`configs/r
 
 **Input**:
 - Candidate product metadata (name, description, category, attributes)
-- User intent summary from UUA (or session context)
+- Same cart and session context as UUA
 
 **Output**: Alignment scores and support/contradiction judgments for each candidate.
 
-**Defined as NAT function**: `nli_agent`
+**Workflow stage**: `nli_agent`
 
 ### 7.3 Context Summary Agent (CSA)
 
@@ -83,7 +83,7 @@ All 4 ARAG agents are defined in a **single NAT configuration file** (`configs/r
 
 **Output**: Condensed recommendation context with ranked candidate pool.
 
-**Defined as NAT function**: `context_summary_agent`
+**Workflow stage**: `context_summary_agent`
 
 ### 7.4 Item Ranker Agent (IRA)
 
@@ -94,90 +94,18 @@ All 4 ARAG agents are defined in a **single NAT configuration file** (`configs/r
 - Context summary from CSA
 - Product details for top candidates
 
-**Output**: Ordered list of 2-3 recommendations with explanations.
+**Output**: Up to three recommendations with explanations. The workflow requests three when enough candidates are available.
 
-**Defined as NAT function**: `item_ranker_agent`
+**Workflow stage**: `item_ranker_agent`
 
-## Single YAML Multi-Agent Configuration
+## Workflow Implementation
 
-All agents are orchestrated via NAT's multi-agent pattern in `configs/recommendation.yml`:
+1. Embed the retrieval query and retrieve ten candidates from Milvus using L2 distance.
+2. Send the same normalized context to User Understanding and NLI concurrently with `asyncio.gather()`.
+3. Pass both labeled outputs to Context Summary. If a branch fails, its label carries an error marker so context synthesis can use the other result.
+4. Pass synthesized context to Item Ranker. Normalize the result with the output guard and cap it at three recommendations.
 
-```yaml
-# Key structure (see src/agents/README.md for full configuration)
-embedders:
-  product_embedder:
-    _type: nim
-    model_name: nvidia/nemotron-3.5-embed-1b
-
-retrievers:
-  product_retriever:
-    _type: milvus_retriever
-    embedding_model: product_embedder
-    top_k: 20
-
-functions:
-  # RAG tool for candidate retrieval
-  product_search:
-    _type: nat_retriever
-    retriever: product_retriever
-
-  rag_retriever:
-    _type: rag_retriever
-    retrieval_tool_name: product_search
-
-  # Specialized ARAG agents (chat_completion wrapped for text control flow)
-  user_understanding_agent_chat:
-    _type: chat_completion
-    llm_name: nim_llm
-    # ... system prompt for UUA
-
-  user_understanding_agent:
-    _type: text_function_adapter
-    function_name: user_understanding_agent_chat
-
-  nli_agent_chat:
-    _type: chat_completion
-    llm_name: nim_llm_nli
-    # ... system prompt for NLI
-
-  nli_agent:
-    _type: text_function_adapter
-    function_name: nli_agent_chat
-
-  context_summary_agent_chat:
-    _type: chat_completion
-    llm_name: nim_llm
-    # ... system prompt for CSA
-
-  context_summary_agent:
-    _type: text_function_adapter
-    function_name: context_summary_agent_chat
-
-  item_ranker_agent_chat:
-    _type: chat_completion
-    llm_name: nim_llm
-    # ... system prompt for IRA
-
-  item_ranker_agent:
-    _type: text_function_adapter
-    function_name: item_ranker_agent_chat
-
-  parallel_analysis:
-    _type: parallel_executor
-    tool_list: [user_understanding_agent, nli_agent]
-    return_error_on_exception: true
-
-workflow:
-  _type: sequential_executor
-  tool_list:
-    - rag_retriever
-    - parallel_analysis
-    - context_summary_agent
-    - item_ranker_agent
-    - output_contract_guard
-```
-
-See `src/agents/README.md` for the complete configuration with all system prompts.
+The service uses LangChain's `ChatNVIDIA` for all four model calls. The [agent integration guide](../../src/agents/README.md) covers execution, tracing, and evaluation.
 
 ## 3-Layer Hybrid Architecture (Per ACP Standards)
 
@@ -195,9 +123,9 @@ Following the established ACP agent pattern, each agent call is wrapped in deter
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Layer 2: ARAG Multi-Agent Pipeline (NAT)                       │
+│  Layer 2: ARAG Multi-Agent Pipeline                       │
 ├─────────────────────────────────────────────────────────────────┤
-│  - UUA + NLI execute in parallel using NAT parallel_executor    │
+│  - UUA + NLI execute in parallel via asyncio.gather()    │
 │  - CSA synthesizes results                                      │
 │  - IRA produces final ranking                                   │
 │  - All agents use classification/generation (no DB access)      │
@@ -262,7 +190,7 @@ product_affinity:
 
 **File**: `src/merchant/services/recommendation.py`
 
-The service calls the ARAG agent as a **single REST endpoint** - the multi-agent orchestration happens inside NAT:
+The caller makes one HTTP request to the ARAG service:
 
 ```python
 # Key components (pseudocode)
@@ -281,7 +209,7 @@ async def get_recommendations(
     # Layer 1: Validate inputs
     validated_items = validate_cart_items(cart_items)
     
-    # Layer 2: Call ARAG agent (single REST call - all 4 agents orchestrated by NAT)
+    # Layer 2: Call ARAG agent (single REST call - all four stages run in the service)
     response = await httpx.post(
         f"{settings.recommendation_agent_url}/generate",
         json={
@@ -304,29 +232,20 @@ async def get_recommendations(
     return recommendations
 ```
 
-**Key Benefit**: The service makes a single REST call to the ARAG agent. NAT handles all multi-agent orchestration internally (UUA → NLI → CSA → IRA).
+**Key Benefit**: The service makes a single REST call to the ARAG agent. The service runs User Understanding and NLI in parallel, followed by Context Summary and Item Ranker.
 
 ## Tasks
 
 **Phase 1: RAG Foundation**
 - [x] Set up Milvus vector database for product embeddings (docker-compose.yml)
 - [ ] Create product embedding generation pipeline (deferred - requires catalog)
-- [x] Configure `product_retriever` with Nemotron-3.5-Embed-1B in recommendation.yml
-- [x] Test base retrieval function with top-k recall
+- [x] Configure Milvus retrieval with Nemotron 3.5 Embed 1B.
+- [x] Test base retrieval with the configured recall limit.
 
-**Phase 2: Multi-Agent Configuration**
-- [x] Create `configs/recommendation.yml` with all ARAG components:
-  - [x] Define `embedders` section with Nemotron-3.5-Embed-1B
-  - [x] Define `retrievers` section with Milvus configuration
-  - [x] Define `functions` section with:
-    - [x] `product_search` (nat_retriever tool)
-    - [x] `user_understanding_agent` (text adapter around chat_completion with UUA prompt)
-    - [x] `nli_agent` (text adapter around chat_completion with NLI prompt)
-    - [x] `context_summary_agent` (text adapter around chat_completion with CSA prompt)
-    - [x] `item_ranker_agent` (text adapter around chat_completion with IRA prompt)
-  - [x] Define `llms` section (using nvidia/nemotron-3.5-lightning-30b-a3b)
-  - [x] Define main `workflow` (`sequential_executor` with built-in `parallel_executor`)
-- [x] Test full pipeline coordination via `nat serve` + curl
+**Phase 2: Multi-Agent Workflow**
+- [x] Configure four LangChain model calls in the recommendation profile.
+- [x] Run User Understanding and NLI in parallel.
+- [x] Preserve the response contract through context synthesis, ranking, and the output guard.
 
 **Phase 3: Service Integration** (deferred to post-MVP)
 - [ ] Implement `src/merchant/services/recommendation.py`
@@ -385,7 +304,7 @@ User adds "Classic Tee" ($25, casual wear) to cart
 - [ ] Recommendations are always in-stock (requires service integration)
 - [ ] Recommendations meet minimum margin requirements (requires service integration)
 - [x] Recommendations are different from cart items (no duplicates)
-- [x] Returns 2-3 recommendations per request
+- [x] Returns three recommendations when enough eligible candidates remain
 - [x] Reasoning trace is captured for each recommendation
 
 **Quality Requirements**:
@@ -394,7 +313,7 @@ User adds "Classic Tee" ($25, casual wear) to cart
 - [x] Semantic alignment (NLI) filters out irrelevant candidates
 
 **Performance Requirements**:
-- [x] Total latency <10s (including all 4 agents) - ~7s observed
+- [ ] Target total latency below 10 seconds, including all four model calls
 - [ ] Parallel execution reduces latency vs sequential (sequential workflow)
 - [ ] Fail-open behavior returns empty suggestions if timeout (requires service)
 

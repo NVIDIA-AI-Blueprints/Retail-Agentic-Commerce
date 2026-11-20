@@ -14,8 +14,8 @@
 | --- | --- | --- | --- | --- |
 | **Commerce Protocols** | **ACP + UCP** | **ACP v2026-01-16, UCP v2026-01-11** | Dual protocol support | ACP for rapid prototyping; UCP for discovery + checkout (REST) alignment. |
 | **Primary LLM** | **NVIDIA Nemotron-3.5-Lightning-30B-A3B** | current | Agent Core Logic | Sparse MoE design for high inference throughput. |
-| **Language** | Python | **3.12+** | Backend logic & NAT | Native NAT and NeMo runtime support. |
-| **Agentic Framework** | NeMo Agent Toolkit | 1.3.1+ | Multi-agent workflows | Built-in support for tool-calling, RAG, and reasoning trace. |
+| **Language** | Python | **3.12+** | Backend and agent services | Shared runtime for FastAPI services. |
+| **Agent Runtime** | LangChain and LangGraph | See `src/agents/uv.lock` | Model calls and tool execution | LangChain calls NVIDIA NIM. LangGraph runs the bounded search tool loop. |
 | **Inference Engine** | **NVIDIA NIM / TensorRT-LLM** | 25.11+ | Optimized Execution | Configurable: local Docker or public NVIDIA API endpoint. |
 | **Embedding Model** | **NVIDIA Nemotron-3.5-Embed-1B** | current | RAG for Recommendations | Semantic product search for ARAG retrieval pipeline. |
 | **Vector Database** | **Milvus** | 2.3+ | Product Embeddings | Stores product catalog embeddings for RAG-based recommendation retrieval. |
@@ -111,10 +111,10 @@ The Recommendation Agent uses an **Agentic Retrieval Augmented Generation (ARAG)
 | --- | --- | --- |
 | **Embedder** | Nemotron-3.5-Embed-1B | Generates product embeddings for semantic search |
 | **Vector Store** | Milvus | Stores and retrieves product embeddings |
-| **User Understanding Agent** | Nemotron via NAT | Infers buyer preferences from session context |
-| **NLI Agent** | Nemotron via NAT | Scores semantic alignment between products and intent |
-| **Context Summary Agent** | Nemotron via NAT | Synthesizes filtered candidates into focused context |
-| **Item Ranker Agent** | Nemotron via NAT | Produces final ranked recommendations |
+| **User Understanding Agent** | Nemotron via LangChain | Infers buyer preferences from session context |
+| **NLI Agent** | Nemotron via LangChain | Scores semantic alignment between products and intent |
+| **Context Summary Agent** | Nemotron via LangChain | Synthesizes filtered candidates into focused context |
+| **Item Ranker Agent** | Nemotron via LangChain | Produces final ranked recommendations |
 
 This multi-agent approach achieves **42% improvement in NDCG@5** over vanilla RAG according to [ARAG research (SIGIR 2025)](https://arxiv.org/pdf/2506.21931).
 

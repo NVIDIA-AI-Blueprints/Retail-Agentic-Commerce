@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Run one functional CI request against each NAT agent."""
+"""Run one functional CI request against each commerce agent."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ import urllib.error
 import urllib.request
 from typing import Any, cast
 
-EMPTY_LLM_RESPONSE_PREFIX = (
-    "LLM returned an empty response (no content, no tool calls)."
-)
+EMPTY_LLM_RESPONSE_PREFIX = "LLM returned an empty response"
 NO_AGENT_RESPONSE_PREFIX = "No response received from agent"
 # The recommendation probe makes several genuine, parallel LLM calls immediately
 # before the search probe.  Give a shared hosted endpoint time to clear a short
@@ -54,7 +52,7 @@ def require_object_list(
 
 
 def is_retryable_transient_llm_response(status: int, detail: str) -> bool:
-    """Return whether NAT reported a transient public-inference failure."""
+    """Return whether the agent reported a transient public-inference failure."""
     if status != 422:
         return False
 
@@ -81,7 +79,7 @@ def call_agent(
     input_message: dict[str, Any],
     timeout: int,
 ) -> dict[str, Any]:
-    """Execute a NAT workflow and unwrap its JSON response value."""
+    """Execute an agent workflow and unwrap its JSON response value."""
     for attempt in range(len(TRANSIENT_LLM_RESPONSE_RETRY_DELAYS_SECONDS) + 1):
         request = urllib.request.Request(
             f"http://{agent}-agent:{port}/generate",
@@ -295,7 +293,7 @@ def check_search() -> None:
 
 
 def main() -> int:
-    """Run all NAT functional checks sequentially to avoid rate-limit bursts."""
+    """Run all agent functional checks sequentially to avoid rate-limit bursts."""
     try:
         check_promotion()
         print(
@@ -317,7 +315,7 @@ def main() -> int:
         time.sleep(WORKFLOW_COOLDOWN_SECONDS)
         check_search()
     except Exception as error:
-        print(f"::error::NAT functional check failed: {error}", file=sys.stderr)
+        print(f"::error::Agent functional check failed: {error}", file=sys.stderr)
         return 1
     return 0
 

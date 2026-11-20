@@ -77,7 +77,7 @@ curl http://localhost/psp/health
 curl http://localhost/apps-sdk/health
 ```
 
-Agent services also expose `/health`, but in full Docker deployment they are internal-only (not published on `localhost`).
+The four [agent services](../src/agents/README.md) share the `commerce-agents:latest` image. Their `/health` and `/generate` endpoints are available on the Compose network.
 
 ## 5. Open the Application
 

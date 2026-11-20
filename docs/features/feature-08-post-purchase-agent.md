@@ -1,4 +1,4 @@
-# Feature 8: Post-Purchase Agent (NAT)
+# Feature 8: Post-Purchase Agent
 
 **Goal**: Implement lifecycle loyalty agent for multilingual shipping updates.
 
@@ -18,7 +18,7 @@ Generates human-like shipping updates using the Brand Persona configuration.
 
 ## Tasks
 
-- [x] Create NAT workflow for Post-Purchase Agent
+- [x] Create the model workflow for the Post-Purchase Agent
 - [x] Implement Brand Persona loading from config
 - [x] Generate shipping pulses in 3 languages (EN/ES/FR)
 - [x] Define tone variations for messaging

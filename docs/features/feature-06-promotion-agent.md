@@ -1,6 +1,6 @@
-# Feature 6: Promotion Agent (NAT)
+# Feature 6: Promotion Agent
 
-**Goal**: Implement dynamic pricing agent using NVIDIA NeMo Agent Toolkit.
+**Goal**: Select a promotion action from merchant-provided business signals. The merchant applies the discount and checks margins.
 
 ## Agent Behavior
 
@@ -14,7 +14,7 @@ IF stock_count > threshold AND base_price > competitor_price:
 
 ## Tasks
 
-- [x] Create NAT workflow for Promotion Agent
+- [x] Create the model workflow for the Promotion Agent
 - [x] Implement query tools for agent:
   - Query `products` data (via mock data, DB integration pending)
   - Query `competitor_prices` data (via mock data, DB integration pending)

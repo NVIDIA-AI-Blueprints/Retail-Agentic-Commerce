@@ -1,82 +1,32 @@
 ---
-description: Scoped fast-start guide for coding agents working in src/agents.
+description: Scoped guide for the commerce agents in src/agents.
 alwaysApply: false
 ---
 
 # AGENTS.md
 
-This file is the local guide for `src/agents/`. Read the root `AGENTS.md` first, then use this for agent-specific work.
+Read the root `AGENTS.md` before working in this directory.
 
-## Scope
+## Required Reading
 
-`src/agents/` contains NAT workflows and custom function registration for:
-- Promotion agent (`configs/promotion.yml`)
-- Post-purchase agent (`configs/post-purchase.yml`)
-- Recommendation agent (`configs/recommendation.yml`, `configs/recommendation-ultrafast.yml`)
-- Search agent (`configs/search.yml`)
+1. [Agent integration guide](README.md)
+2. [Promotion](../../docs/features/feature-06-promotion-agent.md), [recommendations](../../docs/features/feature-07-recommendation-agent.md), or [post-purchase](../../docs/features/feature-08-post-purchase-agent.md), as applicable.
+3. The [ACP](../../docs/specs/acp-spec.md), [UCP](../../docs/specs/ucp-spec.md), or [Apps SDK](../../docs/specs/apps-sdk-spec.md) specification for any affected caller.
 
-## Required Reading (Before Editing)
+## Contracts
 
-1. `src/agents/README.md`
-2. `docs/NEMO_AGENT_TOOLKIT_DOCUMENTATION.md`
-3. `docs/features/feature-06-promotion-agent.md`
-4. `docs/features/feature-07-recommendation-agent.md`
-5. `docs/features/feature-08-post-purchase-agent.md`
-
-If changes impact merchant integration, also read:
-- `docs/specs/acp-spec.md`
-- `docs/specs/ucp-spec.md`
-
-## Architecture Contracts (Do Not Break)
-
-1. Preserve the 3-layer hybrid model:
-   - Layer 1 deterministic context in merchant backend
-   - Layer 2 LLM arbitration/generation in NAT
-   - Layer 3 deterministic enforcement in merchant backend
-2. Agent outputs are advisory/content-only. Final pricing, margin checks, and order authority remain deterministic in `src/merchant/`.
-3. Promotion decisions must select from `allowed_actions`.
-4. Recommendation custom components are limited to retrieval adapters, typed text adapters, and contract guards in `src/agents/register.py`; use NAT built-ins for control flow.
+- Preserve `GET /health` and `POST /generate`, including JSON encoded as strings in `input_message` and `value`. The merchant and Apps SDK use these fields.
+- The merchant computes promotion signals and constraints. The model selects from `allowed_actions`. The merchant checks margins and applies the action.
+- Keep ARAG retrieval, parallel User Understanding and NLI, context synthesis, ranking, and the output guard in that order. Preserve branch failure handling and the labeled text passed to context synthesis.
+- Preserve Milvus metadata and L2 distance semantics so the Apps SDK can enrich and filter results.
+- Preserve the Phoenix project names and one root span per workflow invocation.
 
 ## Quick Map
 
-- Configs: `src/agents/configs/*.yml`
-- Custom NAT components: `src/agents/register.py`
-- Eval datasets: `src/agents/data/eval/*.json`
-- Milvus seed helper: `src/agents/scripts/seed_milvus.py`
-- Agent contract test: `tests/agents/test_recommendation_workflow_contract.py`
+- Application and workflow code: `commerce_agents/`
+- Profiles, prompts, and model settings: `commerce_agents/configs/`
+- Milvus seeder: `scripts/seed_milvus.py`
+- Eval datasets: `data/eval/`
+- HTTP comparison harness: `scripts/compare_agents.py`
 
-## Runtime Commands
-
-```bash
-cd src/agents
-uv pip install -e ".[dev]"
-
-nat serve --config_file configs/promotion.yml --port 8002
-nat serve --config_file configs/post-purchase.yml --port 8003
-nat serve --config_file configs/recommendation.yml --port 8004
-nat serve --config_file configs/search.yml --port 8005
-```
-
-## Verification (Minimum)
-
-```bash
-cd src/agents
-nat validate --config_file configs/<changed-agent>.yml
-nat run --config_file configs/<changed-agent>.yml --input '<sample-json>'
-
-ruff check .
-ruff format --check .
-pyright
-```
-
-If recommendation orchestration changes, run:
-
-```bash
-uv run pytest tests/agents/test_recommendation_workflow_contract.py -q
-```
-
-## Change Checklist
-
-- Update matching eval dataset when behavior contract changes.
-- Keep prompts/config and integration docs aligned (`src/agents/README.md` and root `AGENTS.md` when needed).
-- Report real command evidence; do not claim agent behavior without a `nat run`/test result.
+Use the root runtime commands or the [agent integration guide](README.md) to start each profile. Run `tests/agents/` for contract and workflow checks. For orchestration changes, compare live requests with the same models and index. Check the trace for overlapping ARAG branches.

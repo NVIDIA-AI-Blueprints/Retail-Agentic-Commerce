@@ -31,7 +31,6 @@ This project implements ACP/UCP flows with strict architecture contracts. Do not
 | ACP endpoints, checkout, delegation, webhooks | `docs/specs/acp-spec.md` |
 | UCP flows, discovery, A2A transport | `docs/specs/ucp-spec.md` |
 | Apps SDK MCP tools and widget behavior | `docs/specs/apps-sdk-spec.md` |
-| NAT agent config/orchestration | `docs/NEMO_AGENT_TOOLKIT_DOCUMENTATION.md` |
 | Agent integration details | `src/agents/README.md` |
 | System architecture and data flow | `docs/architecture.md` |
 | Feature-specific behavior | `docs/features/index.md` and `docs/features/feature-XX-*.md` |
@@ -67,10 +66,10 @@ Validate:
 - Tool input/output schema contracts
 - Widget state and event handling
 - Merchant API integration boundaries
-- NAT integration behavior
+- Commerce agent integration behavior
 
-#### NeMo Agent Toolkit Documentation (`docs/NEMO_AGENT_TOOLKIT_DOCUMENTATION.md`)
-Use when working on NAT YAML configs, multi-agent orchestration, tool registration, and `nat run`/`nat serve` workflows.
+#### Commerce Agents (`src/agents/README.md`)
+Use when working on model configuration, recommendation orchestration, retrieval, and the agent HTTP contract.
 
 ### Documentation-First Checklist
 
@@ -156,11 +155,9 @@ Frontend:
 - Protocol logs: `src/ui/hooks/useACPLog.tsx`, `src/ui/hooks/useAgentActivityLog.tsx`
 - API client: `src/ui/lib/api-client.ts`
 
-Agent configs:
-- `src/agents/configs/promotion.yml`
-- `src/agents/configs/post-purchase.yml`
-- `src/agents/configs/recommendation.yml`
-- `src/agents/configs/search.yml`
+Agents:
+- Workflows: `src/agents/commerce_agents/`
+- Agent configs: `src/agents/commerce_agents/configs/`
 
 ## Runtime Commands (Canonical)
 
@@ -191,22 +188,13 @@ pnpm install
 pnpm dev  # port 3001
 ```
 
-### NAT agents
+### Commerce agents
 ```bash
-cd src/agents
-uv pip install -e ".[dev]"
-
-# Promotion agent (port 8002)
-nat serve --config_file configs/promotion.yml --port 8002
-
-# Post-purchase agent (port 8003)
-nat serve --config_file configs/post-purchase.yml --port 8003
-
-# Recommendation agent (port 8004)
-nat serve --config_file configs/recommendation.yml --port 8004
-
-# Search agent (port 8005)
-nat serve --config_file configs/search.yml --port 8005
+# Run each command in a separate terminal from the repository root.
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents promotion --port 8002
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents post-purchase --port 8003
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents recommendation --port 8004
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents search --port 8005
 ```
 
 ### Health checks
@@ -216,14 +204,14 @@ curl http://localhost:8000/health
 curl http://localhost:8001/health
 curl http://localhost:2091/health
 
-# NAT agents (when running locally)
+# Commerce agents (when running locally)
 curl http://localhost:8002/health
 curl http://localhost:8003/health
 curl http://localhost:8004/health
 curl http://localhost:8005/health
 ```
 
-For full Docker deployment, NAT agents are internal-only by default. Check from the merchant container:
+For full Docker deployment, commerce agents are internal-only by default. Check from the merchant container:
 
 ```bash
 docker compose -f docker-compose.infra.yml -f docker-compose.yml exec merchant \

@@ -1,0 +1,230 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+project: arag-recommendations
+models:
+  default:
+    temperature: 0.0
+    max_tokens: 512
+    chat_template_kwargs:
+      enable_thinking: false
+    response_format:
+      type: json_object
+  nli:
+    temperature: 0.0
+    max_tokens: 640
+    chat_template_kwargs:
+      enable_thinking: false
+    response_format:
+      type: json_object
+  context:
+    temperature: 0.0
+    max_tokens: 512
+    chat_template_kwargs:
+      enable_thinking: false
+    guided_json:
+      type: object
+      properties:
+        user_query:
+          type: string
+        user_intent:
+          type: string
+        candidates_received:
+          type: integer
+          minimum: 0
+        after_alignment_filter:
+          type: integer
+          minimum: 0
+        filtered_candidates:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+              product_name:
+                type: string
+              category:
+                type: string
+              alignment_score:
+                type: number
+            required:
+            - product_id
+            - product_name
+            - category
+            - alignment_score
+            additionalProperties: false
+      required:
+      - user_query
+      - user_intent
+      - candidates_received
+      - after_alignment_filter
+      - filtered_candidates
+      additionalProperties: false
+stages:
+  user_understanding_agent:
+    model: default
+    system_prompt: |
+      You are the user understanding stage in an ARAG recommendation pipeline.
+
+      INPUT:
+      JSON from rag_retriever with user_query, cart_items, session_context, candidates.
+      Use cart_items and session_context.browse_history for intent inference.
+      Ignore price_range_viewed and any price-range fields if present.
+
+      TASK:
+      Infer concise user intent for downstream ranking.
+      Keep user_intent grounded only in provided cart/session/candidate signals.
+      Return max 2 items for style_preferences and max 2 for complementary_categories.
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
+        "user_query": "<the original query>",
+        "user_intent": "<one sentence summary of shopper intent>",
+        "style_preferences": ["<pref1>", "<pref2>"],
+        "complementary_categories": ["<category1>", "<category2>"]
+      }
+  nli_agent:
+    model: nli
+    system_prompt: |
+      You are the NLI alignment stage in an ARAG recommendation pipeline.
+
+      INPUT:
+      JSON from rag_retriever with:
+      - user_query
+      - cart_items
+      - session_context
+      - candidates: [{product_id,product_name,category,description}]
+
+      TASK:
+      Score candidate alignment with user intent on a continuous scale:
+      - Strong fit: 0.8-1.0
+      - Moderate fit: 0.4-0.7
+      - Weak fit: 0.0-0.3
+
+      RULES:
+      - Evaluate only the first 10 candidates by input order.
+      - Return one scored_candidates object for every evaluated candidate; do not omit weak candidates.
+      - Keep exact product_id and product_name.
+      - Return at most 10 objects in scored_candidates.
+      - Preserve original candidate order in scored_candidates.
+      - Include only keys requested below.
+      - Use compact JSON formatting (no extra whitespace/newlines).
+      - alignment_score must use one decimal place (for example: 0.8).
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
+        "user_query": "<the original query>",
+        "cart_product_ids": ["<product id from cart>"],
+        "candidates_received": <total input candidates>,
+        "scored_candidates": [
+          {
+            "product_id": "<exact product_id>",
+            "product_name": "<exact product_name>",
+            "category": "<item category>",
+            "alignment_score": 0.0
+          }
+        ]
+      }
+  context_summary_agent:
+    model: context
+    system_prompt: |
+      You are the context synthesis stage in an ARAG recommendation pipeline.
+
+      INPUT:
+      Text from NAT's built-in parallel_executor. It contains labeled blocks:
+      - "user_understanding_agent:" followed by that agent's JSON output
+      - "nli_agent:" followed by that agent's JSON output
+
+      First split the text by those exact labels, then parse each block body
+      as JSON. If a block starts with "ERROR:" or is not parseable JSON, treat
+      that branch as missing and continue with the available branch data.
+      If user_understanding_agent is missing, set user_intent to
+      "Shopper intent unavailable." If nli_agent is missing, return zero
+      candidates with an empty filtered_candidates list.
+
+      TASK:
+      1) Copy user_intent from user_understanding_agent.user_intent.
+      2) Build primary_candidates where alignment_score > 0.7 and product_id is not in cart_product_ids.
+      3) Set after_alignment_filter = number of primary_candidates.
+      4) If primary_candidates has fewer than 3 items, backfill with highest-scoring remaining non-cart candidates until reaching 3 (or exhaust candidates).
+      5) Enforce diversity when possible, but do not reduce below 3 when 3+ non-cart candidates exist.
+      6) Return at most 4 filtered candidates sorted by alignment_score descending.
+      7) Keep only: product_id, product_name, category, alignment_score.
+
+      Tie-break rule when alignment_score ties: preserve original candidate order.
+      Output must be compact JSON (no markdown, no extra keys, no pretty-printing).
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
+        "user_query": "<from nli_agent.user_query>",
+        "user_intent": "<from user_understanding_agent.user_intent>",
+        "candidates_received": <from nli_agent.candidates_received>,
+        "after_alignment_filter": <number>,
+        "filtered_candidates": [
+          {
+            "product_id": "<exact product_id>",
+            "product_name": "<exact product_name>",
+            "category": "<item category>",
+            "alignment_score": 0.0
+          }
+        ]
+      }
+  item_ranker_agent:
+    model: default
+    system_prompt: |
+      You are the final ranker stage in an ARAG recommendation pipeline.
+
+      INPUT:
+      JSON from context_summary_agent with:
+      - user_query
+      - user_intent
+      - candidates_received
+      - after_alignment_filter
+      - filtered_candidates
+
+      TASK:
+      - Rank up to 3 items from filtered_candidates.
+      - If filtered_candidates has 3 or more items, return exactly 3 recommendations.
+      - If fewer than 3 items exist, return all available items.
+      - REQUIRED CARDINALITY: Before responding, count recommendations. When three or
+        more filtered_candidates are available, the recommendations array must contain
+        exactly three distinct non-cart items. Do not omit a valid third candidate.
+      - Prioritize: cross-sell fit > alignment_score > diversity.
+      - Diversity rule: avoid duplicate categories when there are enough alternatives.
+      - Use exact product_id and product_name from filtered_candidates.
+      - Reasoning: one short sentence per item, maximum 12 words.
+
+      Tie-break rule when candidates are equivalent: preserve input order.
+      Output must be compact JSON (no markdown, no extra keys, no pretty-printing).
+
+      Return ONLY valid JSON (no markdown, no prose):
+      {
+        "recommendations": [
+          {
+            "product_id": "<exact product_id>",
+            "product_name": "<exact product_name>",
+            "rank": 1,
+            "reasoning": "short explanation"
+          }
+        ],
+        "user_intent": "<from input user_intent>",
+        "pipeline_trace": {
+          "candidates_received": <from input candidates_received>,
+          "after_alignment_filter": <from input after_alignment_filter>,
+          "final_ranked": <number of returned recommendations>
+        }
+      }
+
+      If there are no suitable recommendations, return:
+      {
+        "recommendations": [],
+        "user_intent": "<from input user_intent>",
+        "pipeline_trace": {
+          "candidates_received": <from input candidates_received>,
+          "after_alignment_filter": <from input after_alignment_filter>,
+          "final_ranked": 0
+        },
+        "message": "No suitable cross-sell recommendations for current cart"
+      }

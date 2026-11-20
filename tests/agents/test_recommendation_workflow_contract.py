@@ -13,62 +13,157 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
+import asyncio
+import json
+from unittest.mock import AsyncMock
+
+import pytest
+
+from src.agents.commerce_agents.recommendation import recommend
 
 
-def _read(path: str) -> str:
-    return Path(path).read_text(encoding="utf-8")
-
-
-def test_recommendation_workflow_uses_llm_first_parallel_arag() -> None:
-    config_text = _read("src/agents/configs/recommendation.yml")
-
-    assert (
-        "tool_list: [rag_retriever, parallel_analysis, context_summary_agent, "
-        "item_ranker_agent, output_contract_guard]" in config_text
+@pytest.mark.asyncio
+async def test_recommendation_runs_both_model_calls_before_context_summary() -> None:
+    cart = [{"product_id": "cart-item", "name": "T-shirt", "category": "tops"}]
+    input_message = json.dumps(
+        {
+            "user_query": "Complete my outfit",
+            "cart_items": cart,
+            "session_context": {
+                "browse_history": [" weekend wear ", ""],
+                "price_range_viewed": [1000, 5000],
+            },
+        }
     )
-    assert "_type: parallel_executor" in config_text
-    assert "tool_list: [user_understanding_agent, nli_agent]" in config_text
-    assert "return_error_on_exception: true" in config_text
-    assert "_type: text_function_adapter" in config_text
-    assert "function_name: nli_agent_chat" in config_text
-    assert "function_name: user_understanding_agent_chat" in config_text
-    assert "function_name: context_summary_agent_chat" in config_text
-    assert "function_name: item_ranker_agent_chat" in config_text
-    assert "llm_name: nim_llm_context" in config_text
-    assert "guided_json:" in config_text
-    assert "additionalProperties: false" in config_text
-    assert "_type: output_contract_guard" in config_text
-    assert "top_k: 10" in config_text
-    assert "Evaluate only the first 10 candidates by input order." in config_text
-    assert (
-        "Return one scored_candidates object for every evaluated candidate"
-        in config_text
+    documents = [
+        {
+            "document_id": f"product-{index}",
+            "page_content": "very " * 20,
+            "metadata": {"name": f"Product {index}", "category": "clothing"},
+        }
+        for index in range(12)
+    ]
+    retrieve = AsyncMock(return_value=documents)
+    understanding_started = asyncio.Event()
+    alignment_finished = asyncio.Event()
+    understanding_finished = asyncio.Event()
+    expected_query = (
+        "Find complementary products for: T-shirt. Cart categories: tops. "
+        "Recent browsing themes: weekend wear. "
+        "Find complementary products not already in the cart."
     )
-    assert "Text from NAT's built-in parallel_executor." in config_text
-    assert "REQUIRED CARDINALITY:" in config_text
+    expected_intent = '{"user_intent":"casual clothes"}'
+    expected_alignment = '{"scored_candidates":[]}'
+    expected_summary = '{"filtered_candidates":[]}'
 
-    for legacy_component in (
-        "_type: nli_scorer",
-        "_type: context_synthesizer",
-        "_type: recommendation_compiler",
-    ):
-        assert legacy_component not in config_text
+    payloads: list[str] = []
+
+    async def understand_user(payload: str) -> str:
+        retrieve.assert_awaited_once_with(expected_query)
+        payloads.append(payload)
+        understanding_started.set()
+        await alignment_finished.wait()
+        understanding_finished.set()
+        return expected_intent
+
+    async def score_alignment(payload: str) -> str:
+        await understanding_started.wait()
+        payloads.append(payload)
+        alignment_finished.set()
+        return expected_alignment
+
+    async def summarize_context(payload: str) -> str:
+        assert understanding_finished.is_set()
+        assert alignment_finished.is_set()
+        assert payload == (
+            f"user_understanding_agent:\n{expected_intent}\n\n"
+            f"nli_agent:\n{expected_alignment}"
+        )
+        return expected_summary
+
+    rank_items = AsyncMock(
+        return_value=json.dumps(
+            {
+                "recommendations": [
+                    {"product_id": "product-2", "product_name": "Product 2", "rank": 2},
+                    {"product_id": "", "product_name": "Invalid entry", "rank": 1},
+                    {"product_id": "product-0", "product_name": "Product 0", "rank": 1},
+                ],
+                "user_intent": "casual clothes",
+                "pipeline_trace": {
+                    "candidates_received": 10,
+                    "after_alignment_filter": 2,
+                    "final_ranked": 3,
+                },
+            }
+        )
+    )
+    output = await asyncio.wait_for(
+        recommend(
+            input_message,
+            retrieve=retrieve,
+            understand_user=understand_user,
+            score_alignment=score_alignment,
+            summarize_context=summarize_context,
+            rank_items=rank_items,
+        ),
+        timeout=2,
+    )
+
+    assert len(payloads) == 2
+    assert payloads[0] == payloads[1]
+    recall = json.loads(payloads[0])
+    assert recall["user_query"] == "Complete my outfit"
+    assert recall["search_query"] == expected_query
+    assert recall["cart_items"] == cart
+    assert recall["session_context"] == {"browse_history": ["weekend wear"]}
+    assert len(recall["candidates"]) == 10
+    assert recall["candidates"][0] == {
+        "product_id": "product-0",
+        "product_name": "Product 0",
+        "category": "clothing",
+        "description": ("very " * 12) + "v...",
+    }
+    rank_items.assert_awaited_once_with(expected_summary)
+    result = json.loads(output)
+    assert [
+        (item["product_id"], item["rank"]) for item in result["recommendations"]
+    ] == [
+        ("product-0", 1),
+        ("product-2", 2),
+    ]
+    assert result["pipeline_trace"] == {
+        "candidates_received": 10,
+        "after_alignment_filter": 2,
+        "final_ranked": 2,
+    }
 
 
-def test_register_exposes_only_non_semantic_custom_components() -> None:
-    register_text = _read("src/agents/register.py")
+@pytest.mark.asyncio
+async def test_recommendation_continues_when_one_analysis_fails() -> None:
+    summarize_context = AsyncMock(return_value='{"filtered_candidates":[]}')
+    rank_items = AsyncMock(return_value="Invalid ranker JSON")
+    output = await recommend(
+        "Complement my T-shirt",
+        retrieve=AsyncMock(return_value=[]),
+        understand_user=AsyncMock(return_value='{"user_intent":"complete an outfit"}'),
+        score_alignment=AsyncMock(side_effect=RuntimeError("provider unavailable")),
+        summarize_context=summarize_context,
+        rank_items=rank_items,
+    )
 
-    assert 'name="parallel_executor"' not in register_text
-    assert 'name="rag_retriever"' in register_text
-    assert 'name="text_function_adapter"' in register_text
-    assert 'name="output_contract_guard"' in register_text
-    assert "price_range_viewed" not in register_text
-    assert "description_max_chars = 64" in register_text
-
-    for legacy_component in (
-        'name="nli_scorer"',
-        'name="context_synthesizer"',
-        'name="recommendation_compiler"',
-    ):
-        assert legacy_component not in register_text
+    summarize_context.assert_awaited_once_with(
+        'user_understanding_agent:\n{"user_intent":"complete an outfit"}\n\n'
+        "nli_agent:\nERROR: RuntimeError"
+    )
+    rank_items.assert_awaited_once_with('{"filtered_candidates":[]}')
+    assert json.loads(output) == {
+        "recommendations": [],
+        "user_intent": "",
+        "pipeline_trace": {
+            "candidates_received": 0,
+            "after_alignment_filter": 0,
+            "final_ranked": 0,
+        },
+        "message": "No suitable cross-sell recommendations for current cart",
+    }
