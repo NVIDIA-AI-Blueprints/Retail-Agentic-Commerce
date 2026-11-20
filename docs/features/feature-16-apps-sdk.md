@@ -430,7 +430,7 @@ For local development without a client agent:
 ```bash
 # Terminal 1: Start ACP Backend + ARAG Agent
 uvicorn src.merchant.main:app --reload --port 8000
-nat serve --config_file src/agents/configs/recommendation.yml --port 8004
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents recommendation --port 8004
 
 # Terminal 2: Start Frontend (includes merchant app)
 cd src/ui && pnpm run dev
@@ -452,7 +452,7 @@ For testing with a real client agent before production:
 # Terminal 1: Start all backend services
 uvicorn src.merchant.main:app --reload --port 8000
 uvicorn src.payment.main:app --reload --port 8001
-nat serve --config_file src/agents/configs/recommendation.yml --port 8004
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents recommendation --port 8004
 
 # Terminal 2: Start MCP Server
 cd src/apps-sdk && npm run dev  # Starts on port 2091

@@ -1,28 +1,40 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools >= 64", "setuptools-scm>=8"]
+requires = ["setuptools>=64"]
 
 [tool.setuptools]
-py-modules = ["register"]
+packages = ["commerce_agents"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+commerce_agents = ["configs/*.yml"]
 
 [project]
 name = "acp-agents"
 version = "0.1.0"
-description = "NAT Agents for Agentic Commerce Protocol - Promotion and Post-Purchase agents"
+description = "Promotion, messaging, search, and recommendation services for Retail Agentic Commerce"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    # NAT with RAG (Milvus retriever), LangChain, Phoenix, profiler, and Ragas extras
-    "nvidia-nat[langchain,phoenix,profiler,rag,ragas]==1.7.0",
-    "httpx>=0.27.0",
-    # SQLAlchemy asyncio (used by nvidia-nat) needs greenlet, which is not pulled transitively.
-    "greenlet>=3.0",
+    "arize-phoenix-otel==0.14.0",
+    "fastapi==0.133.0",
+    "httpx==0.28.1",
+    "langchain-core==1.4.9",
+    "langchain-nvidia-ai-endpoints==1.4.3",
+    "langgraph==1.2.9",
+    "opentelemetry-api==1.39.1",
+    "pydantic==2.12.5",
+    "pymilvus==2.6.9",
+    "pyyaml==6.0.3",
+    "uvicorn[standard]==0.41.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.4.0",
     "pyright>=1.1.0",
+    "pytest>=8,<10",
+    "pytest-asyncio>=1,<2",
 ]
 
 [tool.ruff]
@@ -39,8 +51,5 @@ reportMissingImports = "warning"
 reportGeneralTypeIssues = "warning"
 reportCallIssue = "warning"
 
-[tool.uv] 
+[tool.uv]
 managed = true
-
-[project.entry-points.'nat.components']
-acp_agents = "register"

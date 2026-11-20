@@ -13,9 +13,9 @@ This document breaks down the project requirements into discrete, implementable 
 | 3 | [ACP Core Endpoints (CRUD)](./feature-03-acp-endpoints.md) | P0 | Feature 2 | ✅ Complete |
 | 4 | [API Security & Validation](./feature-04-api-security.md) | P0 | Feature 3 | ✅ Complete |
 | 5 | [PSP - Delegated Payments](./feature-05-psp-payments.md) | P1 | Feature 2 | ✅ Complete |
-| 6 | [Promotion Agent (NAT)](./feature-06-promotion-agent.md) | P1 | Features 3, 4 | ✅ Complete |
-| 7 | [Recommendation Agent (NAT)](./feature-07-recommendation-agent.md) | P1 | Features 3, 4 | ✅ Complete |
-| 8 | [Post-Purchase Agent (NAT)](./feature-08-post-purchase-agent.md) | P1 | Features 3, 4 | ✅ Complete (webhook deferred to F11) |
+| 6 | [Promotion Agent](./feature-06-promotion-agent.md) | P1 | Features 3, 4 | ✅ Complete |
+| 7 | [Recommendation Agent](./feature-07-recommendation-agent.md) | P1 | Features 3, 4 | ✅ Complete |
+| 8 | [Post-Purchase Agent](./feature-08-post-purchase-agent.md) | P1 | Features 3, 4 | ✅ Complete (webhook deferred to F11) |
 | 9 | [Client Agent Simulator (Frontend)](./feature-09-client-simulator.md) | P1 | Feature 3 | ✅ Complete |
 | 10 | [Multi-Panel Protocol Inspector UI](./feature-10-protocol-inspector.md) | P2 | Feature 9 | ✅ Complete |
 | 11 | [Webhook Integration](./feature-11-webhook-integration.md) | P2 | Feature 8 | ✅ Complete |
@@ -83,7 +83,7 @@ Add industry-standard UCP alongside existing ACP implementation.
     - Capability negotiation with platform profiles
     - UCP-specific status values and error handling
     - Merchant Activity Panel tab for UCP/A2A protocol events
-    - Shared NAT agents serving both ACP and UCP
+    - Shared commerce agents serving both ACP and UCP
     - Payment handler specifications for UCP
     - **Same client agent flow** - UI unchanged, only backend protocol switches
     - Scope: Discovery + Checkout (A2A only); other capabilities/transports out of scope

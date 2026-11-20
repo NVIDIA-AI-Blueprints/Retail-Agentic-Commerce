@@ -1,5 +1,7 @@
 # NVIDIA NeMo Agent Toolkit - Comprehensive Documentation
 
+This guide describes the previous agent runtime. See the [commerce agent guide](../src/agents/README.md) for the current CLI and deployment.
+
 ## Table of Contents
 
 1. [Overview](#overview)

@@ -5,7 +5,7 @@
 #### **Drafting Rationale:**
 
 * **The Bridge**: This architecture must serve as a high-fidelity translator between the client's asynchronous intent and the merchant's synchronous relational data.
-* **The Intelligence**: We are moving beyond simple API routes to an **Orchestrated Agentic Layer** where FastAPI acts as the host for NAT workflows.
+* **The Intelligence**: We are moving beyond simple API routes to an **Orchestrated Agentic Layer** where FastAPI serves the commerce agent workflows.
 * **The Relational Core**: Using **SQLModel** (SQLite) provides the structured environment NeMo agents need for precise business reasoning (e.g., margin calculation).
 
 ---
@@ -18,7 +18,7 @@ The **Intelligent Commerce Middleware** is a Python **3.12+**-based reference ar
 1. **ACP (Agentic Commerce Protocol)** - Five RESTful endpoints compliant with v2026-01-16
 2. **UCP (Universal Commerce Protocol)** - Industry-standard protocol aligned to v2026-01-11 (Discovery + Checkout, REST only in this project)
 
-Both protocols utilize the **NVIDIA NeMo Agent Toolkit** to perform real-time business logic optimization. The system uses an "Async Parallel Orchestration" pattern to ensure fast, responsive agent reasoning while sharing the same intelligent agent layer and backend services.
+Both protocols share commerce agent services and merchant business logic. The services call NVIDIA NIM through LangChain. LangGraph runs the tool loop for search. The recommendation service runs User Understanding and NLI concurrently before synthesizing context and ranking products.
 
 **Simulator (demo client)**
 We will also build a **client agent simulator** that plays the "client" role:
@@ -50,9 +50,9 @@ graph TD
         UCP_ROUTER[UCP Endpoints + Discovery]
         ROUTER --> ACP_ROUTER & UCP_ROUTER
         C[Shared Business Logic Layer]
-        D[NAT Promotion Agent]
-        E[NAT Recommendation Agent]
-        F[NAT Post-Purchase Agent]
+        D[Promotion Agent]
+        E[Recommendation Agent]
+        F[Post-Purchase Agent]
         ACP_ROUTER --> C
         UCP_ROUTER --> C
         C --> D & E & F
@@ -125,7 +125,7 @@ The system implements **both ACP and UCP protocols** to demonstrate how merchant
 │   (underscore, REST)        OR a2a.ucp.checkout.create (A2A)            │
 │                                                                          │
 │   ✓ Same Client Agent UI   ✓ Same Client Agent UI                       │
-│   ✓ Same NAT Agents        ✓ Same NAT Agents                            │
+│   ✓ Same Agents        ✓ Same Agents                            │
 │   ✓ Same PSP Payments      ✓ Same PSP Payments                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -148,7 +148,7 @@ graph TD
     
     subgraph "Shared Business Logic"
         SVC[Checkout Service - Protocol Agnostic]
-        AGENTS[NAT Agents - Protocol Agnostic]
+        AGENTS[Commerce Agents - Protocol Agnostic]
         PROM[Promotion Agent]
         RECO[Recommendation Agent]
         POST[Post-Purchase Agent]
@@ -191,7 +191,7 @@ graph TD
 
 The following components are **protocol-agnostic** and serve both ACP and UCP:
 
-1. **NAT Agents**
+1. **Commerce Agents**
    - Promotion Agent: Dynamic pricing based on competitor data
    - Recommendation Agent: ARAG-powered cross-sell suggestions
    - Post-Purchase Agent: Multilingual shipping updates
@@ -223,7 +223,7 @@ ACP Router
   ↓ normalize to internal format
 Shared Checkout Service
   ↓ invoke agents
-NAT Agents (Promotion, Recommendation)
+Commerce Agents (Promotion, Recommendation)
   ↓ return decisions
 Shared Checkout Service
   ↓ transform to ACP response format
@@ -241,7 +241,7 @@ UCP Router
   ↓ normalize to internal format
 Shared Checkout Service
   ↓ invoke agents
-NAT Agents (Promotion, Recommendation)
+Commerce Agents (Promotion, Recommendation)
   ↓ return decisions
 Shared Checkout Service
   ↓ transform to UCP response format
@@ -254,7 +254,7 @@ Client Agent
 **4. Key Architectural Patterns**
 
 * **Async Parallel Orchestrator**: The Promotion and Recommendation agents are triggered simultaneously via `asyncio.gather` during session creation.
-* **Tool-Calling SQL Bridge**: NAT agents do not access the DB directly; they use specific **Python Tools** that execute sanitized SQL queries to prevent injection.
+* **Data access**: The merchant loads checkout and order context. Search and recommendations retrieve catalog candidates through Milvus and rely on the merchant catalog for product details.
 * **ARAG Multi-Agent Recommendation**: The Recommendation Agent implements an **Agentic Retrieval Augmented Generation (ARAG)** architecture based on [research from SIGIR 2025](https://arxiv.org/pdf/2506.21931). This approach uses 4 specialized LLM agents working in a coordinated pipeline:
 
 ```mermaid
@@ -283,7 +283,7 @@ graph TD
 * **Multi-Panel Glass-Box Observability**: The Protocol Inspector uses a three-panel synchronized view:
   * **Left Panel**: Agent/Client simulation showing the customer experience
   * **Middle Panel**: Business/Retailer view with JSON payloads and protocol state
-  * **Right Panel (Optional)**: Chain of thought showing agent reasoning traces from NeMo Agent Toolkit
+  * **Right Panel (Optional)**: Structured agent activity and short explanations
   * **Default**: publish a **structured/redacted explainability trace** (safe-to-display steps + tool inputs/outputs).
   * **Demo/Debug**: optionally publish **raw chain-of-thought-style output** if available, explicitly labeled and only enabled for demos.
 * **Simulator Flow**:

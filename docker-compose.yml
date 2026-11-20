@@ -116,6 +116,7 @@ services:
       # Server-side URLs (internal Docker network) - used by proxy routes
       - MERCHANT_API_URL=http://merchant:8000
       - PSP_API_URL=http://psp:8001
+      - POST_PURCHASE_AGENT_URL=http://post-purchase-agent:8003
       - PHOENIX_API_URL=${PHOENIX_API_URL:-http://phoenix:6006}
       - NEXT_PUBLIC_UCP_PLATFORM_PROFILE_URL=${NEXT_PUBLIC_UCP_PLATFORM_PROFILE_URL:-http://merchant:8000/.well-known/ucp}
       # Server-side API keys (NOT exposed to browser) - used by proxy routes
@@ -129,7 +130,7 @@ services:
     restart: unless-stopped
 
   # =============================================================================
-  # NAT AGENTS (all share the same base image)
+  # COMMERCE AGENTS (all share the same base image)
   # =============================================================================
 
   # Promotion Agent (Port 8002) - Builds the shared agent image
@@ -137,9 +138,9 @@ services:
     build:
       context: .
       dockerfile: src/agents/Dockerfile
-    image: nat-agents:latest
-    container_name: nat-promotion-agent
-    command: nat serve --config_file configs/promotion.yml --host 0.0.0.0 --port 8002
+    image: commerce-agents:latest
+    container_name: commerce-promotion-agent
+    command: python -m commerce_agents promotion --host 0.0.0.0 --port 8002
     expose:
       - "8002"
     environment:
@@ -163,9 +164,9 @@ services:
 
   # Post-Purchase Agent (Port 8003) - Uses shared image
   post-purchase-agent:
-    image: nat-agents:latest
-    container_name: nat-post-purchase-agent
-    command: nat serve --config_file configs/post-purchase.yml --host 0.0.0.0 --port 8003
+    image: commerce-agents:latest
+    container_name: commerce-post-purchase-agent
+    command: python -m commerce_agents post-purchase --host 0.0.0.0 --port 8003
     expose:
       - "8003"
     environment:
@@ -190,9 +191,9 @@ services:
 
   # Recommendation Agent (Port 8004) - Uses shared image, requires Milvus
   recommendation-agent:
-    image: nat-agents:latest
-    container_name: nat-recommendation-agent
-    command: nat serve --config_file configs/recommendation.yml --host 0.0.0.0 --port 8004
+    image: commerce-agents:latest
+    container_name: commerce-recommendation-agent
+    command: python -m commerce_agents recommendation --host 0.0.0.0 --port 8004
     expose:
       - "8004"
     environment:
@@ -220,9 +221,9 @@ services:
 
   # Search Agent (Port 8005) - Uses shared image, requires Milvus for RAG
   search-agent:
-    image: nat-agents:latest
-    container_name: nat-search-agent
-    command: nat serve --config_file configs/search.yml --host 0.0.0.0 --port 8005
+    image: commerce-agents:latest
+    container_name: commerce-search-agent
+    command: python -m commerce_agents search --host 0.0.0.0 --port 8005
     expose:
       - "8005"
     environment:
@@ -255,7 +256,7 @@ services:
   # Milvus Seeder - Seeds product catalog embeddings into Milvus
   # Runs once on startup, skips if already seeded
   milvus-seeder:
-    image: nat-agents:latest
+    image: commerce-agents:latest
     container_name: milvus-seeder
     command: python scripts/seed_milvus.py
     environment:

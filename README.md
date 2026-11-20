@@ -21,7 +21,7 @@ A reference implementation of the Agentic Commerce Protocol (ACP) and Universal 
 - Merchant API (ACP + UCP discovery/A2A)
 - PSP service for delegated payment flows
 - Apps SDK MCP server + widget
-- NAT agents for promotion, recommendations, search, and post-purchase messaging
+- Commerce agents for promotion, recommendations, search, and post-purchase messaging using LangChain and LangGraph
 - Demo UI with protocol and agent activity panels
 
 ## Architecture (Default Deployment)
@@ -76,7 +76,7 @@ flowchart TB
         end
     end
 
-    subgraph Agents["NAT Agents"]
+    subgraph Agents["Commerce Agents"]
         PROMO["🎯 Promotion Agent<br/>(Port 8002)"]
         POST["📨 Post-Purchase Agent<br/>(Port 8003)"]
         RECS["🔍 Recommendation Agent<br/>(Port 8004)"]
@@ -194,7 +194,7 @@ src/
 ├── merchant/      # Merchant API (FastAPI)
 ├── payment/       # PSP service (FastAPI)
 ├── apps_sdk/      # MCP server + widget
-├── agents/        # NAT agents and configs
+├── agents/        # Commerce agents and model profiles
 └── ui/            # Next.js demo UI
 
 deploy/

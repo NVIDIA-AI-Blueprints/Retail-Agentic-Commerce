@@ -13,40 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# NAT Agents Dockerfile
-# Shared image for promotion, post-purchase, and recommendation agents
-
+# Shared image for the commerce agents and Milvus seeder.
 FROM python:3.12-slim
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    git \
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Install uv package manager
 RUN pip install uv
 
 WORKDIR /app
 
-# Copy agent-specific pyproject.toml, README, and custom component registration
-COPY src/agents/pyproject.toml src/agents/README.md src/agents/register.py ./
+ENV PATH="/app/.venv/bin:$PATH"
+ENV UV_LINK_MODE=copy
 
-# Install dependencies with prerelease support for nvidia-nat
-RUN uv pip install -e ".[dev]" --system
+COPY src/agents/pyproject.toml src/agents/uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy agent configurations
-COPY src/agents/configs ./configs
+COPY src/agents/README.md ./
+COPY src/agents/commerce_agents ./commerce_agents
+RUN uv sync --frozen --no-dev --no-editable
 
-# Copy scripts (for seeding Milvus, etc.)
 COPY src/agents/scripts ./scripts
-
-# Copy shared data (product catalog for Milvus seeder)
 COPY src/data ./src/data
 
-# No default CMD - set via docker-compose command for each agent
-# Examples:
-# - nat serve --config_file configs/promotion.yml --port 8002
-# - nat serve --config_file configs/post-purchase.yml --port 8003
-# - nat serve --config_file configs/recommendation.yml --port 8004
-# - python scripts/seed_milvus.py (for Milvus seeder)
+# Compose selects the profile and port, or runs the one-shot seeder.

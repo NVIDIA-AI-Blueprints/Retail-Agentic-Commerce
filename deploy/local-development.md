@@ -90,45 +90,18 @@ source .venv/bin/activate
 uvicorn src.apps_sdk.main:app --reload --port 2091
 ```
 
-### 3. Run NAT Agents
+### 3. Run Commerce Agents
 
-Run each agent in a separate terminal:
-
-```bash
-# Setup once
-cd src/agents
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-```
+Set the model and infrastructure variables in `.env` at the repository root. Run each agent command in a separate terminal from that directory.
 
 ```bash
-# Terminal 4
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/promotion.yml --port 8002
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents promotion --port 8002
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents post-purchase --port 8003
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents recommendation --port 8004
+uv run --project src/agents --frozen --env-file .env python -m commerce_agents search --port 8005
 ```
 
-```bash
-# Terminal 5
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/post-purchase.yml --port 8003
-```
-
-```bash
-# Terminal 6
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/recommendation.yml --port 8004
-```
-
-```bash
-# Terminal 7
-cd src/agents
-source .venv/bin/activate
-nat serve --config_file configs/search.yml --port 8005
-```
+See the [agent integration guide](../src/agents/README.md) for configuration and evaluation.
 
 ### 4. Run UI
 
