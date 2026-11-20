@@ -13,6 +13,8 @@ The fastest way to get running locally:
 
 `install.sh` handles prerequisite checks, dependency installation, environment setup, and launches all services in the background with health checks. Logs are written to `logs/<service>.log`.
 
+When upgrading an existing hosted deployment, set `NIM_EMBED_MODEL_NAME=nvidia/nemotron-3.5-embed-1b` in `.env` and run `FORCE_RESEED=true ./install.sh` once to rebuild the Milvus product catalog. `logs/milvus-seeder.log` reports the embedding model used for seeding.
+
 ## Prerequisites
 
 - Python 3.12+

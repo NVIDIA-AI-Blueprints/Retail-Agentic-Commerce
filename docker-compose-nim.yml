@@ -9,7 +9,7 @@
 # Prerequisites:
 #   - NVIDIA GPU(s) with sufficient VRAM
 #   - NGC_API_KEY environment variable set
-#   - LOCAL_NIM_CACHE directory created (~/.cache/nim)
+#   - LOCAL_NIM_CACHE directory created with writable embedqa/cache and embedqa/weights subdirectories
 #
 # Usage:
 #   # Start NIMs only
@@ -22,7 +22,7 @@
 #   NIM_LLM_BASE_URL=http://nemotron-lightning:8000/v1
 #   NIM_LLM_MODEL_NAME=nvidia/nemotron-3.5-lightning
 #   NIM_EMBED_BASE_URL=http://embedqa:8000/v1
-#   NIM_EMBED_MODEL_NAME=nvidia/nemotron-3-embed-1b
+#   NIM_EMBED_MODEL_NAME=nvidia/Nemotron-3.5-Embed-1B-BF16
 #
 # Note: The model name for local NIM is 'nvidia/nemotron-3.5-lightning' (without the size suffix)
 #       while the public endpoint uses 'nvidia/nemotron-3.5-lightning-30b-a3b'
@@ -69,14 +69,18 @@ services:
   # NVIDIA NIM - Embedding Model
   # =============================================================================
   embedqa:
-    image: nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.2
+    image: nvcr.io/nim/nvidia/nemotron-embed:2.4.1
     container_name: embedqa
     ports:
       - "8011:8000"
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
+      - NIM_ENGINE_MODEL_DOWNLOAD_PROVIDER=ngc
+      - NIM_ENGINE_MODEL_NAME=nvidia/Nemotron-3.5-Embed-1B-BF16
+      - NIM_ENGINE_PRECISION=fp16
     volumes:
-      - ${LOCAL_NIM_CACHE:-~/.cache/nim}:/opt/nim/.cache
+      - ${LOCAL_NIM_CACHE:-~/.cache/nim}/embedqa/cache:/opt/cache
+      - ${LOCAL_NIM_CACHE:-~/.cache/nim}/embedqa/weights:/model
     user: "${UID:-1000}"
     deploy:
       resources:

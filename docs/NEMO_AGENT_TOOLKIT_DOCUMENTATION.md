@@ -436,7 +436,7 @@ retrievers:
 embedders:
   milvus_embedder:
     _type: nim
-    model_name: nvidia/nemotron-3-embed-1b
+    model_name: nvidia/nemotron-3.5-embed-1b
     truncate: "END"
 ```
 
@@ -509,7 +509,7 @@ functions:
 embedders:
   milvus_embedder:
     _type: nim
-    model_name: nvidia/nemotron-3-embed-1b
+    model_name: nvidia/nemotron-3.5-embed-1b
     truncate: "END"
 
 llms:
@@ -1176,7 +1176,7 @@ llms:
 embedders:
   embedder:
     _type: nim
-    model_name: nvidia/nemotron-3-embed-1b
+    model_name: nvidia/nemotron-3.5-embed-1b
 
 # Retrievers for RAG
 retrievers:
@@ -1301,7 +1301,7 @@ functions:
 embedders:
   embedder:
     _type: nim
-    model_name: nvidia/nemotron-3-embed-1b
+    model_name: nvidia/nemotron-3.5-embed-1b
 
 llms:
   nim_llm:

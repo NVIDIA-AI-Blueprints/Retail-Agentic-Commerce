@@ -17,7 +17,7 @@
 | **Language** | Python | **3.12+** | Backend logic & NAT | Native NAT and NeMo runtime support. |
 | **Agentic Framework** | NeMo Agent Toolkit | 1.3.1+ | Multi-agent workflows | Built-in support for tool-calling, RAG, and reasoning trace. |
 | **Inference Engine** | **NVIDIA NIM / TensorRT-LLM** | 25.11+ | Optimized Execution | Configurable: local Docker or public NVIDIA API endpoint. |
-| **Embedding Model** | **NVIDIA Nemotron-3-Embed-1B** | current | RAG for Recommendations | Semantic product search for ARAG retrieval pipeline. |
+| **Embedding Model** | **NVIDIA Nemotron-3.5-Embed-1B** | current | RAG for Recommendations | Semantic product search for ARAG retrieval pipeline. |
 | **Vector Database** | **Milvus** | 2.3+ | Product Embeddings | Stores product catalog embeddings for RAG-based recommendation retrieval. |
 | **Client Agent Simulator** | Static Simulator | n/a | Client simulator | Simulates product search ("find t-shirts") → displays 4 products → user clicks to start checkout (ACP today; UCP planned). |
 | **Client UI Framework** | React | 19+ | Multi-panel Inspector UI | Component model for three-panel Protocol Inspector (Agent/Merchant/Activity views). |
@@ -109,7 +109,7 @@ The Recommendation Agent uses an **Agentic Retrieval Augmented Generation (ARAG)
 
 | Component | Technology | Purpose |
 | --- | --- | --- |
-| **Embedder** | Nemotron-3-Embed-1B | Generates product embeddings for semantic search |
+| **Embedder** | Nemotron-3.5-Embed-1B | Generates product embeddings for semantic search |
 | **Vector Store** | Milvus | Stores and retrieves product embeddings |
 | **User Understanding Agent** | Nemotron via NAT | Infers buyer preferences from session context |
 | **NLI Agent** | Nemotron via NAT | Scores semantic alignment between products and intent |

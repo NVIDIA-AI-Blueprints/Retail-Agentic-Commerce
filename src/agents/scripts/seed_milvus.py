@@ -18,7 +18,7 @@
 Seed Milvus Vector Database with Product Catalog Embeddings
 
 This script creates the product_catalog collection in Milvus and populates it
-with product embeddings generated using NVIDIA's Nemotron 3 Embed 1B model.
+with product embeddings generated using NVIDIA's Nemotron 3.5 Embed 1B model.
 
 Features:
 - Skip-if-exists: Won't re-seed if collection already has data
@@ -42,7 +42,8 @@ Environment Variables:
     NIM_EMBED_BASE_URL  - Embedding API base URL
                           Public (default): https://integrate.api.nvidia.com/v1
                           Local NIM example: http://embedqa:8000/v1
-    NIM_EMBED_MODEL_NAME - Embedding model name (default: nvidia/nemotron-3-embed-1b)
+    NIM_EMBED_MODEL_NAME - Embedding model name (default: nvidia/nemotron-3.5-embed-1b)
+                           Local NIM: nvidia/Nemotron-3.5-Embed-1B-BF16
 
     Legacy (backward compatibility):
     EMBED_API_URL       - Full embedding endpoint URL (overrides NIM_EMBED_BASE_URL)
@@ -77,10 +78,10 @@ FORCE_RESEED = os.environ.get("FORCE_RESEED", "false").lower() == "true"
 
 # Embedding configuration - uses same env vars as NAT agent configs for consistency
 # NIM_EMBED_BASE_URL: Public endpoint (default) or local NIM URL
-# NIM_EMBED_MODEL_NAME: Embedding model name (same for both public and local)
+# NIM_EMBED_MODEL_NAME: Embedding model ID served by the configured endpoint
 COLLECTION_NAME = "product_catalog"
 DEFAULT_EMBED_BASE_URL = "https://integrate.api.nvidia.com/v1"
-DEFAULT_EMBED_MODEL = "nvidia/nemotron-3-embed-1b"
+DEFAULT_EMBED_MODEL = "nvidia/nemotron-3.5-embed-1b"
 
 # Get embedding endpoint from NIM_EMBED_BASE_URL (consistent with NAT configs)
 # Falls back to legacy EMBED_API_URL for backward compatibility
@@ -211,12 +212,15 @@ def wait_for_embedding_service() -> bool:
     return False
 
 
-def get_embeddings(texts: list[str]) -> list[list[float]]:
+def get_embeddings(
+    texts: list[str], *, input_type: str = "passage"
+) -> list[list[float]]:
     """
     Generate embeddings using NVIDIA NIM API (hosted or local).
 
     Args:
         texts: List of text strings to embed
+        input_type: Embedding mode, either "passage" or "query"
 
     Returns:
         List of embedding vectors
@@ -234,7 +238,7 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
     payload = {
         "input": texts,
         "model": EMBEDDING_MODEL,
-        "input_type": "passage",
+        "input_type": input_type,
         "encoding_format": "float",
         "truncate": "END",
     }
@@ -362,7 +366,7 @@ def verify_collection(collection: Any):
 
     # Generate embedding for a test query
     test_query = "casual pants to wear with a t-shirt"
-    query_embedding = get_embeddings([test_query])[0]
+    query_embedding = get_embeddings([test_query], input_type="query")[0]
 
     # Search using L2 metric (matches NAT default)
     search_params = {"metric_type": "L2", "params": {"nprobe": 10}}

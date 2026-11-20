@@ -46,9 +46,7 @@ class AppsSdkSettings(BaseSettings):
     recommendation_agent_url: str = "http://localhost:8004"
     search_agent_url: str = "http://localhost:8005"
 
-    # Search tuning — calibrated for embedder nemotron-3-embed-1b.
-    # Genuine matches sit at distance ~1.05-1.63, so cutoff = 2.0.
-    # Minimum similarity, kept consistent: 1/(1+2.0) ≈ 0.33.
+    # Minimum similarity corresponding to the default L2 distance cutoff: 1/(1+2.0).
     search_min_similarity: float = 0.33
     # Max distance to keep a result (0 = off).
     search_distance_cutoff: float = 2.0
