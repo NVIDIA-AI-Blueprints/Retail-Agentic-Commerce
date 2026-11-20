@@ -38,6 +38,7 @@ from a2a.types import (
     AgentProvider,
     AgentSkill,
     DataPart,
+    InternalError,
     InvalidParamsError,
     Message,
     Part,
@@ -51,6 +52,8 @@ from src.merchant.config import get_settings
 from src.merchant.db import get_engine
 from src.merchant.domain.checkout.service import (
     InvalidStateTransitionError,
+    PaymentFailedError,
+    PaymentUnavailableError,
     ProductNotFoundError,
     SessionNotFoundError,
 )
@@ -197,6 +200,12 @@ class UCPCheckoutAgentExecutor(AgentExecutor):
                 raise ServerError(
                     error=InvalidParamsError(message=exc.message)
                 ) from exc
+            except PaymentFailedError as exc:
+                raise ServerError(
+                    error=InvalidParamsError(message=f"Payment declined: {exc.message}")
+                ) from exc
+            except PaymentUnavailableError as exc:
+                raise ServerError(error=InternalError(message=exc.message)) from exc
             except ValueError as exc:
                 raise ServerError(error=InvalidParamsError(message=str(exc))) from exc
 

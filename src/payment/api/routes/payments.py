@@ -35,6 +35,7 @@ from src.payment.services.idempotency import (
 )
 from src.payment.services.payment_intent import (
     AmountExceedsAllowanceError,
+    CheckoutSessionMismatchError,
     CurrencyMismatchError,
     VaultTokenConsumedError,
     VaultTokenExpiredError,
@@ -142,7 +143,7 @@ def delegate_payment(
         404: {"description": "Vault token not found"},
         409: {"description": "Vault token already consumed"},
         410: {"description": "Vault token expired"},
-        422: {"description": "Validation error (amount/currency)"},
+        422: {"description": "Validation error (amount/currency/checkout session)"},
     },
 )
 def process_payment_intent(
@@ -216,6 +217,16 @@ def process_payment_intent(
                 "code": "currency_mismatch",
                 "message": str(e),
                 "param": "currency",
+            },
+        ) from e
+    except CheckoutSessionMismatchError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "type": "invalid_request",
+                "code": "checkout_session_mismatch",
+                "message": str(e),
+                "param": "checkout_session_id",
             },
         ) from e
 

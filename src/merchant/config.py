@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     # Merchant API Security (for client authentication)
     merchant_api_key: str = ""
 
+    # PSP Configuration (Merchant → PSP payment processing on complete)
+    psp_api_url: str = "http://localhost:8001"
+    psp_api_key: str = ""
+    psp_timeout: float = 10.0  # seconds
+
     # UCP Discovery Configuration
     ucp_version: str = "2026-01-23"
     ucp_base_url: str | None = (

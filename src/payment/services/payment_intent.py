@@ -79,6 +79,17 @@ class CurrencyMismatchError(Exception):
         )
 
 
+class CheckoutSessionMismatchError(Exception):
+    """Raised when the vault token is bound to a different checkout session."""
+
+    def __init__(self, requested: str, allowed: str):
+        self.requested = requested
+        self.allowed = allowed
+        super().__init__(
+            f"Vault token is bound to checkout session '{allowed}', not '{requested}'"
+        )
+
+
 def generate_payment_intent_id() -> str:
     """Generate a unique payment intent ID.
 
@@ -107,6 +118,7 @@ def create_and_process_payment_intent(
         VaultTokenExpiredError: If the vault token has expired
         AmountExceedsAllowanceError: If the amount exceeds the allowance
         CurrencyMismatchError: If the currency doesn't match
+        CheckoutSessionMismatchError: If the token belongs to another session
     """
     # Get the vault token
     vault_token = get_vault_token(db, request.vault_token)
@@ -124,6 +136,16 @@ def create_and_process_payment_intent(
 
     # Get allowance constraints
     allowance = get_allowance(vault_token)
+
+    # Validate the token is bound to the checkout session being paid
+    allowed_session_id = str(allowance.get("checkout_session_id", ""))
+    if (
+        request.checkout_session_id is not None
+        and request.checkout_session_id != allowed_session_id
+    ):
+        raise CheckoutSessionMismatchError(
+            request.checkout_session_id, allowed_session_id
+        )
 
     # Validate amount
     max_amount: int = allowance.get("max_amount", 0)

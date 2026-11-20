@@ -22,6 +22,8 @@ from src.merchant.api.dependencies import verify_api_key
 from src.merchant.db.database import get_session
 from src.merchant.domain.checkout.service import (
     InvalidStateTransitionError,
+    PaymentFailedError,
+    PaymentUnavailableError,
     ProductNotFoundError,
     SessionNotFoundError,
     cancel_checkout_session,
@@ -86,6 +88,27 @@ def _handle_service_error(error: Exception) -> HTTPException:
             detail=ErrorResponse(
                 type=ErrorTypeEnum.METHOD_NOT_ALLOWED,
                 code=ErrorResponseCodeEnum.INVALID_STATUS_TRANSITION,
+                message=error.message,
+            ).model_dump(),
+        )
+
+    if isinstance(error, PaymentFailedError):
+        return HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=ErrorResponse(
+                type=ErrorTypeEnum.INVALID_REQUEST,
+                code=ErrorResponseCodeEnum.PAYMENT_DECLINED,
+                message=error.message,
+                param="$.payment_data.token",
+            ).model_dump(),
+        )
+
+    if isinstance(error, PaymentUnavailableError):
+        return HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=ErrorResponse(
+                type=ErrorTypeEnum.SERVICE_UNAVAILABLE,
+                code=ErrorResponseCodeEnum.PAYMENT_PROCESSOR_UNAVAILABLE,
                 message=error.message,
             ).model_dump(),
         )
@@ -224,8 +247,10 @@ async def update_checkout(
     description="Complete a checkout session with payment data.",
     responses={
         200: {"description": "Checkout completed, order created"},
+        402: {"description": "Payment declined by the PSP"},
         404: {"description": "Checkout session not found"},
         405: {"description": "Cannot complete session in current state"},
+        503: {"description": "Payment processor unavailable"},
     },
 )
 def complete_checkout(
@@ -249,7 +274,8 @@ def complete_checkout(
         CheckoutSessionResponse with the completed session and order.
 
     Raises:
-        HTTPException: 404 if session not found, 405 if invalid state.
+        HTTPException: 402 if payment is declined, 404 if session not found,
+            405 if invalid state, 503 if the payment processor is unavailable.
     """
     try:
         response = complete_checkout_session(
@@ -300,7 +326,12 @@ def complete_checkout(
             )
 
         return response
-    except (SessionNotFoundError, InvalidStateTransitionError) as e:
+    except (
+        SessionNotFoundError,
+        InvalidStateTransitionError,
+        PaymentFailedError,
+        PaymentUnavailableError,
+    ) as e:
         raise _handle_service_error(e) from e
 
 

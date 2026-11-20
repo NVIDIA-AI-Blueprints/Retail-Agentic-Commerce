@@ -442,6 +442,62 @@ class TestCreateAndProcessPaymentIntent:
         data = response.json()
         assert data["detail"]["code"] == "currency_mismatch"
 
+    def test_payment_intent_accepts_matching_checkout_session(
+        self,
+        psp_auth_client: TestClient,
+        valid_delegate_payment_request: dict,
+    ) -> None:
+        """Happy path: the session bound to the token can be charged."""
+        vault_token_id = self._create_vault_token(
+            psp_auth_client, valid_delegate_payment_request
+        )
+        session_id = valid_delegate_payment_request["allowance"]["checkout_session_id"]
+
+        response = psp_auth_client.post(
+            "/agentic_commerce/create_and_process_payment_intent",
+            json={
+                "vault_token": vault_token_id,
+                "amount": 2500,
+                "currency": "usd",
+                "checkout_session_id": session_id,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "completed"
+
+    def test_payment_intent_rejects_other_checkout_session(
+        self,
+        psp_auth_client: TestClient,
+        valid_delegate_payment_request: dict,
+    ) -> None:
+        """Failure case: a token bound to one session cannot pay for another."""
+        vault_token_id = self._create_vault_token(
+            psp_auth_client, valid_delegate_payment_request
+        )
+
+        response = psp_auth_client.post(
+            "/agentic_commerce/create_and_process_payment_intent",
+            json={
+                "vault_token": vault_token_id,
+                "amount": 2500,
+                "currency": "usd",
+                "checkout_session_id": "checkout_someone_else",
+            },
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data["detail"]["code"] == "checkout_session_mismatch"
+        assert data["detail"]["param"] == "checkout_session_id"
+
+        # The token is not consumed by a rejected charge
+        retry = psp_auth_client.post(
+            "/agentic_commerce/create_and_process_payment_intent",
+            json={"vault_token": vault_token_id, "amount": 2500, "currency": "usd"},
+        )
+        assert retry.status_code == 200
+
     def test_payment_intent_consumes_token(
         self,
         psp_auth_client: TestClient,

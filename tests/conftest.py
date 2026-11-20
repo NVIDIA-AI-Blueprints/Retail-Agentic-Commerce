@@ -17,7 +17,7 @@
 
 import os
 from collections.abc import Generator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 from src.merchant.config import get_settings
 from src.merchant.main import app
 from src.merchant.services.idempotency import reset_idempotency_store
+from src.merchant.services.payment import PaymentResult
 from src.merchant.services.promotion import PromotionAction, PromotionDecisionOutput
 
 # Test API key for authentication tests
@@ -124,5 +125,38 @@ def mock_promotion_agent() -> Generator[AsyncMock, None, None]:
         "src.merchant.services.promotion.PromotionAgentClient.get_promotion_decision",
         new_callable=AsyncMock,
         return_value=mock_decision,
+    ) as mock:
+        yield mock
+
+
+@pytest.fixture(autouse=True)
+def mock_psp_payment(
+    request: pytest.FixtureRequest,
+) -> Generator[MagicMock | None, None, None]:
+    """Mock the merchant's PSP client so checkout completion does not need a PSP.
+
+    The mock approves every charge. Tests that assert payment enforcement can
+    configure ``side_effect`` on the yielded mock. Tests marked ``real_psp``
+    keep the real client (and route its HTTP calls themselves).
+
+    Yields:
+        MagicMock for ``PSPClient.create_and_process_payment_intent`` or None.
+    """
+    if request.node.get_closest_marker("real_psp") is not None:
+        yield None
+        return
+
+    def _approve(
+        *, vault_token: str, amount: int, currency: str, checkout_session_id: str
+    ) -> PaymentResult:
+        del vault_token, checkout_session_id
+        return PaymentResult(
+            payment_intent_id="pi_test_mock", amount=amount, currency=currency
+        )
+
+    with patch(
+        "src.merchant.services.payment.PSPClient.create_and_process_payment_intent",
+        autospec=False,
+        side_effect=_approve,
     ) as mock:
         yield mock
