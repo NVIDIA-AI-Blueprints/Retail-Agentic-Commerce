@@ -17,7 +17,6 @@ from opentelemetry.trace import Span, StatusCode, Tracer
 from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
-PUBLIC_NIM = "https://integrate.api.nvidia.com/v1"
 TEMPORARY_STATUSES = {429, 500, 502, 503, 504}
 RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0)
 
@@ -41,7 +40,7 @@ def create_chat_model(settings: ModelSettings) -> ChatNVIDIA:
     )
     return ChatNVIDIA(
         model=model,
-        base_url=os.getenv("NIM_LLM_BASE_URL", PUBLIC_NIM),
+        base_url=os.getenv("NIM_LLM_BASE_URL") or None,
         temperature=settings.temperature,
         max_completion_tokens=settings.max_tokens,
         model_kwargs=settings.model_dump(
@@ -53,7 +52,7 @@ def create_chat_model(settings: ModelSettings) -> ChatNVIDIA:
 def create_embedder() -> NVIDIAEmbeddings:
     return NVIDIAEmbeddings(
         model=os.getenv("NIM_EMBED_MODEL_NAME", "nvidia/nemotron-3.5-embed-1b"),
-        base_url=os.getenv("NIM_EMBED_BASE_URL", PUBLIC_NIM),
+        base_url=os.getenv("NIM_EMBED_BASE_URL") or None,
         truncate="END",
     )
 
